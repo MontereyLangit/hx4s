@@ -28,13 +28,27 @@ npm run typecheck             # hx4s-vite と、文書の TypeScript の例（te
 node scripts/check-independence.mjs
 ```
 
-examples を動かすには、ローカル公開が要ります。
+examples を動かすには、ローカル公開が要ります。テストはビルドの出力（`dist`）を読むので、`npm test` の前に `npm run build` を実行します。
+`examples/minimal` の E2E は Playwright の Chromium を使います（`HX4S_SKIP_E2E=1` で E2E だけ飛ばせます）。
 
 ```bash
 node scripts/publish-local.mjs
 node scripts/setup-example.mjs minimal
-cd examples/minimal && npm test
+cd examples/minimal
+npx playwright install chromium   # 初回だけ
+npm run build
+npm run typecheck
+npm test
+cd ../..
+
+node scripts/setup-example.mjs api-only
+cd examples/api-only
+npm run build
+npm run typecheck
+npm test
 ```
+
+CI（`.github/workflows/ci.yml`）も同じ順で動かします。
 
 テストの内訳は [docs/testing.md](docs/testing.md)、examples は [docs/examples.md](docs/examples.md)。
 コードを変えたら、関係するテストを足し、上のコマンドが通ることを確かめてから出してください。CI は Ubuntu と Windows で同じものを走らせます。
