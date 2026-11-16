@@ -22,22 +22,36 @@ hx4s を Maven Central / npm に公開するまでの間（[ADR 0006](adr/0006-o
   "dirty": false,
   "dirtyHash": null,
   "maven": [
-    { "organization": "io.github.montereylangit", "name": "hx4s-codegen_3", "version": "0.1.0-local.gd140b21886", "path": "io.github.montereylangit/hx4s-codegen_3/0.1.0-local.gd140b21886" },
-    { "organization": "io.github.montereylangit", "name": "sbt-hx4s", "version": "0.1.0-local.gd140b21886", "path": "io.github.montereylangit/sbt-hx4s/scala_2.12/sbt_1.0/0.1.0-local.gd140b21886" }
+    {
+      "organization": "io.github.montereylangit",
+      "name": "hx4s-codegen_3",
+      "version": "0.1.0-local.gd140b21886",
+      "path": "io.github.montereylangit/hx4s-codegen_3/0.1.0-local.gd140b21886",
+      "files": [
+        { "path": "ivys/ivy.xml", "sha256": "…" },
+        { "path": "jars/hx4s-codegen_3.jar", "sha256": "…" },
+        { "path": "srcs/hx4s-codegen_3-sources.jar", "sha256": "…" },
+        { "path": "docs/hx4s-codegen_3-javadoc.jar", "sha256": "…" },
+        { "path": "poms/hx4s-codegen_3.pom", "sha256": "…" }
+      ]
+    }
   ],
   "npm": { "name": "hx4s-vite", "file": "hx4s-vite.tgz", "sha256": "e1015d78…" }
 }
 ```
 
-（`maven` は実際には `hx4s-core_3`・`hx4s-core_sjs1_3`・`hx4s-react_sjs1_3` を含む 5 件。`path` は `~/.ivy2/local` からの相対）
+（`maven` は実際には `hx4s-codegen_3`・`hx4s-core_3`・`hx4s-core_sjs1_3`・`hx4s-react_sjs1_3`・`sbt-hx4s` の 5 件。`path` は `~/.ivy2/local` からの相対で、sbt-hx4s は `…/sbt-hx4s/scala_2.12/sbt_1.0/<版>`。
+`files` は `ivys/ivy.xml` と、その `publications` が指す実体（`[type]s/[artifact](-[classifier]).[ext]`）。記録の形と照合は `scripts/lib/publish-record.mjs`、負のケースは `tests/publish-record.test.js`）
 
 `--verify` が見るのは次のとおり。
 
-1. `hx4s-publish.json` があり、sbt・npm の記録と同じ版・commit・作業ツリーの状態であること
-2. `--version` / `--commit` を渡したときは、記録の版・commit がそれと同じであること（`--commit` は 40 桁の SHA だけを受け付ける）
-3. 記録の commit が今の HEAD と同じで、公開対象のソース（`build.sbt`・`project`・`modules`・`sbt-plugin/src/main`・`vite`・`LICENSE`・`NOTICE`。テストを除く）の未コミットの変更が記録と同じであること
-4. `~/.ivy2/local` に記録の成果物（`ivys/ivy.xml`）があり、`hx4s-vite.tgz` の SHA-256 が記録と同じであること
-5. `hx4s-version.txt` が記録の版を持つこと
+1. `hx4s-publish.json` が `format: 1` の項目をちょうど持つこと（欠落・余分な項目・空の `maven` は失敗）。`maven` の名前の集合が 5 件の一覧（`mavenNames`）と同じで、
+   `npm` の名前・ファイル名が `hx4s-vite`・`hx4s-vite.tgz` であること
+2. sbt・npm の部分の記録が、完了の記録と同じ版・commit・作業ツリーの状態と、同じ成果物の情報（`maven` / `npm`）を持つこと
+3. `--version` / `--commit` を渡したときは、記録の版・commit がそれと同じであること（`--commit` は 40 桁の SHA だけを受け付ける）
+4. 記録の commit が今の HEAD と同じで、公開対象のソース（`version.txt`・`build.sbt`・`project`・`modules`・`sbt-plugin/src/main`・`vite`・ルートの `package.json` と `package-lock.json`・`LICENSE`・`NOTICE`。テストを除く）の未コミットの変更が記録と同じであること
+5. `~/.ivy2/local` の記録の各ファイルがあり、SHA-256 が記録と同じこと。`hx4s-vite.tgz` の SHA-256 も同じこと
+6. `hx4s-version.txt` が記録の版を持つこと
 
 `~/.ivy2/local` 以外（`sbt.ivy.home` を変えた環境）は扱わない。
 

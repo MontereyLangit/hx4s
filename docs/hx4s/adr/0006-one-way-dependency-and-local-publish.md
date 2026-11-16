@@ -32,6 +32,8 @@ hx4s を 3ch から分離したあと、3ch は hx4s を使う側になる。hx4
     - 利用側は lock ファイル（commit の完全な SHA と版）を持ち、セットアップスクリプトで hx4s の HEAD とクリーンさを確かめてから `--verify`、通らなければ `--version` で公開する。
       手順とスクリプトの例は [local-dependency.md](../local-dependency.md)。
     - npm・sbt はシェルを介さずに起動する（Windows の sbt.bat だけは cmd.exe に引用済みの 1 行で渡す）。パスの空白・`&` で壊れないようにするため。
+    - 最終レビューで足したこと: 作業ツリーの状態にルートの `package.json` / `package-lock.json` を含める。Maven の成果物は `ivy.xml` の存在だけでなく、
+      `ivy.xml` と publications の実体の SHA-256 を記録して照らす。完了の記録は項目・成果物の集合・部分の記録との一致を厳密に確かめる（[reviews/final-review.md](../reviews/final-review.md)）。
 - CI での **公開を伴う** 解決方式は Phase 5 で決める。
 - ただし、公開が無くても再現できる検証経路は Phase 4 の前提にする。
   - commit を固定した hx4s の checkout から、`publishLocal` と npm パッケージの準備（`npm pack` など）を行う手順をスクリプトにする。

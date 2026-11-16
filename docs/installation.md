@@ -48,7 +48,7 @@ node scripts/publish-local.mjs --verify --version 0.1.0-local.3 --commit <40 桁
 
 | ファイル | 書くとき | 内容 |
 | --- | --- | --- |
-| `hx4s-publish-sbt.json` / `hx4s-publish-npm.json` | それぞれの公開が成功したとき | 版、commit、作業ツリーの状態（`dirty` / `dirtyHash`）と、Maven の成果物の一覧または tgz のファイル名と SHA-256 |
+| `hx4s-publish-sbt.json` / `hx4s-publish-npm.json` | それぞれの公開が成功したとき | 版、commit、作業ツリーの状態（`dirty` / `dirtyHash`）と、Maven の成果物の一覧（`ivy.xml` と JAR・sources・javadoc・pom の SHA-256）または tgz のファイル名と SHA-256 |
 | `hx4s-publish.json` | 上の 2 つが同じ版・commit・作業ツリーの状態で、成果物がそろっているときだけ | 2 つをまとめた完了の記録（`format: 1`） |
 | `hx4s-version.txt` | `hx4s-publish.json` と同時 | 版だけ。JSON を読めない `project/plugins.sbt` 向け |
 

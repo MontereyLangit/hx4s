@@ -39,6 +39,7 @@ examples は [examples.md](examples.md)。CI（`.github/workflows/ci.yml`）は 
 | `route-paths.test.js` | `RoutePathSuite` と同じ表を HonoX の `createApp` に通し、登録される URL パターンが一致すること |
 | `node-loader.test.js` | `hx4s-vite/node-loader` を利用側の loader と並べて登録できること |
 | `scripts-command.test.js` | スクリプトが空白と `&` を含むパスでも npm / sbt を起動できること |
+| `publish-record.test.js` | ローカル公開の記録と `--verify` の照合（一時ディレクトリの git・ivy・記録で）。lockfile だけの変更、ivy の JAR・sources・pom の削除と置き換え、完了の記録の項目の欠落・空配列・余分な項目・成果物の集合の食い違い、部分の記録との食い違いで失敗すること |
 | `independence.test.js` | 独立性の検査 |
 | `version.test.js` | `vite/package.json`・`package-lock.json` の版が `version.txt` と同じこと、`build.sbt` とローカル公開の版が `version.txt` から作られること |
 
