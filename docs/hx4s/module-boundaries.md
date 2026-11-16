@@ -100,8 +100,8 @@
 
 | モジュール | 公開 API（互換性を守る） | 内部 API（予告なく変える） |
 | --- | --- | --- |
-| hx4s-core | `hx4s.annotation.route`、`hx4s.annotation.islands[P]` の名前・引数の順と名前 | — |
-| hx4s-react | `hx4s.react.Island.apply`、`hx4s.hono.Context[Env]` / `Request` の facade、`renderPromise` | `HonoXIsland` の facade と `IslandProps`（H1）。`private` にする |
+| hx4s-core | `hx4s.annotation.route`、`hx4s.annotation.islands[P]` の名前・引数の順と名前。JS 側の `hx4s.props.{JsShape, JsKind, JsField}` | — |
+| hx4s-react | `hx4s.react.Island.apply`、`hx4s.react.IslandExport[P]`（`apply` / `unchecked`）と export に付ける検証関数の名前 `hx4sValidate`、`hx4s.hono.Context[Env, R]` / `HonoRequest` の facade、`renderPromise` | `HonoXIsland` の facade と `IslandProps`（H1）。`private` にしてある |
 | hx4s-codegen | 設定 case class（3ch の `CodegenConfig` が原型。名前は Phase 3 で確定）、CLI の引数、生成物の形（バナー・ファイル配置・`IslandComponents` のメソッド名規則） | `AppEntries` などの中間表現、`AppFileRenderer` のテンプレート関数 |
 | sbt-hx4s | 設定キー（`hx4s*`）と `hx4sGenerate` タスク | 専用 configuration の名前、隔離実行の方式 |
 | hx4s-vite | `hx4s()` プラグイン関数のオプション、Node 用 loader のエントリ | 内部で組む Vite 設定の細部（alias の接頭辞など） |

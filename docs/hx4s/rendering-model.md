@@ -113,6 +113,9 @@ client の island コンポーネントが同じ `P` を読む保証は無い。
 対策候補として、client の export を `P` に結び付ける **typed export 補助**（例: `def XxxJs: IslandExport[P]` のような型で、`P` と一致しない実装をコンパイルエラーにする）を Phase 3 の設計項目にする（[extraction-plan.md](extraction-plan.md) 3-1a、未決事項 U-24）。
 それまでは、shared の `validate` と、client 側の読み取りコードのレビューで補う。
 
+**Phase 3 で実装した**: `hx4s.react.IslandExport[P]`（[ADR 0007](adr/0007-props-validation-and-typed-export.md)）。export の宣言型 `IslandExport[T]` と `@islands[P]` を codegen が構文で照合し、
+宣言型と描画関数の props の型はコンパイラが照合する。受信した JSON は `JsShape` で確かめ、hydrate の前にも同じ検証関数を呼んで不一致なら SSR の markup を残す（2.4 の P0 の方針）。
+
 **JSON 往復が保証しないこと**: `P` に適合する値でも、次は `JSON.stringify` を通すと失われる、または失敗する。
 
 | 項目 | 挙動 | 対応 |

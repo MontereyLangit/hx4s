@@ -105,8 +105,16 @@
 | 3-3 | `sbt-hx4s` を作る。設定キー・`hx4sGenerate`・専用 configuration での `hx4s-codegen` 解決と fork 実行（[build-integration.md](build-integration.md) 3.2） |
 | 3-4 | `hx4s-vite` を npm パッケージにする（`package.json`、型定義、`node-loader`） |
 | 3-1a | typed export 補助の設計と実装（client の export を `@islands[P]` の `P` に結び付ける。[ADR 0003](adr/0003-typed-island-props.md)、U-24） |
-| 3-5 | `examples/minimal` を作る。SSR のページ 1 つ、island 1 つ（型付き Props）、POST の `@route` 1 つ。Node で動く Hono アダプタ（`@hono/vite-build/node` など）を使い、Cloudflare に依存しない |
+| 3-5 | `examples/minimal` を作る。静的ページと動的ルート `[id]`、POST の `@route`、island 2 つ（型付き Props。同じ island の複数インスタンス、配列・入れ子・日本語の props）。実行基盤は Cloudflare Workers（`@hono/vite-build/cloudflare-workers` + wrangler）を既定にする（下記） |
 | 3-6 | hx4s の CI: `sbt test`、`sbt publishLocal`、`examples/minimal` のビルドと互換性テスト（[compatibility.md](compatibility.md) 3 章） |
+
+3-5 の実行基盤は、Phase 0 の案（Node アダプタ）から Cloudflare Workers に変えた（Phase 3 の作業指示による）。理由: 最初の利用者（3ch）が Workers で動いており、
+同じ組み合わせ（`@hono/vite-build/cloudflare-workers`、Static Assets、workerd）を hx4s の側でも検証できる。Cloudflare に依存するのは examples の
+`vite.config.ts`・`wrangler.jsonc`・テストの起動だけで、hx4s のモジュールは Cloudflare の API を参照しない（[ADR 0005](adr/0005-core-independent-of-cloudflare.md)）。
+ビルドした Worker は Node からも `fetch` を呼べるので、SSR・POST のテストは Node で、実ブラウザの E2E は `wrangler dev` で行う。
+
+Phase 3 の実施結果（2026-11-16）: 3-1〜3-6 と 3-1a を実装した。U-5（履歴の引き継ぎ）は見送り、ファイルを移して改名したコミットとして入れた
+（移動元の履歴に秘匿値を含みうるため。移動元の commit は各コミットの本文に書いていない）。検証の結果と既知の問題は [reviews/phase3-review.md](reviews/phase3-review.md)。
 
 検証条件:
 
@@ -135,7 +143,7 @@
 
 検証条件: Phase 1 の検証条件をすべて満たし、生成物が Phase 2 完了時と同一（バナーを除く）。上の前提（空の依存キャッシュからのビルド）を満たす。
 
-完了条件: 3ch の `develop` に入り、本番にデプロイされて動いている。
+完了条件: 3ch の `develop` に入り、ローカルのビルドと全テストが通る（デプロイは 3ch 側の判断）。
 
 ### Phase 5: 公開の準備
 

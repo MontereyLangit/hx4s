@@ -103,6 +103,10 @@ hx4s は独自のルート表を持たず、`@route` を「どのファイルを
 
 `hx4s-react` に汎用の Hono Context facade を置き、Env を型引数にする。
 
+Phase 3 の実装は `hx4s.hono.Context[Env, R <: js.Object]`（R は `c.render` に渡すレンダラの props）と `hx4s.hono.HonoRequest`（`raw: org.scalajs.dom.Request`、`param` / `query` / `header` / `method` / `url` / `path`）で、
+`Context` には `res`・`header`・`status`・`text`・`json`・`redirect`・`render` と拡張メソッド `renderPromise` がある。facade の名前は scalajs-dom の `Request` と紛れないよう `HonoRequest` にした。
+下は Phase 0 の案。
+
 ```scala
 package hx4s.hono
 

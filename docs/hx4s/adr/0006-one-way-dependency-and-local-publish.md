@@ -14,6 +14,9 @@ hx4s を 3ch から分離したあと、3ch は hx4s を使う側になる。hx4
 - 分離後しばらくは、ローカルの依存を許す。
   - sbt: hx4s で `sbt publishLocal` し、3ch は通常の `libraryDependencies` / `addSbtPlugin` で `~/.ivy2/local` から解決する。版は `-SNAPSHOT` を使わず、`0.1.0-local.N` のように明示する案（同じ版の上書きでキャッシュが古いまま残る事故を避けるため）。
   - npm: 3ch の `package.json` で `"hx4s-vite": "file:../hx4s/vite"` のように参照する。
+  - Phase 3 の実装（`scripts/publish-local.mjs`）: 既定の版は `0.1.0-local.g<commit>`（追跡中のファイルに変更があれば `.dirty` を付ける）、`--version` で明示もできる。
+    npm は `vite/` をそのまま参照せず、ビルドして `npm pack` した `target/local/hx4s-vite.tgz` を `file:` で参照する（`node_modules` を持つ作業ディレクトリへのリンクにならないため）。
+    公開した版は `target/local/hx4s-version.txt` に書く。ビルドの既定の版（`0.1.0-SNAPSHOT`）はローカル公開には使わない。
 - CI での **公開を伴う** 解決方式は Phase 5 で決める。
 - ただし、公開が無くても再現できる検証経路は Phase 4 の前提にする。
   - commit を固定した hx4s の checkout から、`publishLocal` と npm パッケージの準備（`npm pack` など）を行う手順をスクリプトにする。

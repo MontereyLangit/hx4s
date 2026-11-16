@@ -102,56 +102,69 @@ P0 が **既定かつ検証済みの唯一の組み合わせ** とするのは�
 設定可能にするには、codegen と hx4s-vite の両方に同じ値を渡す共通設定が要る。P0 では作らず、P1 の未決事項とする（[roadmap.md](roadmap.md) U-18、U-25）。
 sbt-hx4s の設定キー（2.2）は、これらの既定値以外を受け付けるキーであっても、P0 では既定値以外を検証しない。既定値以外を使う統合テストを足すまで「未検証」と書く。
 
-### 2.1 hx4s-vite の API 案
+### 2.1 hx4s-vite の API（Phase 3 で実装）
 
 ```ts
 import { defineConfig } from "vite";
 import hx4s from "hx4s-vite";
 import buildCloudflareWorkers from "@hono/vite-build/cloudflare-workers"; // 利用側の選択
 
-export default defineConfig(({ mode }) => ({
-  plugins: [
-    hx4s({
-      mode,                         // "client" | それ以外（server）
-      sbt: { cwd: import.meta.dirname },
-      server: { projectID: "server" },
-      client: { projectID: "client", entry: "./app/client.ts" },
-      honox: {},                    // honox() へそのまま渡す追加オプション
-    }),
-    ...(mode === "client" ? [] : [buildCloudflareWorkers({ /* … */ })]),
-  ],
-}));
+export default defineConfig(({ mode }) => {
+  const plugins = hx4s({
+    mode,                         // "client" | それ以外（server）
+    sbt: { cwd: import.meta.dirname },
+    server: { projectID: "server" },                       // 既定値
+    client: { projectID: "client", entry: "./app/client.ts" }, // 既定値。module・uriPrefix も変えられる
+    honox: {},                    // honox() へそのまま渡す追加オプション
+  });
+  return mode === "client"
+    ? { plugins, build: { outDir: "dist/client" } }
+    : { plugins: [...plugins, buildCloudflareWorkers({ outputDir: "dist/server" })] };
+});
 ```
 
-- 戻り値は Plugin の配列。client モードでは client の Scala.js プラグインと Rollup 設定だけ、server モードでは `honox()`・server と client の Scala.js プラグイン・alias を返す。
+- 戻り値は `PluginOption[]`。client モードでは client の Scala.js プラグインと、`config` フックで出力名（`static/client.js`・`static/assets/*`）と `emptyOutDir: false` を足すプラグインを返す。
+  server モードでは `honox()`（`islandComponents.reactApiImportSource` の既定は `"react"`）・server と client の Scala.js プラグイン・`scalajs:client.js` → `scalajs-client:client.js` の別名を返す。
 - `mode` の名前（`client`）は HonoX の `honox-vite-client` の判定（`mode === "client"`）に合わせる。
-- Scala.js プラグインは `@scala-js/vite-plugin-scalajs` をそのまま使い、`buildStart` の直列化だけを足す。フォークしない。
+- Scala.js プラグインは `@scala-js/vite-plugin-scalajs` をそのまま使い、`buildStart` の直列化だけを足す（`scalaProject()` として export）。フォークしない。
+- Node 用 loader は `hx4s-vite/node-register`（`--import` に渡す）。`scalajs:client.js` を `HX4S_CLIENT_JS_DIR/client.js` に、honox 内の `hono/jsx` を `react` に解決する。
+- peerDependencies は検証した版だけにする（`honox` 0.1.62、`@scala-js/vite-plugin-scalajs` 1.1.0、`vite` ^8.3.3）。vite-plugin-scalajs が vite を `"4.1.4 - 7"` の dependencies に持つので、利用側は `overrides` で `"vite": "$vite"` を指定する（[compatibility.md](compatibility.md) 1.3）。
 
-### 2.2 sbt-hx4s の設定案
+### 2.2 sbt-hx4s の設定（Phase 3 で実装）
 
 ```scala
 // project/plugins.sbt
 addSbtPlugin("io.github.montereylangit" % "sbt-hx4s" % "<version>")
 
 // build.sbt
-lazy val server = project.enablePlugins(ScalaJSPlugin, Hx4sServerPlugin)
+lazy val server = project.enablePlugins(ScalaJSPlugin, Hx4sPlugin).dependsOn(shared)
   .settings(
-    hx4sServerMain := (Compile / scalaSource).value / "app" / "Main.scala",
-    hx4sClientMain := (client / Compile / scalaSource).value / "app" / "Main.scala",
-    hx4sAppDir := (ThisBuild / baseDirectory).value / "app",
-    hx4sIslandComponentsPackage := "app.generated",
+    hx4sClientProject := client,
+    libraryDependencies += "io.github.montereylangit" %%% "hx4s-react" % hx4sVersion,
   )
 ```
 
-| キー | 既定値（案） | 説明 |
+利用者が書くのは `enablePlugins(Hx4sPlugin)` と `hx4sClientProject` だけで、残りは既定値で動く。AutoPlugin は `Hx4sPlugin` 1 つで、server プロジェクトで有効にする
+（Phase 0 の案の `Hx4sServerPlugin` と、ソースを 1 ファイルずつ指定する `hx4sServerMain` / `hx4sClientMain`・`hx4sMainObject` は採らなかった。
+codegen はトップレベル object の名前を問わずに読むので、プロジェクトの Scala ソースを全部渡せば足りる）。
+
+| キー | 既定値 | 説明 |
 | --- | --- | --- |
-| `hx4sServerMain` / `hx4sClientMain` | なし（必須） | アノテーションを読むソースファイル |
-| `hx4sMainObject` | `"Main"` | 走査する object 名 |
-| `hx4sServerModuleId` / `hx4sClientModuleId` | `"server"` / `"client"` | `@JSExportTopLevel` の moduleID。仮想モジュール名 `scalajs:<id>.js` にもなる |
-| `hx4sAppDir` | `baseDirectory / "app"` | `routes/` と `islands/` の親 |
-| `hx4sIslandComponentsPackage` | `"hx4s.generated"` | 生成 Scala のパッケージ |
-| `hx4sCodegenVersion` | プラグインと同じ版 | 解決する `hx4s-codegen` の版 |
-| `hx4sGenerate` | タスク | 生成を実行し、書いたファイルの一覧を返す |
+| `hx4sClientProject` | なし | `@islands` を持つ client プロジェクト。`hx4sClientSources` の既定の取り出し元 |
+| `hx4sServerSources` / `hx4sClientSources` | このプロジェクト / `hx4sClientProject` の `Compile / unmanagedSources`（`.scala`） | アノテーションを読むソースファイル |
+| `hx4sProjectRoot` | `ThisBuild / baseDirectory` | 生成の基準（Vite の root）。ソースのパスはここからの相対で codegen に渡し、誤りの表示もこの相対パスになる |
+| `hx4sRouteDir` / `hx4sIslandDir` | `<root>/app/routes` / `<root>/app/islands` | 出力先 |
+| `hx4sIslandIdPrefix`、`hx4sServerModule` / `hx4sClientModule`、`hx4sVirtualModulePrefix` | `/app/islands/`、`server` / `client`、`scalajs:` | 2.0 の固定値。変えるときは hx4s-vite と HonoX の側も合わせる（未検証） |
+| `hx4sIslandComponentsPackage` / `hx4sIslandComponentsObject` | `hx4s.generated` / `IslandComponents` | 生成 Scala の名前 |
+| `hx4sIslandBridge`、`hx4sIslandExportType`、`hx4sAnnotationPackage` | `hx4s.react.Island`、`hx4s.react.IslandExport`、`hx4s.annotation` | 生成物が参照する hx4s の名前 |
+| `hx4sBanner` / `hx4sGeneratedMarker` | 空 / `None`（codegen の既定） | 生成物の先頭行 |
+| `hx4sCodegenVersion` | プラグインと同じ版 | 解決する `hx4s-codegen_3` の版 |
+| `hx4sCodegenJavaOptions` | 空 | codegen を動かす JVM のオプション |
+| `hx4sVersion`（値） | プラグインの版 | `hx4s-core` / `hx4s-react` の依存に使う |
+| `hx4sGenerate` | タスク | route / island の TS を生成し、出力先にある生成ファイルの一覧を返す |
+| `hx4sIslandComponents` | タスク | `IslandComponents.scala` を `Compile / sourceManaged` に生成する。`Compile / sourceGenerators` に登録済み。入力（client のソースと引数）が変わらなければ codegen を起動しない |
+
+設定キーの詳細と codegen の引数の対応は [codegen.md](codegen.md) の「設定」。
 
 ## 3. codegen の方式比較
 
@@ -174,9 +187,16 @@ lazy val server = project.enablePlugins(ScalaJSPlugin, Hx4sServerPlugin)
 - **scalafmt 方式**（sbt-scalafmt / scalafmt-dynamic）: 実行時に指定版の成果物を取得し、隔離したクラスローダで読み込む。
 - **ScalaPB 方式**（sbt-protoc / protocbridge）: 生成器を別の Scala 版でも動かせるように、専用 configuration で解決した成果物を隔離実行する。
 
-P0 は実装の単純さを優先して **fork**（`Fork.java` で `java -cp <resolved> hx4s.codegen.Main <args>`）にする。JVM を 1 回余分に起動するが、
+P0 は実装の単純さを優先して **fork**（`Fork.java` で `java -cp <resolved> hx4s.codegen.CodegenMain <args>`）にする。JVM を 1 回余分に起動するが、
 クラスローダの分離（Scala 2.12 と 3 の標準ライブラリの衝突）を考えなくてよい。起動の重さが問題になったら同一 JVM 内の隔離クラスローダに切り替える。
-設定は case class（3ch の `CodegenConfig` が原型）を JSON（または引数列）にして渡す。どちらにするかは Phase 3 で決める（3ch の `GenerateAppFiles` は現在 `--project-root` などの引数だけを受け、設定は `config` に書かれている）。
+
+Phase 3 の実装:
+
+- `hx4s-codegen_3` は専用 configuration `hx4s-codegen`（`hide`）の `libraryDependencies` にし、`update` の結果からクラスパスを取る（`hx4sCodegenClasspath`）。
+- 設定は JSON ではなく `--key value` の引数列で渡す（`CodegenMain` が受ける形。sbt を使わない呼び出しと同じ）。引数はシェルを介さず `ProcessBuilder` に渡すので、空白や `[]` を含むパスもそのまま通る。
+- fork した JVM の出力は sbt のロガーへ流す。終了コードが 0 でなければ、`[hx4s-codegen] error: <パス>:<行>: <理由>` の行を集めてタスクの失敗メッセージに含める。
+- sbt 本体の JVM では codegen を動かさない（`System.exit` や Scala 3 の標準ライブラリの読み込みが sbt に及ばない）。
+- 検証は `sbt-plugin/src/sbt-test/hx4s/` の scripted テスト（生成・再生成・古い生成物の削除・`sourceGenerators`、誤ったアノテーションでの失敗と行番号）。
 
 sbt 2.x（Scala 3）に移れば同じクラスローダで呼べる見込みだが、sbt 2 の正式版への移行時期が読めないので前提にしない（U-10）。
 
@@ -188,7 +208,7 @@ sbt 2.x（Scala 3）に移れば同じクラスローダで呼べる見込みだ
 | --- | --- | --- |
 | 決定的な出力（並び順・改行） | ルートはパスでソート、island は宣言順。改行は `\n` | 同じ。island の順も宣言順で固定する |
 | 内容が同じなら書き直さない | ある（`sameContent`。改行コードの違いは無視） | 同じ。比較は改行コードを `\n` に揃えてから行う（Windows の `core.autocrlf=true` の LF/CRLF 差で毎回書き直さないため） |
-| 生成バナーの無いファイルは上書き・削除しない | ある（先頭行が `generatedMarker` で始まるか） | 同じ。接頭辞は hx4s の固定文字列にし、3ch の旧バナーも移行期間は認める |
+| 生成バナーの無いファイルは上書き・削除しない | ある（先頭行が `generatedMarker` で始まるか） | 同じ。既定の接頭辞は `// This file is generated by hx4s-codegen`。旧バナーの移行は、組み込みで複数のマーカーを認めるのではなく、利用側が `hx4sBanner` / `hx4sGeneratedMarker` を旧値にする（Phase 3 の判断。[codegen.md](codegen.md)） |
 | 全検査を書き込み前に済ませる | ある（`plan` が誤りを集め、1 件でもあれば何も書かない） | 同じ |
 | 出力先ルート外への書き込み拒否 | セグメント検査（`..`・予約名・文字種）と、字句的な正規化後のパスが出力ルート配下かの検査 | 同じ。リンクの扱いは下の「リンクの方針」で別に定める |
 | 大文字小文字違いの衝突検出 | ある（出力同士、既存ファイル・ディレクトリとの差） | 同じ（NTFS / APFS の既定が大文字小文字を区別しないため） |
@@ -196,8 +216,8 @@ sbt 2.x（Scala 3）に移れば同じクラスローダで呼べる見込みだ
 
 #### 実行順と、保証しないこと
 
-**現状**（`OutputWriter.write`）: 検査 → 古い生成物の削除 → 内容が違うファイルを `Files.write` で書く、の順である。一時ファイル経由の置き換えはしていない。
-削除が書き込みより先なので、書き込み中に失敗すると、古い生成物が消えて新しい生成物が一部しか無い状態になりうる。
+**Phase 0 時点の現状**（`OutputWriter.write`）: 検査 → 古い生成物の削除 → 内容が違うファイルを `Files.write` で書く、の順だった。一時ファイル経由の置き換えはしていない。
+削除が書き込みより先なので、書き込み中に失敗すると、古い生成物が消えて新しい生成物が一部しか無い状態になりえた。hx4s-codegen では下の方針の順に直してある。
 
 **P0 の方針**: この文書では「原子性」という語を使わず、次の範囲だけを保証する。
 
@@ -221,8 +241,10 @@ sbt 2.x（Scala 3）に移れば同じクラスローダで呼べる見込みだ
 | 末端のファイル | 既存のものが symlink なら拒否（`Files.write` はリンクを辿って外へ書く） |
 | 削除対象 | リンクは削除しない（`walkFiles` の `!Files.isSymbolicLink` を維持。junction も同様に判定する） |
 
-**実装状況**: 未了。`875a47b` の `OutputPath.resolve` は字句的な正規化だけで、実パス（`toRealPath`）もリンクも見ていない。`OutputWriter` の出力ファイルは `Files.write` で書かれる。
-この方針に必要な検査は Phase 1 の 1-3 で足す。Windows の junction は `Files.isSymbolicLink` では検出できないことがあるので、`Files.readAttributes` の属性（`isOther` など）や `toRealPath` との比較で確かめる（実装時に確定）。
+**実装状況**: 実装済み（移動元の Phase 1 で入り、Phase 3 で hx4s-codegen に移した）。判定は `Files.readAttributes(path, BasicFileAttributes, NOFOLLOW_LINKS)` の `isSymbolicLink || isOther`
+（Java はジャンクションを `isSymbolicLink=false`・`isOther=true` として返す）。古い生成物の探索は `Files.walk` を使わず自前で走査し、リンクがあれば誤りにする。
+実行順は「大文字小文字だけ違う古い生成物の削除 → 書き込み → 残りの古い生成物の削除」。下の負のテストは `OutputWriterSuite` にある。
+Windows の手元ではジャンクションのテストが通り、シンボリックリンクのテストは作成権限が無く `assume` で飛ぶ（Linux の CI で走る）。
 
 負のテスト（検証条件）: 次の 5 つで、外部へ書き込まれず削除もされず、エラーになること。Windows では junction のテストを手元で確認する（symlink の作成に権限が要る環境ではスキップ可）。
 
