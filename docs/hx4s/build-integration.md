@@ -136,6 +136,7 @@ export default defineConfig(({ mode }) => {
   `hx4s.react.IslandExport` が付けた検証関数 `hx4sValidate` の最初の不一致を返す。HonoX の `createClient` のオプションは包まず、雛形にそのまま書く（[rendering-model.md](rendering-model.md) 2.4）。
   `hx4s-vite` の本体（Vite のプラグイン）は import しないので、client のバンドルに Vite や HonoX の SSR 用のコードは入らない。
 - Node 用 loader は `hx4s-vite/node-register`（`--import` に渡す）。`scalajs:client.js` を `HX4S_CLIENT_JS_DIR/client.js` に、honox 内の `hono/jsx` を `react` に解決する。
+  loader 本体は `hx4s-vite/node-loader` として export しており、利用側の loader と並べて登録できる（2.3）。
 - peerDependencies は検証した版だけにする（`honox` 0.1.62、`@scala-js/vite-plugin-scalajs` 1.1.0、`vite` ^8.3.3）。vite-plugin-scalajs が vite を `"4.1.4 - 7"` の dependencies に持つので、利用側は `overrides` で `"vite": "$vite"` を指定する（[compatibility.md](compatibility.md) 1.3）。
 
 ### 2.2 sbt-hx4s の設定（Phase 3 で実装）
@@ -182,6 +183,55 @@ codegen はトップレベル object の名前を問わずに読むので、プ�
 `hx4sGenerate` はキャッシュせず毎回 codegen を起動する（同じ内容は書かないので、出力の更新時刻は変わらない）。
 
 設定キーの詳細と codegen の引数の対応は [codegen.md](codegen.md) の「設定」。
+
+### 2.3 Node 用 loader を利用側の loader と並べる
+
+`hx4s-vite/node-register` は hx4s の loader（`scalajs:client.js` と HonoX 内の `hono/jsx`）しか登録しない。実行基盤の指定子（`cloudflare:workers` など）を
+テスト用のスタブへ向ける loader が要る利用側は、`node-register` の代わりに自分の register ファイルで両方を登録する。
+
+```js
+// test-stubs/register.mjs（利用側）
+import { register } from "node:module";
+
+register("hx4s-vite/node-loader", import.meta.url);   // scalajs:client.js、honox 内の hono/jsx
+register("./runtime-loader.mjs", import.meta.url);    // 実行基盤のスタブ
+```
+
+```js
+// test-stubs/runtime-loader.mjs（利用側）
+export async function resolve(specifier, context, nextResolve) {
+  if (specifier === "cloudflare:workers") {
+    return { url: new URL("./cloudflare-workers-stub.mjs", import.meta.url).href, shortCircuit: true };
+  }
+  return nextResolve(specifier, context);
+}
+```
+
+- 後に登録した loader から先に呼ばれ、`nextResolve` で前の loader へ進む。hx4s の loader と利用側の loader が扱う指定子は重ならないので、順序はどちらでもよい。
+  同じ指定子を両方で扱うときは、後に登録した方が勝つ。
+- `register("hx4s-vite/node-loader", import.meta.url)` の指定子は register ファイルの位置から解決するので、そこから `node_modules/hx4s-vite` が見えている必要がある。
+- `--import` を 2 つ並べる（`--import hx4s-vite/node-register --import ./test-stubs/register.mjs`）方法でもよい。
+- この構成は `tests/node-loader.test.js` で確かめている。
+
+sbt の `Test / jsEnv` では、client を先にリンクして `HX4S_CLIENT_JS_DIR` を渡し、自分の register ファイルを `--import` に指定する。
+
+```scala
+// build.sbt（利用側の server プロジェクト）
+import org.scalajs.jsenv.nodejs.NodeJSEnv
+
+Test / jsEnv := {
+  val clientDir = (client / Compile / fastLinkJS / scalaJSLinkerOutputDirectory).value
+  (client / Compile / fastLinkJS).value
+  new NodeJSEnv(
+    NodeJSEnv.Config()
+      .withArgs(List("--import", (baseDirectory.value / "test-stubs" / "register.mjs").toURI.toString))
+      .withEnv(Map("HX4S_CLIENT_JS_DIR" -> clientDir.getAbsolutePath))
+  )
+}
+```
+
+`--import` にファイルのパスを渡すときは `toURI.toString`（`file:` URL）にする。Windows の `C:\...` はそのままでは URL の scheme と読まれて失敗する。
+hx4s の loader だけで足りる場合は `examples/minimal/build.sbt` のように `--import hx4s-vite/node-register` でよい（このときの指定子は Node の作業ディレクトリから解決される）。
 
 ## 3. codegen の方式比較
 
