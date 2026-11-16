@@ -3,7 +3,7 @@
 HTML を返さないハンドラも `@route` で書く。特別な API は無く、`Context` の応答メソッドで JSON やステータスを返す。
 型付き API クライアントと OpenAPI の出力は**未実装**（[hx4s/roadmap.md](hx4s/roadmap.md)）。
 
-以降のハンドラは `examples/minimal` に足してビルドし、ビルドした Worker の `fetch` を呼んで応答を確かめたもの。
+以降のハンドラは `examples/minimal` に足してビルドし、ビルドした Worker の `fetch` を呼んで応答を確かめたもの（`c.body`・`c.notFound` は `hx4s-react` の `ContextSuite` で確かめた）。
 
 ```scala
 object Api {
@@ -76,20 +76,34 @@ c.header("cache-control", "no-store")
 c.redirect("/", 302)
 ```
 
-本文を持たない応答（`204`）は、`c.text("", 204)` では Response の規則で失敗する。scalajs-dom の `Response` を直接作る。
+本文を持たない応答（`204`・`304`）は `c.body(null, status)` で返す。`c.text("", 204)` は使えない。Hono の `c.text` は空文字列でも本文ありの
+`Response` を作り、Fetch API の `Response` は 204 / 304 に本文を許さないので、例外になって `500` が返る。
 
 ```scala
-import org.scalajs.dom.{Response, ResponseInit}
+@route("api/notes/[id].ts", "DELETE")
+@JSExportTopLevel("noteDelete", "server")
+def noteDelete(c: ApiContext): Response = {
+  val id = c.req.param("id").getOrElse("")
+  if (Notes.find(id).isDefined) c.body(null, 204) else c.json(js.Dynamic.literal(error = s"note $id not found"), 404)
+}
+```
 
-@route("api/items/[id].ts", "DELETE")
-@JSExportTopLevel("itemDelete", "server")
-def itemDelete(c: ApiContext): Response = new Response(null, new ResponseInit { status = 204 })
+`c.body(data, status, headers)` の `data` は scalajs-dom の `BodyInit`（文字列・`Blob`・`FormData` など）か `null`、`headers` は `js.Dictionary[String]`。
+`content-type` は付かないので、本文を返すときはヘッダで指定する。
+
+`c.notFound()` はアプリの Not Found の応答（Hono の既定では `404` と本文 `404 Not Found`）を返す。戻り値は `Response | js.Promise[Response]` なので、ハンドラの戻り値の型もそれに合わせる。
+
+```scala
+@route("api/notes/[id].ts")
+@JSExportTopLevel("noteGet", "server")
+def noteGet(c: ApiContext): Response | js.Promise[Response] =
+  Notes.find(c.req.param("id").getOrElse("")).fold(c.notFound())(note => c.json(toJs(note)))
 ```
 
 ## エラー応答
 
 hx4s は API のエラー形式を決めない。業務上の拒否（検証の失敗・未検出）は、上の `404`・`400` のように自分で組み立てて返す。
-ハンドラが例外を投げると、応答は `500 Internal Server Error`（プレーンテキスト）になる（`c.text("", 204)` の失敗で確かめた）。例外の形をそろえたい場合の仕組みは、hx4s では用意していない。
+ハンドラが例外を投げると、応答は `500 Internal Server Error`（プレーンテキスト）になる（`c.text("", 204)` の失敗で確かめた。`hx4s-react` の `ContextSuite`）。例外の形をそろえたい場合の仕組みは、hx4s では用意していない。
 
 ## React を使わない構成
 

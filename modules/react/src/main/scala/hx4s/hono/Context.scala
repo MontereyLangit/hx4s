@@ -1,7 +1,7 @@
 package hx4s.hono
 
 import japgolly.scalajs.react.facade.React
-import org.scalajs.dom.{FormData, Request, Response}
+import org.scalajs.dom.{BodyInit, FormData, Request, Response}
 
 import scala.scalajs.js
 import scala.scalajs.js.|
@@ -42,10 +42,15 @@ trait Context[Env, R <: js.Object] extends js.Object {
   val executionCtx: ExecutionContext = js.native
   def header(name: String, value: String): Unit = js.native
   def status(code: Int): Unit = js.native
+  /** 本文をそのまま返す。204 / 304 など本文を持てないステータスでは data に null を渡す */
+  def body(data: BodyInit | Null, status: js.UndefOr[Int] = js.native, headers: js.UndefOr[js.Dictionary[String]] = js.native): Response = js.native
+  /** 本文が空文字列でも本文ありになるので、204 / 304 には使えない（body(null, 204) を使う） */
   def text(body: String, status: js.UndefOr[Int] = js.native): Response = js.native
   def json(body: js.Any, status: js.UndefOr[Int] = js.native): Response = js.native
   def html(body: String, status: js.UndefOr[Int] = js.native): Response = js.native
   def redirect(location: String, status: js.UndefOr[Int] = js.native): Response = js.native
+  /** アプリの Not Found ハンドラの応答（Hono の既定は 404 と本文 404 Not Found） */
+  def notFound(): Response | js.Promise[Response] = js.native
   def render(children: React.Element, props: js.UndefOr[R] = js.native): Response | js.Promise[Response] = js.native
   def set(key: String, value: js.Any): Unit = js.native
   def get(key: String): js.UndefOr[js.Any] = js.native

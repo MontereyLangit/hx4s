@@ -19,6 +19,7 @@ private type Handler = js.Function1[Ctx, Response | js.Promise[Response]]
 private class Hono() extends js.Object {
   def get(path: String, handler: Handler): Hono = js.native
   def post(path: String, handler: Handler): Hono = js.native
+  def onError(handler: js.Function2[js.Any, Ctx, Response]): Hono = js.native
   def use(path: String, middleware: js.Function2[Ctx, js.Function0[js.Promise[Unit]], js.Promise[Unit]]): Hono = js.native
   def fetch(request: Request, env: js.UndefOr[js.Object], executionCtx: js.UndefOr[ExecutionContext]): Response | js.Promise[Response] = js.native
 }
@@ -90,6 +91,38 @@ class ContextSuite extends FunSuite {
       assert(html.headers.get("content-type").startsWith("text/html"))
       assertEquals((redirect.status, redirect.headers.get("location")), (302, "/to"))
       assertEquals(moved.status, 301)
+    }
+  }
+
+  test("body は null 本文で 204 / 304 を返し、本文とヘッダも渡せる。text の空文字列では 204 を作れない") {
+    val app = new Hono()
+      .get("/no-content", handler(c => c.body(null, 204)))
+      .get("/not-modified", handler { c =>
+        c.header("etag", "\"v1\"")
+        c.body(null, 304)
+      })
+      .get("/bytes", handler(c => c.body("abc", 201, js.Dictionary("content-type" -> "application/octet-stream"))))
+      .get("/empty-text", handler(c => c.text("", 204)))
+      .get("/missing", handler(c => c.notFound()))
+      .onError((error: js.Any, c: Ctx) => c.text(error.toString, 500))
+    for {
+      noContent <- call(app, "/no-content")
+      noContentBody <- noContent.text().toFuture
+      notModified <- call(app, "/not-modified")
+      bytes <- call(app, "/bytes")
+      bytesBody <- bytes.text().toFuture
+      emptyText <- call(app, "/empty-text")
+      emptyTextBody <- emptyText.text().toFuture
+      missing <- call(app, "/missing")
+      missingBody <- missing.text().toFuture
+    } yield {
+      assertEquals((noContent.status, noContentBody), (204, ""))
+      assertEquals(noContent.body, null)
+      assertEquals((notModified.status, notModified.headers.get("etag")), (304, "\"v1\""))
+      assertEquals((bytes.status, bytesBody, bytes.headers.get("content-type")), (201, "abc", "application/octet-stream"))
+      assertEquals(emptyText.status, 500)
+      assert(emptyTextBody.contains("204"), emptyTextBody)
+      assertEquals((missing.status, missingBody), (404, "404 Not Found"))
     }
   }
 

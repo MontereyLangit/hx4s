@@ -16,6 +16,7 @@
   - Hono の Context の facade `hx4s.hono.Context[Env, R]`・`HonoRequest`（Request / Response は scalajs-dom の型）
   - `executionCtx`（`ExecutionContext`）と拡張メソッド `executionCtxOption`、`html`、`set` / `get` と型付きの `ContextVariable[A]`（`setVariable` / `getVariable`）、
     `HonoRequest.queries`・`text()`・`json()`・`formData()`
+  - 本文をそのまま返す `body(data, status, headers)`（`null` 本文で 204 / 304 を返せる）と `notFound()`
 - **hx4s-codegen**:
   - scalameta で `@route` / `@islands` を読み、`app/routes/**/*.ts`・`app/islands/**/*.tsx` と SSR 用の `IslandComponents.scala` を生成する
   - 設定を `--key value` で受ける `CodegenMain`（`app` / `island-components`）
