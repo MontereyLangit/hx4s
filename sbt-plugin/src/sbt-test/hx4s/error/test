@@ -1,0 +1,7 @@
+# 誤ったアノテーションでは生成タスクが失敗する
+-> server/hx4sGenerate
+-> server/hx4sIslandComponents
+$ absent app/routes/index.ts
+# 失敗のメッセージに「パス:行: 理由」が出る
+> checkGenerateFailure
+> checkIslandComponentsFailure

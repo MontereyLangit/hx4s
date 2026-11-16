@@ -1,0 +1,18 @@
+# route / island の TS ファイルを生成する
+> server/hx4sGenerate
+$ exists app/routes/index.ts
+$ exists app/routes/about.ts
+$ exists app/islands/counter.tsx
+# sourceGenerators が IslandComponents を src_managed に出す
+> check
+
+# 2 回目も同じ結果になる
+> server/hx4sGenerate
+> check
+
+# 宣言から消した route の生成物は消え、手書きのファイルは残る
+$ copy-file changes/Main.scala server/src/main/scala/app/Main.scala
+> server/hx4sGenerate
+$ absent app/routes/about.ts
+$ exists app/routes/index.ts
+> check
