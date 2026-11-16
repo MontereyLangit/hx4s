@@ -35,3 +35,10 @@
 - CI（Ubuntu と Windows。sbt・npm・examples の検証）
 - 文書: 設計と経緯（`docs/hx4s/`）と、利用者向けのガイド（`docs/`）、貢献ガイド
 - ライセンス: Apache-2.0
+
+### Fixed
+
+- **scripts**: ローカル公開の記録に、ルートの `package.json` / `package-lock.json`（作業ツリーの状態）と、ivy の `ivy.xml`・JAR・sources・javadoc・pom の SHA-256 を含める。
+  `--verify` は成果物の実体の存在と内容、完了の記録の項目と成果物の集合、部分の記録との一致を確かめる（[docs/hx4s/reviews/final-review.md](docs/hx4s/reviews/final-review.md)）
+- 文書: 変数ミドルウェアの例に Hono の `ContextVariableMap` の宣言を足し、型検査の対象にする（`tests/docs-typecheck`）。`body` / `notFound` / `client: false` が無いとする古い説明、
+  本文の読み直しの説明、貢献ガイドの examples の手順を直す

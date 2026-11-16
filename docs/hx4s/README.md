@@ -21,6 +21,7 @@ Phase 0（設計）で書き、Phase 3（hx4s リポジトリへの分離、2026
 | [reviews/phase0-review.md](reviews/phase0-review.md) | Phase 0 のレビュー記録（セルフレビューと Codex CLI の指摘、反映先） |
 | [reviews/phase3-review.md](reviews/phase3-review.md) | Phase 3 の検証結果とセルフレビュー |
 | [reviews/phase4-feedback.md](reviews/phase4-feedback.md) | 最初の利用側の移行（Phase 4）と Codex の指摘への対応 |
+| [reviews/final-review.md](reviews/final-review.md) | `d133d7c..95d77c2` の最終レビュー（Codex・IntelliJ inspect）の指摘と対応、修正後の検証 |
 
 ADR（1 判断 1 ファイル）:
 
