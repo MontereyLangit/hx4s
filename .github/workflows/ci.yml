@@ -47,7 +47,9 @@ jobs:
         run: npm test
 
       - name: Publish locally
-        run: node scripts/publish-local.mjs
+        run: |
+          node scripts/publish-local.mjs --reuse-node-modules
+          node scripts/publish-local.mjs --verify --commit "$(git rev-parse HEAD)"
       - name: examples/minimal install
         run: |
           node scripts/setup-example.mjs minimal

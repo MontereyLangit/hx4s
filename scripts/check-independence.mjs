@@ -19,8 +19,9 @@ const exampleRules = [
 const binary = /\.(png|jpe?g|gif|ico|jar|tgz|gz|zip|woff2?)$/i;
 
 export function findProblems() {
-  const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8" })
-    .split("\n").map((line) => line.trim()).filter(Boolean).filter((file) => !binary.test(file));
+  // git はシェルを介さず起動し、-z で空白や非 ASCII を含むパスも引用なしで受け取る
+  const files = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8" })
+    .split("\0").filter(Boolean).filter((file) => !binary.test(file));
   const problems = [];
   for (const file of files) {
     let text;
