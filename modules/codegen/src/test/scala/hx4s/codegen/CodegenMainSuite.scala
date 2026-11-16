@@ -80,6 +80,18 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
+  test("server と client の誤りはまとめて返し、何も書かない") {
+    withTempDir { root =>
+      Files.createDirectories(root.resolve("server"))
+      Files.createDirectories(root.resolve("client"))
+      Files.writeString(root.resolve("server/App.scala"), """object Main { @route("_x.ts") @JSExportTopLevel("x", "server") def x() = 1 }""")
+      Files.writeString(root.resolve("client/App.scala"), """object Main { @islands("a_b.tsx") @JSExportTopLevel("A", "client") val a = 1 }""")
+      val errors = Codegen.appFiles(TestConfig(root)).left.getOrElse(fail("expected errors"))
+      assertEquals(errors.map(_.source), List("server/App.scala", "client/App.scala"))
+      assert(!Files.exists(root.resolve("app")))
+    }
+  }
+
   test("project-root を省くと作業ディレクトリを使い、空白を含むパスもそのまま扱う") {
     withTempDir { root =>
       val spaced = Files.createDirectories(root.resolve("with space [x]"))

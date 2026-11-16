@@ -15,12 +15,17 @@ object Codegen {
 
   /** route と island の TS ファイルの内容 */
   def appOutputs(config: CodegenConfig): Result[List[GeneratedFile]] =
-    for {
-      _ <- validate(config)
-      routes <- read(config, config.serverSources).flatMap(AnnotationScanner.routes(_, config))
-      islands <- read(config, config.clientSources).flatMap(AnnotationScanner.islands(_, config))
-    } yield routes.map(entry => GeneratedFile(config.routeRoot, entry.filePath, AppFileRenderer.route(entry, config))) ++
-      islands.map(entry => GeneratedFile(config.islandRoot, entry.filePath, AppFileRenderer.island(entry, config)))
+    validate(config).flatMap { _ =>
+      // server と client の誤りをまとめて返す
+      val routes = read(config, config.serverSources).flatMap(AnnotationScanner.routes(_, config))
+      val islands = read(config, config.clientSources).flatMap(AnnotationScanner.islands(_, config))
+      (routes, islands) match {
+        case (Right(routeEntries), Right(islandEntries)) =>
+          Right(routeEntries.map(entry => GeneratedFile(config.routeRoot, entry.filePath, AppFileRenderer.route(entry, config))) ++
+            islandEntries.map(entry => GeneratedFile(config.islandRoot, entry.filePath, AppFileRenderer.island(entry, config))))
+        case _ => Left(routes.left.getOrElse(Nil) ++ islands.left.getOrElse(Nil))
+      }
+    }
 
   /** SSR 用 Scala API。入力は client のソースだけ */
   def islandComponents(config: CodegenConfig): Result[WriteSummary] =
