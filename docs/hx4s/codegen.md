@@ -49,7 +49,9 @@ route ファイルのパスを HonoX の `createApp` と同じ規則で URL パ�
 変換表は `modules/codegen/src/test/resources/route-paths.tsv` に置き、`RoutePathSuite` と、HonoX の `createApp` に同じ表を通す `tests/route-paths.test.js` の両方で確かめる。
 `app/routes` の手書きファイルとの衝突は検査しない（警告も出さない。未実装。[routing-design.md](routing-design.md) 2.2）。
 
-server と client の誤りはまとめて返す（片方を直すと次が出る、ということが無いように）。
+server と client の誤りはまとめて返す（片方を直すと次が出る、ということが無いように）。宣言ごとの検査（構文、アノテーションの引数、`@JSExportTopLevel`、メソッド、ファイル名、
+`IslandExport[T]` の照合）で誤りのあった宣言は除き、残りの宣言で export 名の重複、route の大文字小文字の違い・同じ URL・同じメソッドの重複、island のパスの重複を確かめる。
+誤った宣言を除くので、それが原因の重複・衝突は報告しない（直したあとに初めて出ることはある）。読めないソースも同じく除いて続ける。
 server / client のソースは空でもよい（route だけ、island だけ、SSR だけの構成）。空なら解析結果も空で、古い生成物は消え、`IslandComponents` は空の object になる。
 
 ## 出力の規則

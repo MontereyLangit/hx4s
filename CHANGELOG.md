@@ -20,7 +20,7 @@
 - **hx4s-codegen**:
   - scalameta で `@route` / `@islands` を読み、`app/routes/**/*.ts`・`app/islands/**/*.tsx` と SSR 用の `IslandComponents.scala` を生成する
   - 設定を `--key value` で受ける `CodegenMain`（`app` / `island-components`）
-  - 検査: `HEAD` と HonoX が拾わないファイル名の拒否、別のファイルが同じ URL・同じメソッドになる route の拒否、island のファイル名の規則、`@islands[P]` と export の型 `IslandExport[T]` の照合。server と client の誤りはまとめて報告する
+  - 検査: `HEAD` と HonoX が拾わないファイル名の拒否、別のファイルが同じ URL・同じメソッドになる route の拒否、island のファイル名の規則、`@islands[P]` と export の型 `IslandExport[T]` の照合。server と client の誤りはまとめて報告し、宣言ごとの誤りがあっても残りの宣言で重複・URL の衝突を同じ実行で確かめる
   - 出力の安全策: 手書きファイルを上書き・削除しない、全検査のあとに書く、同じ内容は書かない、一時ファイル経由の置き換え、リンクを辿らない、大文字小文字だけ違うパスを拒否する
   - 生成コードの識別子の衝突回避（import の別名）と、生成ソースへ埋め込む設定値の検証
 - **sbt-hx4s**: `Hx4sPlugin`。設定キー（`hx4sClientProject` ほか）、`hx4sGenerate`、`Compile / sourceGenerators` による `IslandComponents` の生成（入力が変わらなければ再生成しない）、

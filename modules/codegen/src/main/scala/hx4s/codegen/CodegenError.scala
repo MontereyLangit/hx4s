@@ -17,8 +17,19 @@ object CodegenError {
 
   /** すべての誤りを集め、誤りが無ければ値の一覧を返す */
   def sequence[A](results: List[Result[A]]): Result[List[A]] = {
-    val errors = results.collect { case Left(e) => e }.flatten
-    if (errors.nonEmpty) Left(errors) else Right(results.collect { case Right(value) => value })
+    val (errors, values) = partition(results)
+    if (errors.nonEmpty) Left(errors) else Right(values)
+  }
+
+  /** すべての誤りと、誤りの無かった値の一覧に分ける */
+  def partition[A](results: List[Result[A]]): (List[CodegenError], List[A]) =
+    (results.collect { case Left(e) => e }.flatten, results.collect { case Right(value) => value })
+
+  /** 先に見つかった誤りと、残りの入力で行った処理の結果をまとめる */
+  def combine[A](errors: List[CodegenError], result: Result[A]): Result[A] = result match {
+    case Right(value) if errors.isEmpty => Right(value)
+    case Right(_) => Left(errors)
+    case Left(more) => Left(errors ++ more)
   }
 
   def check(condition: Boolean, error: => CodegenError): Result[Unit] =

@@ -19,8 +19,8 @@ object Codegen {
   def appOutputs(config: CodegenConfig): Result[List[GeneratedFile]] =
     validate(config).flatMap { _ =>
       // server と client の誤りをまとめて返す
-      val routes = read(config, config.serverSources).flatMap(AnnotationScanner.routes(_, config))
-      val islands = read(config, config.clientSources).flatMap(AnnotationScanner.islands(_, config))
+      val routes = scan(config, config.serverSources, AnnotationScanner.routes)
+      val islands = scan(config, config.clientSources, AnnotationScanner.islands)
       (routes, islands) match {
         case (Right(routeEntries), Right(islandEntries)) =>
           Right(routeEntries.map(entry => GeneratedFile(config.routeRoot, entry.filePath, AppFileRenderer.route(entry, config))) ++
@@ -34,7 +34,7 @@ object Codegen {
     for {
       _ <- validate(config)
       output <- config.scalaOutput.toRight(List(CodegenError("<config>", None, "scalaOutput is not set")))
-      islands <- read(config, config.clientSources).flatMap(AnnotationScanner.islands(_, config))
+      islands <- scan(config, config.clientSources, AnnotationScanner.islands)
       absolute = config.projectRoot.resolve(output).toAbsolutePath.normalize()
       file = GeneratedFile(absolute.getParent, absolute.getFileName.toString, AppFileRenderer.islandComponents(islands, config))
       summary <- OutputWriter.write(List(file), Nil, config.generatedMarker, config.projectRoot)
@@ -80,10 +80,13 @@ object Codegen {
     "return", "sealed", "super", "then", "throw", "trait", "true", "try", "type", "val", "var", "while", "with", "yield"
   )
 
-  private def read(config: CodegenConfig, sources: List[String]): Result[List[(String, String)]] =
-    CodegenError.sequence(sources.map { source =>
+  /** 読めたソースを scanner に渡し、読めなかったソースの誤りと合わせて返す */
+  private def scan[A](config: CodegenConfig, sources: List[String], scanner: (List[(String, String)], CodegenConfig) => Result[A]): Result[A] = {
+    val (errors, texts) = CodegenError.partition(sources.map { source =>
       Try(Files.readString(config.projectRoot.resolve(source), StandardCharsets.UTF_8)).toEither
         .map(text => source -> text)
         .left.map(error => List(CodegenError(source, None, s"cannot read source: ${error.getMessage}")))
     })
+    CodegenError.combine(errors, scanner(texts, config))
+  }
 }

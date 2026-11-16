@@ -19,41 +19,43 @@ object AnnotationScanner {
   private val IdentifierPattern = "[A-Za-z_$][A-Za-z0-9_$]*"
   private val IslandBasename = "[A-Za-z0-9-]+\\.tsx"
 
-  /** server 側のソース群から route を読む。sources は (表示用パス, 本文) */
-  def routes(sources: List[(String, String)], config: CodegenConfig): Result[List[RouteEntry]] =
-    scanAll(sources, config.serverModule, config).flatMap { scanned =>
-      val found = scanned.flatMap(s => s.found.collect { case r: Found.Route => s.source -> r })
-      val errors = routeConflicts(found)
-      if (errors.nonEmpty) Left(errors)
-      else Right(found.map(_._2).groupBy(_.file).toList.sortBy(_._1).map { case (file, handlers) =>
-        RouteEntry(file, handlers.map(h => RouteHandler(h.method, h.exportName)).sortBy(_.method.ordinal))
-      })
+  /**
+   * server 側のソース群から route を読む。sources は (表示用パス, 本文)
+   * 誤りのある宣言を除いた残りでも重複・衝突を確かめ、1 回で見つかる誤りをまとめて返す
+   */
+  def routes(sources: List[(String, String)], config: CodegenConfig): Result[List[RouteEntry]] = {
+    val (errors, scanned) = scanAll(sources, config.serverModule, config)
+    val found = scanned.flatMap(s => s.found.collect { case r: Found.Route => s.source -> r })
+    val entries = found.map(_._2).groupBy(_.file).toList.sortBy(_._1).map { case (file, handlers) =>
+      RouteEntry(file, handlers.map(h => RouteHandler(h.method, h.exportName)).sortBy(_.method.ordinal))
     }
+    CodegenError.combine(errors ++ routeConflicts(found), Right(entries))
+  }
 
   /** client 側のソース群から island を読む。export 名はメンバごとに一意で、1 メンバの @islands は 1 つまでなので island ごとにも一意 */
-  def islands(sources: List[(String, String)], config: CodegenConfig): Result[List[IslandEntry]] =
-    scanAll(sources, config.clientModule, config).flatMap { scanned =>
-      val found = scanned.flatMap(s => s.found.collect { case i: Found.Island => s.source -> i })
-      val errors = duplicates(found.map { case (source, i) => (source, i.tree, i.entry.filePath.toLowerCase(Locale.ROOT)) },
-        key => s"duplicate island path (case-insensitive) $key")
-      if (errors.nonEmpty) Left(errors) else Right(found.map(_._2.entry).sortBy(_.filePath))
-    }
+  def islands(sources: List[(String, String)], config: CodegenConfig): Result[List[IslandEntry]] = {
+    val (errors, scanned) = scanAll(sources, config.clientModule, config)
+    val found = scanned.flatMap(s => s.found.collect { case i: Found.Island => s.source -> i })
+    val conflicts = duplicates(found.map { case (source, i) => (source, i.tree, i.entry.filePath.toLowerCase(Locale.ROOT)) },
+      key => s"duplicate island path (case-insensitive) $key")
+    CodegenError.combine(errors ++ conflicts, Right(found.map(_._2.entry).sortBy(_.filePath)))
+  }
 
-  private def scanAll(sources: List[(String, String)], module: String, config: CodegenConfig): Result[List[Scanned]] =
-    CodegenError.sequence(sources.map { case (path, source) => scan(path, source, module, config) }).flatMap { scanned =>
-      val exports = scanned.flatMap(s => s.exports.map { case (name, tree) => (s.source, tree, name) })
-      val errors = duplicates(exports, name => s"export name $name is declared more than once")
-      if (errors.nonEmpty) Left(errors) else Right(scanned)
-    }
+  /** 全ソースを読み、誤りと、誤りの無かったメンバだけの結果に分ける。export 名の重複は後者で確かめる */
+  private def scanAll(sources: List[(String, String)], module: String, config: CodegenConfig): (List[CodegenError], List[Scanned]) = {
+    val results = sources.map { case (path, source) => scan(path, source, module, config) }
+    val scanned = results.map(_._2)
+    val exports = scanned.flatMap(s => s.exports.map { case (name, tree) => (s.source, tree, name) })
+    (results.flatMap(_._1) ++ duplicates(exports, name => s"export name $name is declared more than once"), scanned)
+  }
 
-  private def scan(path: String, source: String, module: String, config: CodegenConfig): Result[Scanned] =
+  private def scan(path: String, source: String, module: String, config: CodegenConfig): (List[CodegenError], Scanned) =
     dialects.Scala3(Input.VirtualFile(path, source)).parse[Source] match {
-      case error: Parsed.Error => Left(List(CodegenError.position(path, error.pos, error.message)))
+      case error: Parsed.Error => (List(CodegenError.position(path, error.pos, error.message)), Scanned(path, Nil, Nil))
       case Parsed.Success(tree) =>
         val members = topLevelObjects(tree).flatMap(_.templ.body.stats)
-        CodegenError.sequence(members.map(member => scanMember(path, member, module, config))).map { results =>
-          Scanned(path, results.flatMap(_._1), results.flatMap(_._2))
-        }
+        val (errors, results) = CodegenError.partition(members.map(member => scanMember(path, member, module, config)))
+        (errors, Scanned(path, results.flatMap(_._1), results.flatMap(_._2)))
     }
 
   private def topLevelObjects(tree: Source): List[Defn.Object] = {

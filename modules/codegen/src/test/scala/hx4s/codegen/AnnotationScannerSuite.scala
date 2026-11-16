@@ -221,4 +221,45 @@ class AnnotationScannerSuite extends FunSuite {
     assert(pair("docs/[a].ts", "docs/[...b].ts").isRight, "catch-all と 1 区切りのパラメータは別のパターン")
     assert(pair("items/[id].ts", "items/new.ts").isRight, "固定の区切りとパラメータは HonoX の並び順で両立する")
   }
+
+  test("宣言の誤りがあっても、残りの宣言で URL の衝突・重複・export 名の重複を同じ実行で報告する") {
+    val found = errors(AnnotationScanner.routes(List(
+      "A.scala" -> """object A {
+        |  @route("index.ts", "HEAD") @JSExportTopLevel("head", "server") def head() = 1
+        |  @route("foo.ts") @JSExportTopLevel("foo", "server") def foo() = 1
+        |  @route("x.ts") @JSExportTopLevel("same", "server") def x() = 1
+        |}""".stripMargin,
+      "B.scala" -> """object B {
+        |  @route("foo/index.ts") @JSExportTopLevel("fooIndex", "server") def fooIndex() = 1
+        |  @route("y.ts") @JSExportTopLevel("same", "server") def y() = 1
+        |}""".stripMargin,
+      "Broken.scala" -> "object Broken {\n  def x( = 1\n}"
+    ), config))
+    val rendered = found.map(_.render)
+    assert(rendered.contains("A.scala:2: HEAD is not registered by HonoX createApp (GET handlers also answer HEAD)"), rendered)
+    assert(rendered.exists(_.startsWith("Broken.scala:")), rendered)
+    assert(rendered.exists(_.startsWith("A.scala:3: route files map GET to the same URL: foo.ts (/foo), foo/index.ts (/foo)")), rendered)
+    assert(rendered.exists(_.startsWith("B.scala:2: route files map GET to the same URL")), rendered)
+    assert(rendered.contains("A.scala:4: export name same is declared more than once"), rendered)
+    assert(rendered.contains("B.scala:3: export name same is declared more than once"), rendered)
+    assertEquals(rendered.distinct, rendered)
+  }
+
+  test("誤った宣言は衝突の検査から外し、それに起因する誤りは出さない") {
+    val found = errors(routes("""
+      @route("foo.ts", "HEAD") @JSExportTopLevel("foo", "server") def foo() = 1
+      @route("foo/index.ts", "HEAD") @JSExportTopLevel("fooIndex", "server") def fooIndex() = 1
+      @route("bar.ts") @JSExportTopLevel("bar", "server") def bar() = 1
+      @route("bar.ts", "BREW") @JSExportTopLevel("bar", "server") def bar2() = 1
+    """))
+    assertEquals(found.map(_.line), List(Some(3), Some(4), Some(6)))
+    assert(found.forall(error => !error.message.contains("same URL") && !error.message.contains("more than once")), found)
+    val islandErrors = errors(islands("""
+      @islands("x.tsx") @JSExportTopLevel("X", "client") val x = 1
+      @islands("X.tsx") @JSExportTopLevel("Y", "server") val y = 1
+      @islands("a/z.tsx") @JSExportTopLevel("Z", "client") val z = 1
+      @islands("a/Z.tsx") @JSExportTopLevel("W", "client") val w = 1
+    """))
+    assertEquals(islandErrors.map(_.line), List(Some(4), Some(5), Some(6)))
+  }
 }
