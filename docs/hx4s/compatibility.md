@@ -75,16 +75,32 @@ HonoX 側の変更で hx4s の SSR が黙って壊れる（hydration されな�
 
 ## 3. 互換性テストの方針
 
-3ch の `tests/islands-bridge.test.js` と `tests/islands-hydration.test.js` を土台にする。どちらも実際の HonoX を Vite で動かし、jsdom で hydration まで確かめている。
+3ch の `tests/` の既存テストを土台にする。実際の HonoX を Vite で動かす点は共通だが、**確かめている範囲はテストごとに異なる**。次のとおり分けて書く（調査基準 commit `875a47b`）。
+
+| 既存のテスト | 実際に確かめていること | 確かめていないこと |
+| --- | --- | --- |
+| `tests/islands-bridge.test.js`（1 件目） | `vite.config.ts` を読み、`scalajs:client.js` の alias と、2 つの Scala.js プラグインの `buildStart.sequential` の設定値を検査する | 実際の sbt の起動順 |
+| `tests/islands-bridge.test.js`（2 件目） | **JS の代替 export**（`Probe`）を fixture に置き、Vite で SSR ビルドして `renderToString` した HTML の文字列を検査する。`<honox-island>`・`component-name`・`data-serialized-props`・`rawElement` 直描画との違い。ファイル冒頭のコメントのとおり Scala コンパイラのテストではない | jsdom での hydration。実際の Scala.js のリンク成果物 |
+| `tests/islands-hydration.test.js` | **実際にリンクした Scala の bridge**（`bbs-test-fastopt/island-test.js` の `renderIslandTest`）で SSR し、JS の fixture コンポーネントを `honox/client` の `createClient` で **jsdom 上で hydrate**（単純・入れ子・要素 props の 3 通り）。境界の数、SSR DOM の再利用、hydration エラー無し、クリックで状態が変わる | 実際の client island（Scala.js）。型付き Props |
+| `tests/board-top-hydration.test.js` | 板トップの実 SSR HTML（`bbs` のテスト用 export）を、リンクした client を使って `createClient` で jsdom 上で hydrate する | hx4s の汎用部分（3ch の画面に依存する） |
+| `tests/board-islands.test.js` | リンクした client の island の挙動を jsdom で確かめる（個別の `hydrateRoot` を含むものがある） | HonoX の探索・SSR の包み |
+| `tests/client-bundle.test.js` | `dist/static/` の JS を走査し、サーバ専用の文字列が無いことと island が入っていることを確かめる（要 `dist/`） | モジュールグラフ・依存方向（文字列検査のみ。[module-boundaries.md](module-boundaries.md) 2 章） |
+
+hx4s の互換性テストは、これらを次のように分けて整える。型付き Props のコンパイル検証（`P` 以外の引数がコンパイルエラーになること）は、どのテストにも無いので **別に必須** とする。
 
 | テスト | 確かめること | 対応する依存 |
 | --- | --- | --- |
-| island の SSR | `<honox-island>`、`component-name="/app/islands/x.tsx"`、`data-serialized-props` が出る。`rawElement` を直接描画すると出ない | H1・H2・H3・H4 |
-| hydration | 単純・入れ子・要素 props の 3 通りで、境界の数、hydration エラー無し、SSR DOM の再利用、クリックで状態が変わる | H2・H5・H6・H10 |
-| Props の往復 | `"<&>`、非 ASCII、サロゲートの片割れ、`undefined` のキー、空配列が `JSON.parse` で期待どおりに戻る | H2 |
+| island の SSR | `<honox-island>`、`component-name="/app/islands/x.tsx"`、`data-serialized-props` が出る。`rawElement` を直接描画すると出ない（現行の `islands-bridge` 2 件目の範囲） | H1・H2・H3・H4 |
+| hydration | 単純・入れ子・要素 props の 3 通りで、境界の数、hydration エラー無し、SSR DOM の再利用、クリックで状態が変わる（現行の `islands-hydration` の範囲。実 Scala.js の client island での hydration は `board-top-hydration` の範囲） | H2・H5・H6・H10 |
+| Props の往復 | `"<&>`、非 ASCII、サロゲートの片割れ、`undefined` のキー、空配列が `JSON.parse` で期待どおりに戻る。非有限の `Double`・循環参照・入れ子オブジェクト内の React 要素で SSR が失敗する、または hydration が不一致になること、その場合の挙動が仕様どおりであること（[rendering-model.md](rendering-model.md) 2.3） | H2 |
+| 型付き Props（コンパイル） | `IslandComponents.Xxx(props: P)` に `P` 以外を渡すとコンパイルエラー。typed export 補助を入れた場合は client の export が `P` と合わないこともコンパイルエラー（[ADR 0003](adr/0003-typed-island-props.md)）。Scala のコンパイラテストとして書く | — |
+| 世代ずれ | 旧 HTML + 新 client、新 HTML + 旧 client の両方で、client の `validate` が不一致を検出し、`console.error` を出して SSR の markup が残る（[rendering-model.md](rendering-model.md) 2.4） | H2 |
+| island のファイル名 | 許可名（`[A-Za-z0-9-]+\.tsx`）は SSR → 探索 → hydration まで通る。`foo_bar.tsx`・`foo.bar.tsx` などは生成時に拒否される（[rendering-model.md](rendering-model.md) 1.4） | H5 |
+| script 埋め込み（将来） | props を `<script type="application/json">` に置く方式を入れるときに限り、`</script><script>…` を含む値の往復と、注入したスクリプトが実行されないこと（[rendering-model.md](rendering-model.md) 1.2） | — |
 | ルート | 生成ルートの GET / POST が `createApp` で登録される。`HEAD` が生成時に拒否される。`_` 始まりのファイル名が拒否される | H7・H8 |
 | URL 変換 | hx4s-codegen の `filePathToPath` 相当が HonoX の実装と一致する（同じ入力表を両方に通す） | H7 |
-| ビルド | `hx4s-vite` の 2 モードで、client 成果物に server 側のマーカー文字列が入らない（3ch の KB-27 検査の一般化） | H9 |
+| ビルド | `hx4s-vite` の 2 モードで、client の推移的依存（sbt の依存グラフ）と Vite のモジュールグラフに server のモジュールが入らない。client 成果物に server 側のマーカー文字列が入らないことの文字列検査は補助（3ch の KB-27 検査の一般化。[module-boundaries.md](module-boundaries.md) 2 章） | H9 |
+| 書き出し | symlink / junction 経由の外部書き込み・削除が起きない（[build-integration.md](build-integration.md) 3.3）。失敗注入の後に再実行で収束する | — |
 
 テストの実行対象:
 

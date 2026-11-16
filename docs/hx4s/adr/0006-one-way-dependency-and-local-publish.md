@@ -14,7 +14,11 @@ hx4s を 3ch から分離したあと、3ch は hx4s を使う側になる。hx4
 - 分離後しばらくは、ローカルの依存を許す。
   - sbt: hx4s で `sbt publishLocal` し、3ch は通常の `libraryDependencies` / `addSbtPlugin` で `~/.ivy2/local` から解決する。版は `-SNAPSHOT` を使わず、`0.1.0-local.N` のように明示する案（同じ版の上書きでキャッシュが古いまま残る事故を避けるため）。
   - npm: 3ch の `package.json` で `"hx4s-vite": "file:../hx4s/vite"` のように参照する。
-- CI での解決方式は Phase 5 で決める。
+- CI での **公開を伴う** 解決方式は Phase 5 で決める。
+- ただし、公開が無くても再現できる検証経路は Phase 4 の前提にする。
+  - commit を固定した hx4s の checkout から、`publishLocal` と npm パッケージの準備（`npm pack` など）を行う手順をスクリプトにする。
+  - **空の依存キャッシュ**（空の coursier / ivy キャッシュと `node_modules`）から、3ch がビルドとテストを通せることを完了条件に含める。
+  - 手元の `~/.ivy2/local` と `node_modules` にたまたま残っているものに頼って成功する、という状態を移行完了と見なさない。
 
 ### CI での解決方式の比較
 
@@ -39,4 +43,5 @@ hx4s を 3ch から分離したあと、3ch は hx4s を使う側になる。hx4
 
 - Phase 4 の 3ch は、hx4s のチェックアウトが隣にあることを前提にする（`../hx4s`）。手順を 3ch の docs に書く。
 - 3ch の本番デプロイ（`npm run deploy`）は、ローカル依存の期間はローカル環境からだけ行える。CI からのデプロイは Phase 5 以降。
+- Phase 4 の移行は、上の前提（commit 固定の checkout からの手順、空の依存キャッシュからのビルド）が通ってから完了とする（[extraction-plan.md](../extraction-plan.md) Phase 4）。
 - hx4s に変更を入れるときに 3ch が壊れていないかは、Phase 4 以降、3ch 側で確認する。hx4s の CI では確認できない。

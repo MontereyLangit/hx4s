@@ -2,7 +2,7 @@
 
 hx4s は、2ch 互換掲示板「3ch」の Scala.js × HonoX 連携基盤を独立した OSS メタフレームワークとして切り出す計画である。
 この版は Phase 0（設計）の成果物で、**hx4s 側のコードはまだ 1 行も無い**。記述中の「現行実装」は 3ch リポジトリ
-（`ch3s`、2026-11-16 時点の作業ツリー）を指す。
+（`ch3s`、2026-11-16 時点。調査基準 commit `875a47b`。3ch の Phase 1 / 2 は進行中で作業ツリーは変わりうる）を指す。
 
 | 文書 | 内容 |
 | --- | --- |
@@ -14,6 +14,7 @@ hx4s は、2ch 互換掲示板「3ch」の Scala.js × HonoX 連携基盤を独�
 | [build-integration.md](build-integration.md) | sbt + Vite の現状、hx4s-vite と sbt-hx4s の責務、codegen・CLI の方式比較 |
 | [compatibility.md](compatibility.md) | 依存バージョン、HonoX アルファ版への追従方針、ライセンス |
 | [roadmap.md](roadmap.md) | P0 / P1 / P2 の機能と状態、未決事項 |
+| [reviews/phase0-review.md](reviews/phase0-review.md) | Phase 0 のレビュー記録（セルフレビューと Codex CLI の指摘、反映先） |
 
 ADR（1 判断 1 ファイル）:
 

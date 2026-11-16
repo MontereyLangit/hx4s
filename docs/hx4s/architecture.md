@@ -2,13 +2,17 @@
 
 ## 1. 調査範囲
 
-3ch リポジトリ（以下 3CH）の次のファイルを読んだ。3CH にはこの調査で一切書き込んでおらず、sbt / npm も実行していない。
+**調査基準**: 3ch リポジトリ（以下 3CH）の commit `875a47b`（`refactor(codegen): 汎用部分を framework パッケージへ分け、誤りを値で返す`）と、2026-11-16 時点の作業ツリー。
+**3CH の Phase 1 / 2 は進行中で、作業ツリーは変わりうる**（調査中にも `HonoFacade.scala` の分割、`common/src/main/scala-js/.../islands/` と `validation/` の追加が進んでいた）。
+着手時に 3CH の現状を読み直し、この文書の「現行実装」の記述とずれていないか確かめること。調査の途中で構成が変わった箇所（旧 `AnnotatedAppEntries` から `framework` パッケージへの分離など）は、現在のファイル名で書き直してある。
+
+3CH の次のファイルを読んだ。3CH にはこの調査で一切書き込んでおらず、sbt / npm も実行していない。
 そのため、ビルドやテストの結果はこの文書では確認しておらず、記述はソースと既存文書の読解に基づく。
 
 - ビルド: `build.sbt`, `project/plugins.sbt`, `project/build.properties`, `package.json`, `package-lock.json`, `vite.config.ts`, `tsconfig.json`
 - 配線: `app/server.ts`, `app/client.ts`, `app/routes/**`, `app/islands/*.tsx`, `app/renderer.d.ts`, `app/scalajs-server.d.ts`
-- 宣言と生成: `common/src/main/scala/io/_3ch/common/routes/{Annotations,RouteTable}.scala`, `codegen/src/{main,test}/scala/io/_3ch/codegen/*`
-- Scala.js: `bbs/.../Main.scala`, `bbs/.../external/{honox/Island.scala, hono/HonoFacade.scala, web/WebFacade.scala}`, `bbs/.../handler/RendererShell.scala`,
+- 宣言と生成: `common/src/main/scala/io/_3ch/common/routes/{Annotations,RouteTable}.scala`, `codegen/src/{main,test}/scala/io/_3ch/codegen/{*,framework/*}`
+- Scala.js: `bbs/.../Main.scala`, `bbs/.../external/{honox/Island.scala, hono/{HonoContext,HonoContextFacade}.scala, web/WebFacade.scala}`, `bbs/.../handler/RendererShell.scala`,
   `bbs/.../components/*`（IslandComponents の呼び出し側）, `bbs-client/.../Main.scala`, `bbs-client/.../islands/*`（代表例）, `bbs/src/test/.../IslandTestExports.scala`
 - テスト支援: `bbs/test-stubs/*`, `tests/{islands-bridge,islands-hydration,board-islands,board-top-hydration,client-bundle,worker-bundle}.test.js`
 - 文書: `AGENTS.md`, `docs/{islands-ssr,islands-ssr-review,route-annotations-review,island-props型付け計画,client-build-review,handler-rendering,development}.md`
@@ -21,10 +25,10 @@
 
 | プロジェクト | 種別 | 役割 |
 | --- | --- | --- |
-| `common` | crossProject（Pure, JVM + JS） | 純粋ロジック。`routes/` にアノテーションと生成テンプレート（`RouteTable`）が同居する |
+| `common` | crossProject（Pure, JVM + JS） | 純粋ロジック。`routes/` にアノテーションと `RouteTable`（`publicPatterns`）が同居する。生成テンプレートは `875a47b` 時点で `codegen` 側へ移っている |
 | `bbs` | Scala.js（ESModule） | Worker 本体・DO・ハンドラ・SSR コンポーネント。`@route` を持つ `Main` |
 | `bbsClient` | Scala.js（ESModule） | ブラウザ向け island。`@islands` を持つ `Main`。`bbs` とは独立にリンクする（KB-27） |
-| `codegen` | JVM | scalameta で `Main` を読み、`app/routes`・`app/islands`・`IslandComponents.scala` を生成。DO の TS 型と RPC スタブも生成 |
+| `codegen` | JVM | 汎用部分は `framework` パッケージ（`CodegenConfig` で設定）。scalameta で `Main` を読み、`app/routes`・`app/islands`・`IslandComponents.scala` を生成。DO の TS 型と RPC スタブも生成（3ch 固有） |
 
 `bbs` は `bbsClient` に依存しない。SSR が必要とする island の実体は、`bbsClient` のリンク成果物を
 Vite の仮想モジュール `scalajs:client.js` として読み込む。
@@ -37,12 +41,12 @@ flowchart LR
     SM["bbs/.../Main.scala<br/>@route + @JSExportTopLevel(_, &quot;server&quot;)"]
     CM["bbs-client/.../Main.scala<br/>@islands + @JSExportTopLevel(_, &quot;client&quot;)"]
   end
-  CG["codegen<br/>GenerateAppFiles<br/>(sbt codegen/run)"]
+  CG["codegen<br/>GenerateAppFiles + framework<br/>(sbt codegen/run、bbs の sourceGenerators)"]
   SM --> CG
   CM --> CG
   CG --> R["app/routes/**/*.ts<br/>createRoute((c) => handler(c))"]
   CG --> I["app/islands/*.tsx<br/>export default XxxJs"]
-  CG --> IC["bbs/.../generated/IslandComponents.scala<br/>Island(raw, props, '/app/islands/x.tsx')"]
+  CG --> IC["bbs の src_managed/…/generated/IslandComponents.scala<br/>Island(raw, props, '/app/islands/x.tsx')"]
   IC --> BBS["bbs (Scala.js)"]
   SM --> BBS
   CM --> CL["bbsClient (Scala.js)"]
@@ -61,12 +65,13 @@ flowchart LR
 
 1. `bbs.Main` の宣言に `@route("auth/index.ts")` と `@JSExportTopLevel("authPageHandler", "server")` を並べて書く。
    `bbsclient.Main` には `@islands("posting-form.tsx")` と `@JSExportTopLevel("PostingFormJs", "client")` を並べる。
-2. `npm run v6:generate`（= `sbt codegen/run`）が `GenerateAppFiles.main` を実行する。
-   入力パスは `bbs/src/main/scala/io/_3ch/bbs/Main.scala` と `bbs-client/src/main/scala/io/_3ch/bbsclient/Main.scala` に固定されている。
+2. `npm run v6:generate`（= `sbt codegen/run`）が `GenerateAppFiles.main` を実行し、`framework` の `Codegen.appFiles` を `CodegenConfig` つきで呼ぶ。
+   入力パスは `bbs/src/main/scala/io/_3ch/bbs/Main.scala` と `bbs-client/src/main/scala/io/_3ch/bbsclient/Main.scala` で、`GenerateAppFiles.config` が持つ。
    同じ実行で DO の TS 型 `app/scalajs-durable-objects.generated.d.ts` も書く（3ch 固有）。
 3. 生成物は 3 種。`app/routes/**/*.ts`（HonoX のファイルルート）、`app/islands/*.tsx`（HonoX のクライアント探索の入口）、
-   `bbs/src/main/scala/io/_3ch/bbs/generated/IslandComponents.scala`（SSR 用 Scala API）。
-   `app/routes` と `app/islands` の生成物は Git 管理下、`IslandComponents.scala` は `.gitignore` 対象。
+   `IslandComponents.scala`（SSR 用 Scala API）。`app/routes` と `app/islands` の生成物は Git 管理下。
+   `IslandComponents.scala` は `bbs` の `Compile / sourceGenerators` が `GenerateAppFiles --island-components` を呼んで `src_managed` に出す（`build.sbt` の `generateIslandComponents`）ので、
+   ソースツリーには置かれず、clone 直後でも `bbs` のコンパイルで生成される。以前の `bbs/src/main/scala/.../generated/IslandComponents.scala` は `GenerateAppFiles` が見つければ削除する。
 4. `vite build --mode client` が `bbsClient` を `fullLinkJS` し（`@scala-js/vite-plugin-scalajs` が `sbt print bbsClient/fullLinkJSOutput` を実行）、
    `app/client.ts` を入口に `dist/static/client.js` を出す。HonoX の `createClient` が `import.meta.glob('/app/islands/**/*.tsx')` で island を遅延 import する。
 5. `vite build --mode workers` が `bbs` と `bbsClient` を順にリンクし、`honox()` プラグインで `app/server.ts` を入口に Worker を組み立て、
@@ -83,13 +88,15 @@ flowchart LR
 | ファイル | 責務 | 手書き / 生成 |
 | --- | --- | --- |
 | `common/.../routes/Annotations.scala` | `final class route(filePath, method = "GET")`、`final class islands(filePath)`。どちらも `StaticAnnotation` | 手書き |
-| `common/.../routes/RouteTable.scala` | 公開互換パターン `publicPatterns`（3ch 固有）と、生成テンプレート `RouteKind` / `RouteEntry` / `IslandEntry` / `renderRouteFile` / `renderIslandFile` / 生成バナー | 手書き |
-| `codegen/.../AnnotatedAppEntries.scala` | scalameta で `object Main` の `Defn.Def` / `Defn.Val` を走査し、アノテーション引数（文字列リテラルのみ）・export 名・moduleID・出力パスを検証して `Entries` にする | 手書き |
-| `codegen/.../GenerateAppFiles.scala` | CLI main。入力パス固定。生成物の書き込み、手書きファイルの保護、古い生成物の削除 | 手書き |
-| `codegen/.../GenerateIslandComponents.scala` | `IslandComponents.scala` の文字列生成 | 手書き |
+| `common/.../routes/RouteTable.scala` | 公開互換パターン `publicPatterns`（3ch 固有）。生成テンプレートは `codegen/.../framework/` へ移動済み | 手書き |
+| `codegen/.../framework/AnnotationScanner.scala` | scalameta で `object Main` の `Defn.Def` / `Defn.Val` を走査し、アノテーション引数（文字列リテラルのみ）・export 名・moduleID・出力パスを検証して `AppEntries`（`framework/AppEntries.scala`）にする | 手書き |
+| `codegen/.../framework/AppFileRenderer.scala` | route TS・island TSX・`IslandComponents.scala` の文字列生成 | 手書き |
+| `codegen/.../framework/{OutputPath,OutputWriter}.scala` | 出力パスの検査、書き込み前の全検査、同内容なら書かない、手書きファイルの保護、古い生成物の削除 | 手書き |
+| `codegen/.../framework/{Codegen,CodegenConfig,CodegenError,CodegenReport}.scala` | 設定 case class、生成の入口、誤りを値で返す型、報告 | 手書き |
+| `codegen/.../GenerateAppFiles.scala` | 3ch の `CodegenConfig`（入力パス・moduleID・出力先・パッケージ・バナー）と CLI main（`--project-root`、`--island-components`）。DO の TS 型の書き込みもここ | 手書き |
 | `codegen/.../{DurableObjectSources,GenerateDurableObjectTypes,GenerateDurableObjectStubs,GenerateDurableObjectStubsMain}.scala` | DO の TS 型・RPC スタブ生成（3ch 固有） | 手書き |
 | `bbs/.../external/honox/Island.scala` | `@JSImport("honox/vite/components", "HonoXIsland")` の facade と `Island.apply` | 手書き |
-| `bbs/.../external/hono/HonoFacade.scala` | `HonoRequestFacade` / `HonoContextFacade`（`env: WorkerEnv` 固定）、`RenderProps`（`title`・`authModal`）、`renderPromise` 拡張 | 手書き |
+| `bbs/.../external/hono/{HonoContext,HonoContextFacade}.scala` | `HonoRequestFacade` / `HonoContextFacade`（`env: WorkerEnv` 固定）、`RenderProps`（`title`・`authModal`）、`renderPromise` 拡張。調査中の作業ツリーで旧 `HonoFacade.scala` から分割されている最中 | 手書き |
 | `bbs/.../external/web/WebFacade.scala` | Fetch API `Request` / `Response` / `Headers` の手書き facade | 手書き |
 | `bbs/.../handler/RendererShell.scala` | HTML シェル（`<html lang="ja">`、CSS、client script、認証モーダル）と Shift_JIS 応答 | 手書き（3ch 固有） |
 | `app/server.ts` | `createApp`、ミドルウェア（Client Hints・末尾スラッシュ）、認証 API、`publicHandler` へのフォールバック、DO の再 export | 手書き |
@@ -104,7 +111,7 @@ flowchart LR
 ### 2.4 実装上の要点
 
 - **export と宣言の同居**: アノテーションは同じ宣言の `@JSExportTopLevel(name, moduleID)` とセットで読む。export 名が生成 TS の import 名と
-  `IslandComponents` のメソッド名を決める。moduleID は `server` / `client` に固定（`AnnotatedAppEntries.parse` の `require`）。
+  `IslandComponents` のメソッド名を決める。moduleID は `CodegenConfig.serverModule` / `clientModule`（3ch の値は `server` / `client`）と一致することを `AnnotationScanner` が検査する。
 - **SSR は生成 TSX を import しない**: `IslandComponents` は `scalajs:client.js` の raw export を直接 `@JSImport` し、`HonoXIsland` で包む
   （`docs/islands-ssr.md`）。HonoX の Vite 変換（`island-components.js`）が TSX に施すラップを Scala 側で手組みしている形である。
 - **React への差し替え**: `HonoXIsland` のソースは `hono/jsx` を import する。`honox({ islandComponents: { reactApiImportSource: "react" } })` が
@@ -126,14 +133,15 @@ flowchart LR
 | `docs/islands-ssr.md` | `val threadView = ThreadView.component` を export する例 | 実装は `XxxIsland.Component.toJsComponent.raw`（型は `js.Any`） |
 | `docs/client-build-review.md` | `pong-from-client` が client.js に残ることを検証 | `tests/client-bundle.test.js` は `3ch:draft:` を肯定マーカーにしている |
 | `docs/route-annotations-review.md` | `_v6/health.ts` を生成（health 1 件） | 現行の `bbs.Main` に health の `@route` は無い。生成ルートは 5 件 |
-| `docs/island-props型付け計画.md` 3 章手順 1 | `common/src/main/scala-js` を `jsSettings` に追加する | `build.sbt` には既に追加済み（`domain/account`・`domain/device` が使用）。`io._3ch.common.islands` は未作成 |
+| `docs/island-props型付け計画.md` 3 章手順 1 | `common/src/main/scala-js` を `jsSettings` に追加する | `build.sbt` には既に追加済み（`domain/account`・`domain/device` が使用）。`io._3ch.common.islands`（`AccountIslandProps`・`BoardIslandProps`）と `validation/JsShape.scala` は調査中の作業ツリーに未コミットで現れた（Phase 1 の 1-1 が進行中） |
 | `AGENTS.md` 1.3 | 既存 fetch の `app/routes/index.ts` は手書き | 手書きルートは他に `admin/index.ts`・`auth.js.ts`・`bbsmenu.html.ts` がある |
 | `AGENTS.md` 1.3 | 管理画面は scalajs-react の SPA | `docs/admin-spa-auth-plan.md` は「計画（未着手）」。現行の `/admin` は `publicHandler` → `AdminHandler` |
-| `codegen/.../AnnotatedAppEntries.scala` | `@route` の method に `HEAD` を許す | HonoX `createApp` の `METHODS` は GET/POST/PUT/DELETE/OPTIONS/PATCH。`export const HEAD` は登録されず黙って無視される |
-| `codegen/.../AnnotatedAppEntries.scala` | 出力パスの各セグメントに `_`・`-`・`$` 始まりや `.test.ts` を許す | HonoX の `ROUTES` glob は `_*`・`-*`・`$*`・`*.test.*`・`*.spec.*` を除外する。生成しても経路にならない |
-| `GenerateAppFiles.writeFile` | — | 内容が同じでも毎回書き直す。`scalajs-durable-objects.generated.d.ts` は手書き保護の検査を通らない |
+| `codegen/.../framework/AppEntries.scala`（`HttpMethod`） | `@route` の method に `HEAD` を許す | HonoX `createApp` の `METHODS` は GET/POST/PUT/DELETE/OPTIONS/PATCH。`export const HEAD` は登録されず黙って無視される（`875a47b` 時点でも `HEAD` は通る） |
+| `codegen/.../framework/{OutputPath,AnnotationScanner}.scala` | 出力パスのセグメントは `[A-Za-z0-9_.$\[\]-]+`。route の basename が `_` 始まりは拒否する | HonoX の `ROUTES` glob は `_*`・`-*`・`$*`・`*.test.*`・`*.spec.*` を除外する。`_` 始まり以外（`-` / `$` 始まり、`.test.ts`、`.spec.ts`、`-` 始まりのディレクトリ）は `875a47b` 時点で通り、生成しても経路にならない |
+| `GenerateAppFiles` の `scalajs-durable-objects.generated.d.ts` | — | `OutputWriter.writeIfChanged` で内容が同じなら書かないが、生成マーカーの検査はしない（route / island 側の `OutputWriter.write` とは別経路） |
 
 hx4s の設計はこれらを前提に組む。3ch 側の文書修正は Phase 1 の作業に含める（[extraction-plan.md](extraction-plan.md)）。
+調査の途中で 3ch 側が解消した食い違い（旧 `AnnotatedAppEntries` の「内容が同じでも毎回書き直す」、`IslandComponents.scala` のソースツリー配置）は、上の表と 2.2 に現在の状態で書き直した。
 
 ## 3. hx4s の全体像
 
@@ -170,7 +178,7 @@ flowchart TB
 ```
 
 - `hx4s-codegen` は `hx4s-core` をコンパイル依存にしない。アノテーションは構文として名前で照合するので、型を参照する必要が無い。
-  現行の `codegen` が `commonJVM` に依存しているのは `RouteTable` のテンプレートを共有するためで、テンプレートは hx4s-codegen 側へ移す。
+  3ch の `codegen` は `875a47b` 時点で `commonJVM` に依存しておらず（`build.sbt`。scalameta だけ）、生成テンプレートは `framework` の `AppFileRenderer` にある。
 - `sbt-hx4s` は sbt 1.x のため Scala 2.12 でビルドする。Scala 3 の `hx4s-codegen` を同じクラスローダで読めないので、
   専用 configuration で解決して隔離実行する（[build-integration.md](build-integration.md) 3 章）。
 - 利用側アプリは server / client / shared の 3 つの Scala.js プロジェクトを持つ想定。shared には `@islands[P]` の `P`（非ネイティブ JS trait）を置く。
@@ -206,11 +214,11 @@ hx4s ではこれらを 1 か所に集め、互換性テスト（[compatibility.
 | --- | --- | --- | --- | --- |
 | H1 | `honox/vite/components` の `HonoXIsland` | props の形 `{ componentName, Component, props, componentExport? }` | `Island.scala` の `IslandProps` | package.json の exports にはあるが、BYOR 文書では TSX 変換経由の利用が前提。形は非公開仕様 |
 | H2 | 属性名 `component-name` / `data-serialized-props` / `data-hono-template` / `data-hono-hydrated` | SSR とクライアントの突き合わせ | テストの期待値、生成 `componentName` の形式 | `honox/constants` にあるが仕様文書は無い |
-| H3 | `component-name` の値 = Vite root からの絶対パス（`/app/islands/x.tsx`） | `IslandComponents` が文字列を組み立てる | `GenerateIslandComponents` | 非公開。`islandDir` を変えると崩れる |
+| H3 | `component-name` の値 = Vite root からの絶対パス（`/app/islands/x.tsx`） | `IslandComponents` が文字列を組み立てる | `AppFileRenderer.islandComponents` | 非公開。`islandDir` を変えると崩れる |
 | H4 | `island-components.js` の `load` フックによる `hono/jsx` → `reactApiImportSource` の文字列置換 | `HonoXIsland` を React で動かす | `vite.config.ts`、`test-stubs` の loader | オプション名は公開、置換の対象パス正規表現は内部 |
-| H5 | `createClient` の glob と basename 規則（`/app/islands/**/*.tsx`、`/[a-zA-Z0-9-]+\.tsx$/`） | 生成 TSX のファイル名制約 | `AnnotatedAppEntries` の basename 検査 | 挙動は README に一部記載、正規表現は内部 |
+| H5 | `createClient` の glob と basename 規則（`/app/islands/**/*.tsx`、`/[a-zA-Z0-9-]+\.tsx$/`） | 生成 TSX のファイル名制約（P0 の公開規則。[rendering-model.md](rendering-model.md) 1.4） | `AnnotationScanner` の `IslandBasename` 検査 | 挙動は README に一部記載、正規表現は内部 |
 | H6 | `createClient` の `hydrate` / `createElement` オプション | React の `hydrateRoot` を渡す | `app/client.ts` | 公開（BYOR） |
-| H7 | `createApp` のファイル規約（default export = GET、名前付き export = メソッド、`METHODS` の集合、除外 glob） | 生成ルートの形 | `RouteTable.renderRouteFile` | 規約は README に記載。`METHODS` の集合は内部 |
-| H8 | `honox/factory` の `createRoute`（= `createFactory().createHandlers`） | 生成ルート | `renderRouteFile` | 公開 |
+| H7 | `createApp` のファイル規約（default export = GET、名前付き export = メソッド、`METHODS` の集合、除外 glob） | 生成ルートの形 | `AppFileRenderer.route` | 規約は README に記載。`METHODS` の集合は内部 |
+| H8 | `honox/factory` の `createRoute`（= `createFactory().createHandlers`） | 生成ルート | `AppFileRenderer.route` | 公開 |
 | H9 | `honox()` が `ssr.noExternal: true` を設定し、devServer の入口を `./app/server.ts` にする | Workers ビルド | `vite.config.ts` | オプションは公開 |
 | H10 | 入れ子 island の扱い（`IslandContext` で内側はラップしない、children は template へ） | Hydration 境界の数 | `tests/islands-hydration.test.js` | 非公開 |

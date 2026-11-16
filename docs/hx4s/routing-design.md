@@ -32,7 +32,7 @@ export default createRoute((c) => boardIndexHandler(c));
 
 ### 1.1 codegen が現在検証していること
 
-`AnnotatedAppEntries.parse` の検査:
+`framework/AnnotationScanner`・`OutputPath`・`OutputWriter` の検査（調査基準 commit `875a47b`）:
 
 | 検査 | 内容 |
 | --- | --- |
@@ -43,14 +43,16 @@ export default createRoute((c) => boardIndexHandler(c));
 | パス | `.ts` で終わる。各セグメントが空・`.`・`..` でなく `[A-Za-z0-9_.$\[\]-]+` に一致 |
 | メソッド | `GET` / `POST` / `PUT` / `DELETE` / `PATCH` / `OPTIONS` / `HEAD` |
 | 衝突 | 大文字小文字だけが違うパス、同じパス・同じメソッドの重複 |
-| 書き込み | 既存ファイルが生成バナーを持たなければ上書き・削除しない（`GenerateAppFiles.writeOutputs`） |
+| route のファイル名 | basename が `_` 始まりなら拒否（HonoX の `ROUTES` が除外するため）。`-` / `$` 始まり、`.test.ts` / `.spec.ts`、`-` 始まりのディレクトリは通る（1.2） |
+| island のファイル名 | basename が `[A-Za-z0-9-]+\.tsx` に一致しなければ拒否（HonoX の `createClient` の探索規則。P0 の公開規則として [rendering-model.md](rendering-model.md) 1.4） |
+| 書き込み | 既存ファイルが生成バナーを持たなければ上書き・削除しない（`OutputWriter`）。誤りは書き込み前にすべて集める |
 
 ### 1.2 現状の問題
 
 | 問題 | 内容 |
 | --- | --- |
-| `HEAD` | HonoX の `createApp` は `METHODS = [GET, POST, PUT, DELETE, OPTIONS, PATCH]` だけを見る。`export const HEAD` は登録されない。Hono の GET ハンドラは HEAD にも応答するので、`HEAD` は拒否するのが正しい |
-| HonoX が無視するファイル名 | `_*`・`-*`・`$*`・`*.test.ts`・`*.spec.ts`・`-*/` 配下は `ROUTES` の glob から外れる。現行の検査はこれらを通す |
+| `HEAD` | 現行の `HttpMethod` は `HEAD` を許している。HonoX の `createApp` は `METHODS = [GET, POST, PUT, DELETE, OPTIONS, PATCH]` だけを見る。`export const HEAD` は登録されない。Hono の GET ハンドラは HEAD にも応答するので、`HEAD` は拒否するのが正しい |
+| HonoX が無視するファイル名 | `_*`・`-*`・`$*`・`*.test.ts`・`*.spec.ts`・`-*/` 配下は `ROUTES` の glob から外れる。現行の検査は basename が `_` 始まりのものだけ拒否し、残りは通す |
 | URL レベルの衝突 | `foo.ts` と `foo/index.ts`、`[a].ts` と `[b].ts` は別ファイルだが同じ URL パターンになる。現行の検査はファイルパスしか見ない |
 | 手書きルートとの衝突 | 手書きファイルとの「同名ファイル」は拒否するが、URL が同じ手書きファイルは検出しない |
 | 型 | ハンドラの引数が `js.Any`。Env の型も Context の型も付かない |
@@ -75,6 +77,7 @@ P0 は引数の形を変えない（`@route(filePath, method = "GET")`）。パ�
 - `filePathToPath` 相当の変換を Scala で実装し、生成ルート同士の **URL パターン** の衝突を拒否する。パラメータ名だけ違うものも衝突とみなす。
 - `app/routes` 配下の手書きファイル（バナー無し）も同じ変換にかけ、URL が衝突する場合は警告する（拒否にすると手書きの意図的な上書きを妨げるため、まずは警告。U-23）。
 - 生成ルートの数・パス一覧を標準出力に決定的な順で出す（レビューで差分を追えるように）。
+- island の basename が `[A-Za-z0-9-]+\.tsx` に一致しないものを拒否する（実装済み。P0 の公開規則。[rendering-model.md](rendering-model.md) 1.4）。
 
 `filePathToPath` の変換規則は HonoX の内部実装（`server/utils/file.js`）に合わせることになるので、HonoX の版を上げるたびに互換性テストで照合する
 （[compatibility.md](compatibility.md) 3 章）。
