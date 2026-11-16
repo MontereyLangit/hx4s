@@ -133,7 +133,7 @@ object Hx4sPlugin extends AutoPlugin {
     IO.delete(outputList)
     runCodegen(hx4sCodegenClasspath.value, Seq("app") ++ sharedArguments.value ++ Seq("--output-list", outputList.getAbsolutePath),
       hx4sProjectRoot.value, javaHome.value, hx4sCodegenJavaOptions.value, log)
-    IO.readLines(outputList).filter(_.nonEmpty).map(file(_)).sortBy(_.getAbsolutePath)
+    IO.readLines(outputList).filter(_.nonEmpty).map(file).sortBy(_.getAbsolutePath)
   }
 
   private lazy val islandComponentsTask: Def.Initialize[Task[Seq[File]]] = Def.task {

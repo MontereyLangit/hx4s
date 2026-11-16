@@ -16,7 +16,7 @@ private type Handler = js.Function1[Ctx, Response | js.Promise[Response]]
 
 @js.native
 @JSImport("hono", "Hono")
-private class Hono() extends js.Object {
+private class Hono extends js.Object {
   def get(path: String, handler: Handler): Hono = js.native
   def post(path: String, handler: Handler): Hono = js.native
   def onError(handler: js.Function2[js.Any, Ctx, Response]): Hono = js.native

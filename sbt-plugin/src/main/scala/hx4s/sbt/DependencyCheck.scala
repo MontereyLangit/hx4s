@@ -12,12 +12,10 @@ private[sbt] object DependencyCheck {
                graph: Map[ProjectRef, Seq[ClasspathDep[ProjectRef]]]): List[String] = {
     client.toList.flatMap { clientRef =>
       val toServer = servers.toList.sortBy(_.project).flatMap(target => path(clientRef, target, graph).map { route =>
-        s"hx4s: the client project ${clientRef.project} must not depend on the server project ${target.project} (${render(route)}). " +
-          "Put types shared by both, such as island props, in a project that neither depends on the other"
+        s"hx4s: the client project ${clientRef.project} must not depend on the server project ${target.project} (${render(route)}). Put types shared by both, such as island props, in a project that neither depends on the other"
       })
       val toClient = path(server, clientRef, graph).map { route =>
-        s"hx4s: the server project ${server.project} must not depend on the client project ${clientRef.project} (${render(route)}). " +
-          "The server reads client islands only through the virtual module"
+        s"hx4s: the server project ${server.project} must not depend on the client project ${clientRef.project} (${render(route)}). The server reads client islands only through the virtual module"
       }
       toServer ++ toClient
     }
