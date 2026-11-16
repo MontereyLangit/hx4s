@@ -25,6 +25,12 @@ export interface Hx4sOptions {
     entry?: string | string[];
     /** SSR で client のリンク成果物を読む仮想モジュールの接頭辞。既定は "scalajs-client" */
     uriPrefix?: string;
+    /** client ビルドの出力名。省いた項目は static/client.js・static/assets/[name]-[hash].js・static/assets/[name].[ext] */
+    output?: {
+      entryFileNames?: string;
+      chunkFileNames?: string;
+      assetFileNames?: string;
+    };
   };
   /** honox() にそのまま渡す追加の設定。islandComponents.reactApiImportSource の既定は "react" */
   honox?: HonoxOptions;
@@ -53,6 +59,7 @@ export default function hx4s(options: Hx4sOptions): PluginOption[] {
 
   if (options.mode === "client") {
     const entry = options.client?.entry ?? "./app/client.ts";
+    const output = options.client?.output;
     const clientBuild: Plugin = {
       name: "hx4s:client-build",
       config: () => ({
@@ -60,9 +67,9 @@ export default function hx4s(options: Hx4sOptions): PluginOption[] {
           rollupOptions: {
             input: Array.isArray(entry) ? entry : [entry],
             output: {
-              entryFileNames: "static/client.js",
-              chunkFileNames: "static/assets/[name]-[hash].js",
-              assetFileNames: "static/assets/[name].[ext]",
+              entryFileNames: output?.entryFileNames ?? "static/client.js",
+              chunkFileNames: output?.chunkFileNames ?? "static/assets/[name]-[hash].js",
+              assetFileNames: output?.assetFileNames ?? "static/assets/[name].[ext]",
             },
           },
           emptyOutDir: false,

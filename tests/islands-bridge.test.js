@@ -26,7 +26,7 @@ test('server モードの moduleID・接頭辞・honox の設定は上書きで�
   assert.deepEqual(named(plugins, 'hx4s:client-alias').config().resolve.alias, { 'scalajs:browser.js': 'scalajs-browser:browser.js' });
 });
 
-test('client モードは client の Scala.js だけをリンクし、static/ 配下へ出す', () => {
+test('client モードは client の Scala.js だけをリンクし、既定では static/ 配下へ出す。出力名は上書きできる', () => {
   const plugins = hx4s({ mode: 'client', sbt: { cwd: root }, client: { entry: './app/main.ts' } });
   assert.equal(scalaPlugins(plugins).length, 1);
   assert.equal(named(plugins, 'hx4s:client-alias'), undefined);
@@ -36,6 +36,10 @@ test('client モードは client の Scala.js だけをリンクし、static/ �
   assert.equal(build.rollupOptions.output.entryFileNames, 'static/client.js');
   assert.equal(build.emptyOutDir, false);
   assert.deepEqual(named(hx4s({ mode: 'client' }), 'hx4s:client-build').config().build.rollupOptions.input, ['./app/client.ts']);
+  const renamed = named(hx4s({ mode: 'client', client: { output: { entryFileNames: 'static/client-[hash].js' } } }), 'hx4s:client-build');
+  assert.deepEqual(renamed.config().build.rollupOptions.output, {
+    entryFileNames: 'static/client-[hash].js', chunkFileNames: 'static/assets/[name]-[hash].js', assetFileNames: 'static/assets/[name].[ext]',
+  });
 });
 
 test('scalaProject は関数形式の buildStart も直列にする', () => {

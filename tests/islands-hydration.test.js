@@ -12,11 +12,12 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 // npm の pretest が sbt react/Test/fastLinkJS で作る、実際の Scala のブリッジと client island
 const bridge = path.join(root, 'modules/react/target/scala-3.3.8/hx4s-react-test-fastopt/island-test.js');
 
-// examples/minimal/app/client.ts と同じ hydrate。props の検証関数（IslandExport が付ける）が失敗したら hydrate しない
+// examples/minimal/app/client.ts と同じ hydrate。island と template 内の island の props の検証（IslandExport が付ける）が失敗したら hydrate しない
 const clientSource = `
 import { createClient } from 'honox/client';
 import { createElement } from 'react';
 import { hydrateRoot } from 'react-dom/client';
+import { islandPropsProblem } from 'hx4s-vite/client';
 export const roots = [];
 export const errors = [];
 export const skipped = [];
@@ -24,7 +25,7 @@ export function hydrate() {
   return createClient({
     createElement,
     hydrate: (element, root) => {
-      const problem = element.type?.hx4sValidate?.(element.props);
+      const problem = islandPropsProblem(element);
       if (problem !== undefined) {
         skipped.push(problem);
         console.error('[hx4s] skipped hydration: ' + problem);
@@ -256,6 +257,64 @@ export function render() {
         await cleanup(client);
       }
     });
+  } finally {
+    console.error = originalError;
+    await rm(fixture, { recursive: true, force: true });
+  }
+}));
+
+test('要素 props（template）の中の Scala.js の island の props が合わなければ、外側の island も hydrate せずに SSR の markup を残す', () => inDevelopment(async () => {
+  const { fixture, server, client } = await buildFixture('islands-template-validation', {
+    'components.js': `
+import { createElement } from 'react';
+export function Slot({ children }) { return createElement('section', null, children); }
+`,
+    'app/islands/slot.tsx': "import { Slot } from '../../components.js';\nexport default Slot;\n",
+    'app/islands/counter.tsx': "import { CounterTest } from 'scala-island-test';\nexport default CounterTest;\n",
+    'server.js': `
+import { createElement, cloneElement } from 'react';
+import { renderToString } from 'react-dom/server';
+import { renderIslandTest, CounterTest } from 'scala-island-test';
+import { Slot } from './components.js';
+export function render() {
+  const inner = renderIslandTest(CounterTest, { label: 'in', start: 3 }, '/app/islands/counter.tsx');
+  return renderToString(renderIslandTest(Slot, { children: [createElement('span', { key: 'text' }, 'slot'), cloneElement(inner, { key: 'counter' })] },
+    '/app/islands/slot.tsx'));
+}
+`,
+  });
+  const consoleErrors = [];
+  const originalError = console.error;
+  console.error = (...args) => { consoleErrors.push(args.join(' ')); };
+  try {
+    for (const valid of [true, false]) {
+      await withDom(server.render(), async (document) => {
+        try {
+          const inner = document.querySelector('template[data-hono-template="children"]').content.querySelector('honox-island');
+          assert.equal(inner.getAttribute('component-name'), '/app/islands/counter.tsx');
+          // 旧い世代の HTML: template 内の island の props に start が無い
+          if (!valid) inner.setAttribute('data-serialized-props', JSON.stringify({ label: 'in' }));
+          const button = document.querySelector('button');
+          assert.equal(button.textContent, 'in:3');
+          await act(async () => { await client.hydrate(); });
+          await act(async () => { button.click(); });
+          assert.deepEqual(client.errors, []);
+          if (valid) {
+            assert.equal(client.roots.length, 1);
+            assert.deepEqual(client.skipped, []);
+            assert.equal(button.textContent, 'in:4');
+          } else {
+            assert.equal(client.roots.length, 0, '外側の island も hydrate しない');
+            assert.deepEqual(client.skipped, ['props.children[1]: props.start: missing']);
+            assert.equal(button.textContent, 'in:3', 'SSR の markup のまま残る');
+            assert.equal(document.querySelector('span').textContent, 'slot');
+          }
+        } finally {
+          await cleanup(client);
+        }
+      });
+    }
+    assert.ok(consoleErrors.some(message => message.includes('props.children[1]: props.start: missing')), consoleErrors.join('\n'));
   } finally {
     console.error = originalError;
     await rm(fixture, { recursive: true, force: true });
