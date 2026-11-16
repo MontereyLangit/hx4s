@@ -41,8 +41,8 @@ cd examples/minimal && npm test
 
 ## 生成物
 
-`examples/minimal/app/routes` と `app/islands` の生成ファイルはコミットしてあります。`@route` / `@islands` や codegen の出力を変えたときは、examples で `npm run generate` を実行して差分を含めてください
-（CI が、ビルド後に `examples/minimal/app` に差分や未追跡のファイルが無いことを確かめます）。
+`examples/minimal/app/routes`・`app/islands` と `examples/api-only/app/routes` の生成ファイルはコミットしてあります。`@route` / `@islands` や codegen の出力を変えたときは、examples で `npm run generate` を実行して差分を含めてください
+（CI が、ビルド後に各 example の `app` に差分や未追跡のファイルが無いことを確かめます）。
 
 ## 構成と依存
 

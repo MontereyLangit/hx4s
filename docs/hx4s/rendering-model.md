@@ -8,7 +8,7 @@
 | SSR + Islands | 既定の方式。ページは SSR、対話部分だけを island として hydrate | 実装済み。板トップ（`site-header`・`board-details`・`thread-list`）、認証・アカウント画面 | P0 の中心。未実装 |
 | SSR + Full Hydration | ページ全体を 1 つの island にする | 未実装 | 構想（P2）。下記 1.2 |
 | SPA + API | 静的な HTML シェル + クライアント側ルーティング + JSON API | 未実装（管理画面の SPA 化は `docs/admin-spa-auth-plan.md` で計画中・未着手） | 構想（P1 の Client Router と合わせて検討） |
-| API-only | HTML を返さないハンドラ | 実装済み（`/auth/*` の API、dat / subject.txt） | `@route` の生成ルートで書ける。特別な支援は不要 |
+| API-only | HTML を返さないハンドラ | 実装済み（`/auth/*` の API、dat / subject.txt） | `@route` の生成ルートで書ける。`hx4s({ client: false })` で client と React の無い構成にできる（`examples/api-only`、[api.md](../api.md)） |
 | Hybrid | 上記をルートごとに混在 | 実装済み（SSR 静的・Islands・API が同じ Worker に同居） | 既定で成立する（HonoX のファイルルートがルート単位で独立しているため） |
 
 ### 1.1 SSR + Islands のエントリポイントと境界

@@ -32,6 +32,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             examples/minimal/package-lock.json
+            examples/api-only/package-lock.json
 
       - name: Install workspace dependencies
         run: npm ci
@@ -63,8 +64,19 @@ jobs:
       - name: examples/minimal test
         working-directory: examples/minimal
         run: npm test
+      - name: examples/api-only install
+        run: node scripts/setup-example.mjs api-only
+      - name: examples/api-only build
+        working-directory: examples/api-only
+        run: npm run build
+      - name: examples/api-only type-check
+        working-directory: examples/api-only
+        run: npm run typecheck
+      - name: examples/api-only test
+        working-directory: examples/api-only
+        run: npm test
       - name: Generated files are up to date
         # 新しく生成されてコミットされていないファイルも見る
         run: |
-          git status --porcelain --untracked-files=all -- examples/minimal/app
-          test -z "$(git status --porcelain --untracked-files=all -- examples/minimal/app)"
+          git status --porcelain --untracked-files=all -- examples/minimal/app examples/api-only/app
+          test -z "$(git status --porcelain --untracked-files=all -- examples/minimal/app examples/api-only/app)"

@@ -22,13 +22,14 @@ Phase 4 で移動元の掲示板プロジェクト（3ch）が hx4s に乗り換
 | CLI main（引数で設定を受ける） | hx4s-codegen | 実装済み（`hx4s.codegen.CodegenMain`） |
 | 設定キーと `hx4sGenerate`、専用 configuration と fork 実行 | sbt-hx4s | 実装済み（`Hx4sPlugin`。scripted テストあり）。client なし（SSR だけ）の構成も扱う |
 | client と server の依存の向きの検査 | sbt-hx4s | sbt の依存グラフは実装済み（`hx4sCheckDependencies`、scripted の `dependencies`）。**Vite のモジュールグラフの検査は未実装**（[module-boundaries.md](module-boundaries.md) 2 章） |
-| Scala.js プロジェクトの登録・`buildStart` 直列化・`scalajs:client.js` alias・honox の React 設定・client ビルド設定 | hx4s-vite | 実装済み（`hx4s()`。client の出力名は `client.output` で上書きできる） |
+| Scala.js プロジェクトの登録・`buildStart` 直列化・`scalajs:client.js` alias・honox の React 設定・client ビルド設定 | hx4s-vite | 実装済み（`hx4s()`。client の出力名は `client.output` で上書きできる。`client: false` で client の無い構成（API だけ・island の無い SSR）を扱う） |
 | hydrate 前の props の検証（template 内の island を含む） | hx4s-vite | 実装済み（`hx4s-vite/client` の `islandPropsProblem`。[rendering-model.md](rendering-model.md) 2.4） |
 | Node 用 loader（`scalajs:client.js`、HonoX 内の `hono/jsx`） | hx4s-vite | 実装済み（`hx4s-vite/node-register`、環境変数 `HX4S_CLIENT_JS_DIR`）。利用側の loader と並べる方法と `Test / jsEnv` の例は [build-integration.md](build-integration.md) 2.3 |
 | ローカル公開の手順 | scripts | 実装済み（`scripts/publish-local.mjs`。版は `0.1.0-local.g<commit>`、未コミットの変更があれば `.dirty-<内容のハッシュ>`）。Phase 4 で `npm ci` から始めること、sbt・npm に分けた公開記録と完了の記録 `hx4s-publish.json`、`--verify`、シェルを介さない起動を足した（[local-dependency.md](local-dependency.md)） |
 | `examples/minimal`（SSR + Islands、Cloudflare Workers） | examples | 実装済み（ローカル公開の成果物だけで解決する。npm 依存は lockfile で固定し、`scripts/setup-example.mjs` で入れる） |
+| `examples/api-only`（JSON の API だけ。client・React なし） | examples | 実装済み（`hx4s({ client: false })`。ビルドした Worker を Node で呼ぶテスト。CI と独立性検査の対象） |
 | 互換性テスト | 各モジュール | SSR・hydration（単純・入れ子・要素 props・複数インスタンス・Scala.js の client island）・Props の往復（Unicode・`</script>`・引用符・入れ子）・世代ずれ・island のファイル名・ルートの登録（GET / POST / HEAD）・ビルドのバンドル文字列・書き出しの負のテストは実装済み。URL 変換（`filePathToPath`）の照合、template 内の island の検証、生成 TS の識別子の衝突も実装済み。**非有限の `Double`・循環参照の挙動、`honox@latest` の定期実行、Vite のモジュールグラフによる依存方向の検査は未実装** |
-| 利用者向けの文書（OSS 公開用） | README、`docs/`、CONTRIBUTING、CHANGELOG | 実装済み（2026-11-16。[docs/README.md](../README.md)）。コード例は `examples/minimal` と同じか、作業用の複製でコンパイル・実行して確かめたものだけ。API だけの構成とページ全体を 1 つの island にする構成は examples に含まれない。リリースの手順は公開方式が未決のため未整備（[release.md](../release.md)） |
+| 利用者向けの文書（OSS 公開用） | README、`docs/`、CONTRIBUTING、CHANGELOG | 実装済み（2026-11-16。[docs/README.md](../README.md)）。コード例は `examples/minimal` と同じか、作業用の複製でコンパイル・実行して確かめたものだけ。ページ全体を 1 つの island にする構成は examples に含まれない（API だけの構成は `examples/api-only`）。リリースの手順は公開方式が未決のため未整備（[release.md](../release.md)） |
 | CI | `.github/workflows/ci.yml` | ファイルを置いた（Ubuntu / Windows。生成物の確認は未追跡ファイルも見る）。リモートでは未実行（push はユーザーの判断） |
 
 ## 2. P1

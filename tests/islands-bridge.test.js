@@ -42,6 +42,15 @@ test('client モードは client の Scala.js だけをリンクし、既定で�
   });
 });
 
+test('client: false は server だけをリンクし、client の別名と React の設定を足さない。client モードとは組み合わせられない', () => {
+  const plugins = hx4s({ mode: 'production', sbt: { cwd: root }, client: false });
+  assert.equal(scalaPlugins(plugins).length, 1);
+  assert.equal(named(plugins, 'hx4s:client-alias'), undefined);
+  assert.equal(named(plugins, 'hx4s:client-build'), undefined);
+  assert.ok(plugins.flat(Infinity).some((plugin) => plugin?.name?.startsWith('honox')), 'honox() のプラグインを含む');
+  assert.throws(() => hx4s({ mode: 'client', client: false }), /client: false.*--mode client/);
+});
+
 test('scalaProject は関数形式の buildStart も直列にする', () => {
   const plugin = scalaProject(root, 'client', 'scalajs-x');
   assert.equal(plugin.buildStart.sequential, true);

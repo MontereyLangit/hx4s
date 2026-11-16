@@ -26,9 +26,11 @@
 - **sbt-hx4s**: `Hx4sPlugin`。設定キー（`hx4sClientProject` ほか）、`hx4sGenerate`、`Compile / sourceGenerators` による `IslandComponents` の生成（入力が変わらなければ再生成しない）、
   `hx4sCheckDependencies`（client と server の依存の向きの検査）、client なし（SSR だけ）の構成。codegen は専用 configuration で解決して fork した JVM で動かす
 - **hx4s-vite**: `hx4s()` Vite プラグイン（server / client の Scala.js プロジェクトの登録と `buildStart` の直列化、`scalajs:client.js` の別名、honox の React 設定、client ビルドの出力名）、
+  `client: false` で client の無い構成（API だけ・island の無い SSR）を扱う、
   hydrate 前の props の検証 `hx4s-vite/client` の `islandPropsProblem`（template 内の island を含む）、Node 用 loader `hx4s-vite/node-loader`・`node-register`
 - **scripts**: `publish-local.mjs`（ローカル公開、公開記録、`--verify`）、`setup-example.mjs`、`check-independence.mjs`
 - **examples/minimal**: SSR + Islands の最小アプリ（動的ルート、POST、JSON の API、island 2 種）。Cloudflare Workers で動く
+- **examples/api-only**: JSON の API だけの最小アプリ（`hx4s({ client: false })`。React に依存しない）
 - CI（Ubuntu と Windows。sbt・npm・examples の検証）
 - 文書: 設計と経緯（`docs/hx4s/`）と、利用者向けのガイド（`docs/`）、貢献ガイド
 - ライセンス: Apache-2.0

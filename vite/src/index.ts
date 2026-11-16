@@ -4,6 +4,24 @@ import scalaJSPlugin from "@scala-js/vite-plugin-scalajs";
 
 type HonoxOptions = NonNullable<Parameters<typeof honox>[0]>;
 
+/** client の Scala.js プロジェクトとそのビルドの設定 */
+export interface Hx4sClientOptions {
+  /** @islands を持つ sbt プロジェクトの ID。既定は "client" */
+  projectID?: string;
+  /** client のリンク成果物の @JSExportTopLevel moduleID。既定は "client" */
+  module?: string;
+  /** client ビルドの入口。既定は "./app/client.ts" */
+  entry?: string | string[];
+  /** SSR で client のリンク成果物を読む仮想モジュールの接頭辞。既定は "scalajs-client" */
+  uriPrefix?: string;
+  /** client ビルドの出力名。省いた項目は static/client.js・static/assets/[name]-[hash].js・static/assets/[name].[ext] */
+  output?: {
+    entryFileNames?: string;
+    chunkFileNames?: string;
+    assetFileNames?: string;
+  };
+}
+
 /** hx4s() の設定。省いた値は HonoX と hx4s の既定（server / client、app/client.ts）にする */
 export interface Hx4sOptions {
   /** Vite の mode。"client" ならブラウザ向け、それ以外は SSR（サーバー）向けの設定を返す */
@@ -16,23 +34,9 @@ export interface Hx4sOptions {
     /** @route を持つ sbt プロジェクトの ID。既定は "server" */
     projectID?: string;
   };
-  client?: {
-    /** @islands を持つ sbt プロジェクトの ID。既定は "client" */
-    projectID?: string;
-    /** client のリンク成果物の @JSExportTopLevel moduleID。既定は "client" */
-    module?: string;
-    /** client ビルドの入口。既定は "./app/client.ts" */
-    entry?: string | string[];
-    /** SSR で client のリンク成果物を読む仮想モジュールの接頭辞。既定は "scalajs-client" */
-    uriPrefix?: string;
-    /** client ビルドの出力名。省いた項目は static/client.js・static/assets/[name]-[hash].js・static/assets/[name].[ext] */
-    output?: {
-      entryFileNames?: string;
-      chunkFileNames?: string;
-      assetFileNames?: string;
-    };
-  };
-  /** honox() にそのまま渡す追加の設定。islandComponents.reactApiImportSource の既定は "react" */
+  /** false なら client のプロジェクトを持たない構成（API だけ・island の無い SSR）。client のリンクと client ビルドを行わない */
+  client?: Hx4sClientOptions | false;
+  /** honox() にそのまま渡す追加の設定。client があれば islandComponents.reactApiImportSource の既定は "react" */
   honox?: HonoxOptions;
 }
 
@@ -53,32 +57,21 @@ export function scalaProject(cwd: string, projectID: string, uriPrefix?: string)
 export default function hx4s(options: Hx4sOptions): PluginOption[] {
   const cwd = options.sbt?.cwd ?? process.cwd();
   const serverProjectID = options.server?.projectID ?? "server";
-  const clientProjectID = options.client?.projectID ?? "client";
-  const clientModule = `${options.client?.module ?? "client"}.js`;
-  const clientUriPrefix = options.client?.uriPrefix ?? "scalajs-client";
+  const client = options.client === false ? undefined : (options.client ?? {});
 
   if (options.mode === "client") {
-    const entry = options.client?.entry ?? "./app/client.ts";
-    const output = options.client?.output;
-    const clientBuild: Plugin = {
-      name: "hx4s:client-build",
-      config: () => ({
-        build: {
-          rollupOptions: {
-            input: Array.isArray(entry) ? entry : [entry],
-            output: {
-              entryFileNames: output?.entryFileNames ?? "static/client.js",
-              chunkFileNames: output?.chunkFileNames ?? "static/assets/[name]-[hash].js",
-              assetFileNames: output?.assetFileNames ?? "static/assets/[name].[ext]",
-            },
-          },
-          emptyOutDir: false,
-        },
-      }),
-    };
-    return [scalaProject(cwd, clientProjectID), clientBuild];
+    if (client === undefined) {
+      throw new Error('hx4s({ client: false }) has no client build: run "vite build" without "--mode client"');
+    }
+    return [scalaProject(cwd, client.projectID ?? "client"), clientBuild(client)];
+  }
+  if (client === undefined) {
+    // island が無いので React の設定は足さない（honox の既定のまま。React を入れない構成でもビルドできる）
+    return [honox(options.honox), scalaProject(cwd, serverProjectID)];
   }
 
+  const clientModule = `${client.module ?? "client"}.js`;
+  const clientUriPrefix = client.uriPrefix ?? "scalajs-client";
   const honoxOptions: HonoxOptions = {
     ...options.honox,
     islandComponents: { reactApiImportSource: "react", ...options.honox?.islandComponents },
@@ -90,7 +83,29 @@ export default function hx4s(options: Hx4sOptions): PluginOption[] {
   return [
     honox(honoxOptions),
     scalaProject(cwd, serverProjectID),
-    scalaProject(cwd, clientProjectID, clientUriPrefix),
+    scalaProject(cwd, client.projectID ?? "client", clientUriPrefix),
     clientAlias,
   ];
+}
+
+/** client ビルドの入口と出力名を設定するプラグイン */
+function clientBuild(client: Hx4sClientOptions): Plugin {
+  const entry = client.entry ?? "./app/client.ts";
+  const output = client.output;
+  return {
+    name: "hx4s:client-build",
+    config: () => ({
+      build: {
+        rollupOptions: {
+          input: Array.isArray(entry) ? entry : [entry],
+          output: {
+            entryFileNames: output?.entryFileNames ?? "static/client.js",
+            chunkFileNames: output?.chunkFileNames ?? "static/assets/[name]-[hash].js",
+            assetFileNames: output?.assetFileNames ?? "static/assets/[name].[ext]",
+          },
+        },
+        emptyOutDir: false,
+      },
+    }),
+  };
 }

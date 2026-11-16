@@ -3,7 +3,7 @@
 HTML を返さないハンドラも `@route` で書く。特別な API は無く、`Context` の応答メソッドで JSON やステータスを返す。
 型付き API クライアントと OpenAPI の出力は**未実装**（[hx4s/roadmap.md](hx4s/roadmap.md)）。
 
-以降のハンドラは `examples/minimal` に足してビルドし、ビルドした Worker の `fetch` を呼んで応答を確かめたもの（`c.body`・`c.notFound` は `hx4s-react` の `ContextSuite` で確かめた）。
+以降のハンドラは `examples/minimal` に足すか `examples/api-only` にあるもので、ビルドした Worker の `fetch` を呼んで応答を確かめた。
 
 ```scala
 object Api {
@@ -100,6 +100,8 @@ def noteGet(c: ApiContext): Response | js.Promise[Response] =
   Notes.find(c.req.param("id").getOrElse("")).fold(c.notFound())(note => c.json(toJs(note)))
 ```
 
+この 2 つは `examples/api-only` にある。
+
 ## エラー応答
 
 hx4s は API のエラー形式を決めない。業務上の拒否（検証の失敗・未検出）は、上の `404`・`400` のように自分で組み立てて返す。
@@ -107,8 +109,7 @@ hx4s は API のエラー形式を決めない。業務上の拒否（検証の�
 
 ## React を使わない構成
 
-API だけなら、client も React も要らない。次の構成で、`@route` のハンドラが JSON を返す Worker をビルドして Node から呼んで確かめた
-（`react`・`react-dom`・`@hono/react-renderer` を `node_modules` から消した状態）。
+API だけなら、client も React も要らない。`examples/api-only` がこの構成で、`react`・`react-dom`・`@hono/react-renderer` に依存しない。
 
 ```scala
 // build.sbt
@@ -128,29 +129,17 @@ lazy val server = project
 // vite.config.ts
 import { defineConfig } from "vite";
 import buildCloudflareWorkers from "@hono/vite-build/cloudflare-workers";
-import honox from "honox/vite";
-import { scalaProject } from "hx4s-vite";
+import hx4s from "hx4s-vite";
 
-// hx4s() は client の Scala.js プロジェクトを要るので使わない
-export default defineConfig({
-  plugins: [honox(), scalaProject(import.meta.dirname, "server"), buildCloudflareWorkers({ outputDir: "dist/server" })],
-});
+export default defineConfig(({ mode }) => ({
+  plugins: [...hx4s({ mode, client: false, sbt: { cwd: import.meta.dirname } }), buildCloudflareWorkers({ outputDir: "dist/server" })],
+}));
 ```
 
-```scala
-object Main {
-  type ApiContext = Context[js.Object, js.Object]
+`client: false` にすると、`hx4s()` は client の Scala.js プロジェクトのリンク・`scalajs:client.js` の別名・client ビルドを行わず、`honox()` に React の設定も足さない。
+ビルドは `vite build` の 1 回だけで、`vite build --mode client` はエラーになる。
 
-  @route("hello/[name].ts")
-  @JSExportTopLevel("hello", "server")
-  def hello(c: ApiContext): Response = c.json(js.Dynamic.literal(message = s"hello ${c.req.param("name").getOrElse("")}"))
-}
-```
-
-`app/server.ts` は `createApp()` だけ（[getting-started.md](getting-started.md)）。`package.json` の依存は `hono`・`honox`・`@hono/vite-build`・`@scala-js/vite-plugin-scalajs`・`vite`・`wrangler`（`hx4s-vite` は tgz）。
-
-**`hx4s()` は client が無い構成を扱えない。** server モードで client のプロジェクトも sbt でリンクするため、`client` が無いと `Not a valid key: client` で失敗する。
-`scalaProject` と `honox()` を直接組み合わせるのが今の方法で、`hx4s()` 側の対応は未定。
+`app/server.ts` は `createApp()` だけ（[getting-started.md](getting-started.md)）。`package.json` の依存は `hono`・`honox`・`@hono/vite-build`・`@scala-js/vite-plugin-scalajs`・`vite`（`hx4s-vite` は tgz）。
 
 ## 未実装
 

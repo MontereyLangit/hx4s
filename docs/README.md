@@ -16,7 +16,7 @@ hx4s は、Scala.js から [HonoX](https://github.com/honojs/honox) と React �
 | [ビルド設定](build-configuration.md) | sbt のキー、`hx4s()` のオプション、`CodegenMain` の引数、生成ファイルの扱い |
 | [デプロイ](deployment.md) | Cloudflare Workers。ほかの実行基盤は未検証 |
 | [移行](migration.md) | 手書きの Scala.js × HonoX 構成からの移行 |
-| [examples](examples.md) | `examples/minimal` の説明 |
+| [examples](examples.md) | `examples/minimal`（SSR + Islands）と `examples/api-only`（API だけ）の説明 |
 | [テスト](testing.md) | hx4s 自体のテストの構成と実行方法 |
 | [リリース](release.md) | 版付けと検証の手順。公開の手順は未整備 |
 

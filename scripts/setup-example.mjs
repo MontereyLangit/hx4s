@@ -2,7 +2,7 @@
 //   1. scripts/publish-local.mjs --verify で、ローカル公開が今の checkout と一致していることを確かめる
 //   2. examples/<name>/package-lock.json のとおりに npm ci する（通常の依存は lockfile で固定する）
 //   3. target/local/hx4s-vite.tgz を --no-save で入れる（tgz の整合性ハッシュは公開のたびに変わるので、package.json と lockfile には載せない）
-// 使い方: node scripts/setup-example.mjs [name]（既定は minimal）
+// 使い方: node scripts/setup-example.mjs [name]（minimal・api-only。既定は minimal）
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";

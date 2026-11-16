@@ -70,7 +70,7 @@ def indexPage(c: AppContext): js.Promise[Response] = {
 | 状態 | 内容 |
 | --- | --- |
 | 実装済み | `@route`（GET / POST / PUT / DELETE / PATCH / OPTIONS）、`@islands[P]`、`IslandComponents` の生成、`IslandExport[P]` と `JsShape` による props の検証、hydrate 前の検証（`hx4s-vite/client`）、Hono の `Context` の facade |
-| 実装済み | sbt-hx4s（`hx4sGenerate`、依存の向きの検査、client なしの構成）、`hx4s()` Vite プラグイン、Node 用 loader、ローカル公開のスクリプト、`examples/minimal` |
+| 実装済み | sbt-hx4s（`hx4sGenerate`、依存の向きの検査、client なしの構成）、`hx4s()` Vite プラグイン、Node 用 loader、ローカル公開のスクリプト、`examples/minimal`・`examples/api-only` |
 | 未実装 | 型付きルート、Client Router（SPA 用のルーター）、`ALL` メソッド、npm CLI、プロジェクトの雛形、dev server の HMR、型付き API クライアント、OpenAPI、Maven Central / npm への公開 |
 | 未検証 | Cloudflare Workers 以外の実行基盤（Node・Deno・Bun など）、本番へのデプロイ |
 

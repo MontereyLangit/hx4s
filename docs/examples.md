@@ -43,12 +43,41 @@
 | `tests/hydration.test.js` | jsdom 上で `app/client.ts` を動かし、hydrate・クリック・props の不一致の island が SSR のままであることを確かめる |
 | `tests/e2e.test.js` | `wrangler dev` と Playwright（Chromium）で、hydrate の誤りがなくクリックで状態が変わること、静的配信の範囲を確かめる |
 
-`npm test` で全部が走る（E2E は `HX4S_SKIP_E2E=1` で飛ばせる）。CI は Ubuntu と Windows で、ローカル公開から `npm test` までを通す（`.github/workflows/ci.yml`）。
+`npm test` で全部が走る（E2E は `HX4S_SKIP_E2E=1` で飛ばせる）。CI は Ubuntu と Windows で、ローカル公開から `npm test` までを通す（`.github/workflows/ci.yml`。api-only も同じ）。
 
-### examples に無いもの
+## api-only
+
+`examples/api-only` は JSON の API だけのアプリ。client（island）を持たず、`react`・`react-dom`・`@hono/react-renderer` に依存しない。
+`vite.config.ts` で `hx4s({ mode, client: false, … })` を使い、`vite build` の 1 回で Worker を作る（[api.md](api.md)）。hx4s の解決はローカル公開の成果物だけ（minimal と同じ）。
+
+| URL | 内容 | 使っている機能 |
+| --- | --- | --- |
+| `GET /api/notes` | メモの一覧の JSON | `c.json` |
+| `POST /api/notes` | JSON の本文を `JsShape` と値の規則で確かめ、201 か 400 を返す（保存はしない） | `c.req.json()`、`JsShape.validate` |
+| `GET /api/notes/:id` | 1 件の JSON。無い ID は Not Found | `c.notFound()` |
+| `DELETE /api/notes/:id` | 本文なしの 204。無い ID は 404 | `c.body(null, 204)` |
+
+| パス | 役割 |
+| --- | --- |
+| `build.sbt` / `project/plugins.sbt` | `server` の 1 プロジェクト（`hx4sClientProject` は設定しない） |
+| `server/.../Main.scala`・`Notes.scala` | `@route` のハンドラと、サンプルのデータ・検証 |
+| `app/server.ts` | HonoX の入口（`createApp()` だけ。renderer は無い） |
+| `app/routes/**/*.ts` | 生成物（コミットしてある） |
+| `vite.config.ts` | `hx4s({ client: false })` と Cloudflare Workers のアダプタ |
+| `tests/api.test.js` | ビルドした Worker を Node で呼び、各 API の応答と、Worker のバンドルに React が入っていないことを確かめる |
+
+```bash
+node scripts/publish-local.mjs
+node scripts/setup-example.mjs api-only
+cd examples/api-only && npm run build && npm test
+```
+
+`wrangler` は入れておらず、Workers（`wrangler dev`）での起動は確かめていない。テストは Node で Worker の `fetch` を呼ぶところまで。
+
+## examples に無いもの
 
 次は examples に含まれず、この文書群でも検証が限られている。
 
-- API だけの構成、ページ全体を 1 つの island にする構成（[api.md](api.md)、[spa.md](spa.md) で試作して確かめた範囲）
+- ページ全体を 1 つの island にする構成（[spa.md](spa.md) で試作して確かめた範囲）
 - 要素 props を持つ island、island の入れ子を `IslandComponents` で書く例
 - Cloudflare 以外の実行基盤

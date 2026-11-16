@@ -58,6 +58,7 @@ const plugins = hx4s({ mode, sbt: { cwd: import.meta.dirname } });
 | `mode`（必須） | — | Vite の `mode`。`"client"` ならブラウザ向け、それ以外は SSR（server）向け |
 | `sbt.cwd` | `process.cwd()` | sbt を実行するディレクトリ |
 | `server.projectID` | `"server"` | `@route` を持つ sbt プロジェクトの ID |
+| `client` | `{}` | client の設定。`false` なら client を持たない構成（API だけ・island の無い SSR）。`hx4sClientProject` を設定しないときに使う |
 | `client.projectID` | `"client"` | `@islands` を持つ sbt プロジェクトの ID |
 | `client.module` | `"client"` | client のリンク成果物の moduleID（`hx4sClientModule` と合わせる） |
 | `client.entry` | `"./app/client.ts"` | client ビルドの入口（文字列または配列） |
@@ -65,7 +66,7 @@ const plugins = hx4s({ mode, sbt: { cwd: import.meta.dirname } });
 | `client.output.entryFileNames` | `"static/client.js"` | client の入口の出力名 |
 | `client.output.chunkFileNames` | `"static/assets/[name]-[hash].js"` | chunk の出力名 |
 | `client.output.assetFileNames` | `"static/assets/[name].[ext]"` | asset の出力名 |
-| `honox` | `{}` | `honox()` にそのまま渡す追加の設定。`islandComponents.reactApiImportSource` の既定は `"react"` |
+| `honox` | `{}` | `honox()` にそのまま渡す追加の設定。client があれば `islandComponents.reactApiImportSource` の既定は `"react"`（`client: false` では何も足さない） |
 
 戻り値は `PluginOption[]`。
 
@@ -73,12 +74,15 @@ const plugins = hx4s({ mode, sbt: { cwd: import.meta.dirname } });
 | --- | --- |
 | `"client"` | client の Scala.js プロジェクト、出力名と `emptyOutDir: false` を設定するプラグイン |
 | それ以外 | `honox()`、server と client の Scala.js プロジェクト、`scalajs:client.js` → `scalajs-client:client.js` の別名 |
+| それ以外（`client: false`） | `honox()` と server の Scala.js プロジェクトだけ |
+
+`client: false` と `mode: "client"` を組み合わせると、`hx4s()` がエラーを投げる（client ビルドが無いため）。例は `examples/api-only`（[api.md](api.md)）。
 
 そのほかの export:
 
 | export | 内容 |
 | --- | --- |
-| `scalaProject(cwd, projectID, uriPrefix?)`（`hx4s-vite`） | `@scala-js/vite-plugin-scalajs` を包み、`buildStart` を直列にする。複数のプロジェクトで同時に sbt を起動しないため。`hx4s()` を使わない構成で直接使う（[api.md](api.md)） |
+| `scalaProject(cwd, projectID, uriPrefix?)`（`hx4s-vite`） | `@scala-js/vite-plugin-scalajs` を包み、`buildStart` を直列にする。複数のプロジェクトで同時に sbt を起動しないため。`hx4s()` を使わない構成で直接使う |
 | `islandPropsProblem(element)`（`hx4s-vite/client`） | hydrate の前の props の検証。理由があれば文字列、なければ `undefined`（[ssr-hydration.md](ssr-hydration.md)） |
 | `hx4s-vite/node-register` | Node の `--import` に渡す。`scalajs:client.js` と honox 内の `hono/jsx` を解決する loader を登録する |
 | `hx4s-vite/node-loader` | 上の loader 本体。利用側の loader と並べて登録するとき用 |
@@ -87,7 +91,7 @@ const plugins = hx4s({ mode, sbt: { cwd: import.meta.dirname } });
 
 ## 2 モードのビルド
 
-client と server は別々の `vite build` で作る。client を先にする。
+client と server は別々の `vite build` で作る。client を先にする（`client: false` なら `vite build` の 1 回だけ）。
 
 ```bash
 vite build --mode client   # dist/client/static/client.js、dist/client/static/assets/*
@@ -107,7 +111,6 @@ vite build                 # dist/server/index.js（Worker）
 | sbt の最終行 | `@scala-js/vite-plugin-scalajs` は `sbt print` の標準出力の最終行を出力ディレクトリとして使う。sbt が最後に警告などを出すと壊れる |
 | JDK 25 の警告 | JDK 25 では sbt の起動時に `sun.misc.Unsafe` の警告が出る（動作への影響は見ていない） |
 | 検証した設定 | 既定の appDir・moduleID・接頭辞だけ。変えた組み合わせは未検証 |
-| `hx4s()` と client | server モードは client のプロジェクトも要る（[api.md](api.md)） |
 
 ## 生成ファイルの扱い
 
