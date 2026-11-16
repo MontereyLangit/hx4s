@@ -8,8 +8,9 @@
 | 項目 | 状態 |
 | --- | --- |
 | リリース済みの版 | なし。`0.1.0` は未公開 |
-| ビルドの既定の版 | `0.1.0-SNAPSHOT`（`build.sbt` の `hx4s.version` のシステムプロパティを省いたとき）。`vite/package.json` の版も `0.1.0-SNAPSHOT` |
-| ローカル公開の版 | `0.1.0-local.g<commit>`（`scripts/publish-local.mjs`。[installation.md](installation.md)） |
+| 版の定義 | リポジトリ直下の `version.txt`（次に出す版。今は `0.1.0`） |
+| ビルドの既定の版 | `<version.txt>-SNAPSHOT`（`build.sbt` の `hx4s.version` のシステムプロパティを省いたとき）。`vite/package.json` の版は `version.txt` と同じ `0.1.0` |
+| ローカル公開の版 | `<version.txt>-local.g<commit>`（`scripts/publish-local.mjs`。[installation.md](installation.md)） |
 | 利用者の入手方法 | ローカル公開だけ |
 
 ## 版付けの方針
@@ -18,14 +19,24 @@
 - sbt-hx4s・`hx4s-core`・`hx4s-react`・`hx4s-codegen` と、npm の `hx4s-vite` は**同じ版**にそろえる。sbt-hx4s の `hx4sVersion` が、プラグインとライブラリの版をそろえる
 - リリースごとに、検証した HonoX・Hono・Vite・React などの版を明記する（[README](../README.md) の対応バージョン）。`hx4s-vite` の peerDependencies は検証した版だけにする
 - 公開した版は書き換えない。誤りがあれば次の版で直す
-- 版を決めるのは、`build.sbt` の `hx4s.version` と `vite/package.json` の `version`。`publish-local.mjs` はこれらを上書きして公開する
+- 版の定義は `version.txt` の 1 か所（`X.Y.Z` だけ）。ほかはそこから作る
+
+  | 使う場所 | 版 |
+  | --- | --- |
+  | `build.sbt`（sbt の既定） | `<version.txt>-SNAPSHOT`。`-Dhx4s.version=<版>` で上書きできる |
+  | `scripts/publish-local.mjs` の既定 | `<version.txt>-local.g<commit>`（`scripts/lib/version.mjs`） |
+  | `vite/package.json` の `version` | `version.txt` と同じ。npm には `-SNAPSHOT` を使わない（semver の書式としては通るが、npm に「書き換わる開発版」の意味は無く、`0.1.0` より前の版として並ぶだけなので） |
+
+- `vite/package.json` は npm の作業領域の都合で版を持つので、手で合わせる。食い違いは `tests/version.test.js`（`npm test`）が検出する
+- `publish-local.mjs` は公開する成果物の版を上書きする（`--version` を省けば上の既定）
 
 ## リリースの手順
 
 公開の方式が決まるまでの、版を確定するところまでの手順。
 
 1. **変更履歴を整える**: [CHANGELOG.md](../CHANGELOG.md) の `[Unreleased]` を新しい版の節にし、日付を入れる。`[Unreleased]` を空で残し、比較用のリンクを更新する
-2. **版を決める**: 変更の内容（API の破壊的変更・機能追加・修正）から、SemVer に沿って決める
+2. **版を決める**: 変更の内容（API の破壊的変更・機能追加・修正）から、SemVer に沿って決め、`version.txt` に書く。
+   `vite/package.json` の `version` を同じ値にし、`npm install --package-lock-only` で `package-lock.json` を合わせる
 3. **検証する**: 次をすべて通す。CI（Ubuntu と Windows）でも通ること。
 
    ```bash

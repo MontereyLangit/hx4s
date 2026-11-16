@@ -1,6 +1,6 @@
 {
   "name": "hx4s-vite",
-  "version": "0.1.0-SNAPSHOT",
+  "version": "0.1.0",
   "description": "Vite plugin that wires Scala.js server/client projects into HonoX for hx4s",
   "license": "Apache-2.0",
   "type": "module",

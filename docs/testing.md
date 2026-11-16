@@ -23,7 +23,7 @@ examples は [examples.md](examples.md)。CI（`.github/workflows/ci.yml`）は 
 | core | `modules/core/shared/src/test`、`modules/core/js/src/test` | アノテーション（`AnnotationsSuite`）、`JsShape` の検証（`JsShapeSuite`） |
 | codegen | `modules/codegen/src/test` | アノテーションの読み取りと検査（`AnnotationScannerSuite`）、生成コードの描画（`AppFileRendererSuite`）、引数の解釈（`CodegenMainSuite`）、書き出しの安全策（`OutputWriterSuite`）、URL 変換（`RoutePathSuite`） |
 | react | `modules/react/src/test` | `Island`、`IslandExport`、`Context`。実物の `Hono` に Scala のハンドラを登録して `fetch` する（`ContextSuite`）。Node 上で動く（`Test / jsEnv` が `vite/node-register.mjs` を `--import` する） |
-| sbt-hx4s | `sbt-plugin/src/sbt-test/hx4s/` | scripted。`generate`（生成・再生成・古い生成物の削除・client なしの構成・`sourceGenerators`）、`error`（誤ったアノテーションでの失敗と行番号）、`dependencies`（禁止された依存の検出と経路） |
+| sbt-hx4s | `sbt-plugin/src/sbt-test/hx4s/` | scripted。`generate`（生成・再生成・古い生成物の削除・client なしの構成・`sourceGenerators`）、`error`（誤ったアノテーションでの失敗と行番号、誤りの行がログに 1 回だけ出ること）、`dependencies`（禁止された依存の検出と経路） |
 | Node | `tests/*.test.js` | 下の表 |
 | 独立性 | `scripts/check-independence.mjs`（`tests/independence.test.js` が呼ぶ） | 移動元のプロジェクトの名前がファイルに無いこと（`docs/hx4s/`・`LICENSE`・`NOTICE` を除く）。examples が hx4s のソースツリーや絶対パスを参照していないこと |
 
@@ -33,13 +33,14 @@ examples は [examples.md](examples.md)。CI（`.github/workflows/ci.yml`）は 
 
 | ファイル | 内容 |
 | --- | --- |
-| `islands-bridge.test.js` | `hx4s()` のプラグイン構成（moduleID・接頭辞・直列化・出力名）、HonoX が island を React で SSR して props をシリアライズすること |
+| `islands-bridge.test.js` | `hx4s()` のプラグイン構成（moduleID・接頭辞・直列化・出力名・`client: false`）、HonoX が island を React で SSR して props をシリアライズすること |
 | `islands-hydration.test.js` | 実際の Scala の `Island` で SSR し、jsdom で hydrate する。単純・入れ子・要素 props、危険な文字列と複数インスタンス、Scala.js の client island（`IslandExport`）、props の不一致で hydrate せず SSR のままになること |
 | `generated-ts.test.js` | 識別子が衝突しうる export 名でも、生成 TS が構文として正しく、各メソッドが対応するハンドラを呼ぶこと |
 | `route-paths.test.js` | `RoutePathSuite` と同じ表を HonoX の `createApp` に通し、登録される URL パターンが一致すること |
 | `node-loader.test.js` | `hx4s-vite/node-loader` を利用側の loader と並べて登録できること |
 | `scripts-command.test.js` | スクリプトが空白と `&` を含むパスでも npm / sbt を起動できること |
 | `independence.test.js` | 独立性の検査 |
+| `version.test.js` | `vite/package.json`・`package-lock.json` の版が `version.txt` と同じこと、`build.sbt` とローカル公開の版が `version.txt` から作られること |
 
 ## テストの方針
 

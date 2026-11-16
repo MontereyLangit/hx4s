@@ -8,8 +8,11 @@ val scalajsDomVersion    = "2.8.1"
 val scalametaVersion     = "4.17.4"
 
 ThisBuild / organization := "io.github.montereylangit"
-// ローカル公開では scripts/publish-local.mjs が -Dhx4s.version=0.1.0-local.<…> を渡す（docs/hx4s/adr/0006）
-ThisBuild / version      := sys.props.getOrElse("hx4s.version", "0.1.0-SNAPSHOT")
+// 版は version.txt だけに書く（docs/release.md）。ローカル公開では scripts/publish-local.mjs が -Dhx4s.version=<版>-local.<…> を渡す
+ThisBuild / version      := {
+  val base = IO.read((ThisBuild / baseDirectory).value / "version.txt").trim
+  sys.props.getOrElse("hx4s.version", s"$base-SNAPSHOT")
+}
 ThisBuild / scalaVersion := scala3Version
 ThisBuild / licenses     := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0"))
 

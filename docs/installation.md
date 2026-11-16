@@ -29,7 +29,7 @@ node scripts/publish-local.mjs
 成果物は `~/.ivy2/local` と `target/local/hx4s-vite.tgz` に置かれる。
 
 ```bash
-node scripts/publish-local.mjs                 # 版は 0.1.0-local.g<commit>（未コミットの変更があれば .dirty-<内容のハッシュ> 付き）
+node scripts/publish-local.mjs                 # 版は <version.txt の版>-local.g<commit>（未コミットの変更があれば .dirty-<内容のハッシュ> 付き）
 node scripts/publish-local.mjs --version 0.1.0-local.3
 node scripts/publish-local.mjs --verify --version 0.1.0-local.3 --commit <40 桁の SHA>   # 公開記録の照合。食い違えば終了コード 1
 ```
@@ -41,8 +41,8 @@ node scripts/publish-local.mjs --verify --version 0.1.0-local.3 --commit <40 桁
 | `--reuse-node-modules` | 前回このスクリプトが `npm ci` したときと `package-lock.json` が同じなら `npm ci` を省く（既定は毎回 `npm ci`） |
 | `--verify` | 公開せず、完了の記録を今の HEAD・作業ツリー・成果物と照らす。`--version` / `--commit` で期待値も照らす |
 
-版は commit ごとに変える（既定の `0.1.0-local.g<commit>` を使う）。同じ版で中身を変えると、sbt の依存解決が古い成果物を返すことがある。
-ビルドの既定の版 `0.1.0-SNAPSHOT` はローカル公開には使わない。
+版は commit ごとに変える（既定の `<version.txt の版>-local.g<commit>`、今は `0.1.0-local.g<commit>` を使う）。同じ版で中身を変えると、sbt の依存解決が古い成果物を返すことがある。
+ビルドの既定の版 `<version.txt の版>-SNAPSHOT` はローカル公開には使わない。
 
 `target/local/` に書かれる記録は次のとおり（公開時刻は入れない）。
 

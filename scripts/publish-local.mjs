@@ -1,11 +1,11 @@
 // hx4s をローカルに公開し、公開記録を書く・照合する（docs/hx4s/local-dependency.md、ADR 0006）。
-//   公開: node scripts/publish-local.mjs [--version 0.1.0-local.N] [--skip-sbt] [--skip-npm] [--reuse-node-modules]
+//   公開: node scripts/publish-local.mjs [--version <版>-local.N] [--skip-sbt] [--skip-npm] [--reuse-node-modules]
 //     sbt: publishLocal で全モジュールを ~/.ivy2/local へ。記録は target/local/hx4s-publish-sbt.json
 //     npm: lockfile どおりに npm ci し、hx4s-vite をビルドして target/local/hx4s-vite.tgz に pack。記録は target/local/hx4s-publish-npm.json
 //     2 つの記録が同じ版・commit・作業ツリーの状態なら、完了の記録 target/local/hx4s-publish.json と hx4s-version.txt を書く
 //   照合: node scripts/publish-local.mjs --verify [--version V] [--commit <40 桁の SHA>]
 //     完了の記録が今の HEAD・作業ツリー・成果物と一致すれば 0、しなければ理由を出して 1 で終わる
-// 版を省くと 0.1.0-local.g<commit>（公開対象のソースに未コミットの変更か未追跡のファイルがあれば .dirty-<内容のハッシュ 8 桁>）。
+// 版を省くと <version.txt の版>-local.g<commit>（公開対象のソースに未コミットの変更か未追跡のファイルがあれば .dirty-<内容のハッシュ 8 桁>）。
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -13,6 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runTool } from "./lib/command.mjs";
+import { baseVersion, localVersion } from "./lib/version.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = path.join(root, "target", "local");
@@ -28,7 +29,7 @@ const files = {
 // publishLocal が出す成果物（build.sbt の root が aggregate するモジュール）
 const mavenNames = ["hx4s-codegen_3", "hx4s-core_3", "hx4s-core_sjs1_3", "hx4s-react_sjs1_3", "sbt-hx4s"];
 // 公開物に入るソース。テストは除く
-const publishedSources = ["build.sbt", "project", "modules", "sbt-plugin/src/main", "vite", "LICENSE", "NOTICE", ":(exclude,glob)**/src/test/**"];
+const publishedSources = ["version.txt", "build.sbt", "project", "modules", "sbt-plugin/src/main", "vite", "LICENSE", "NOTICE", ":(exclude,glob)**/src/test/**"];
 
 function git(args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" });
@@ -82,8 +83,7 @@ function sourceState() {
 }
 
 function defaultVersion(state) {
-  // 数字だけの識別子は semver で先頭の 0 を許さないので、ハッシュは dirty- に続けて 1 つの識別子にする
-  return `0.1.0-local.g${state.commit.slice(0, 10)}${state.dirtyHash === null ? "" : `.dirty-${state.dirtyHash}`}`;
+  return localVersion(baseVersion(), state.commit, state.dirtyHash);
 }
 
 function organization() {

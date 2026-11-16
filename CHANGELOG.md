@@ -29,6 +29,7 @@
   `client: false` で client の無い構成（API だけ・island の無い SSR）を扱う、
   hydrate 前の props の検証 `hx4s-vite/client` の `islandPropsProblem`（template 内の island を含む）、Node 用 loader `hx4s-vite/node-loader`・`node-register`
 - **scripts**: `publish-local.mjs`（ローカル公開、公開記録、`--verify`）、`setup-example.mjs`、`check-independence.mjs`
+- 版の定義を `version.txt` の 1 か所にする（sbt の既定・ローカル公開の版はそこから作り、`vite/package.json` との食い違いはテストが検出する）
 - **examples/minimal**: SSR + Islands の最小アプリ（動的ルート、POST、JSON の API、island 2 種）。Cloudflare Workers で動く
 - **examples/api-only**: JSON の API だけの最小アプリ（`hx4s({ client: false })`。React に依存しない）
 - CI（Ubuntu と Windows。sbt・npm・examples の検証）
