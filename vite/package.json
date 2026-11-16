@@ -1,0 +1,40 @@
+{
+  "name": "hx4s-vite",
+  "version": "0.1.0-SNAPSHOT",
+  "description": "Vite plugin that wires Scala.js server/client projects into HonoX for hx4s",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node-loader": "./node-loader.mjs",
+    "./node-register": "./node-register.mjs"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "node-loader.mjs",
+    "node-register.mjs"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "peerDependencies": {
+    "@scala-js/vite-plugin-scalajs": "1.1.0",
+    "honox": "0.1.62",
+    "vite": "^8.3.3"
+  },
+  "devDependencies": {
+    "@scala-js/vite-plugin-scalajs": "1.1.0",
+    "@types/node": "^22",
+    "honox": "0.1.62",
+    "typescript": "^5",
+    "vite": "8.3.3"
+  }
+}
