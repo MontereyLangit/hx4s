@@ -4,6 +4,9 @@
 - 更新（2026-11-16、Phase 3 レビュー K10・K13）: ローカル公開の既定の版は、公開対象のソースに未コミットの変更か未追跡のファイルがあれば `.dirty-<内容のハッシュ 8 桁>` を付ける
   （以前は追跡中のファイルだけを見て `.dirty` を付けていたので、内容を変えても版が同じだった）。examples の npm 依存は lockfile で固定し、
   hx4s-vite の tgz だけを `scripts/setup-example.mjs` が `npm install --no-save` で入れる
+- 更新（2026-11-16、Phase 4 の利用側の移行と Codex の指摘）: 公開記録を sbt・npm で分け、両方が同じ版・commit・作業ツリーの状態のときだけ
+  完了の記録 `target/local/hx4s-publish.json` を書く。`--verify` で記録を HEAD と成果物に照らせるようにし、利用側の固定は lock ファイル（commit の完全な SHA と版）と
+  セットアップスクリプトで行う（[local-dependency.md](../local-dependency.md)、[reviews/phase4-feedback.md](../reviews/phase4-feedback.md)）
 - 関連: [extraction-plan.md](../extraction-plan.md) Phase 3〜5、[module-boundaries.md](../module-boundaries.md) 2 章
 
 ## 背景
@@ -20,6 +23,15 @@ hx4s を 3ch から分離したあと、3ch は hx4s を使う側になる。hx4
   - Phase 3 の実装（`scripts/publish-local.mjs`）: 既定の版は `0.1.0-local.g<commit>`（公開対象のソースに未コミットの変更か未追跡のファイルがあれば `.dirty-<内容のハッシュ>` を付ける）、`--version` で明示もできる。
     npm は `vite/` をそのまま参照せず、ビルドして `npm pack` した `target/local/hx4s-vite.tgz` を `file:` で参照する（`node_modules` を持つ作業ディレクトリへのリンクにならないため）。
     公開した版は `target/local/hx4s-version.txt` に書く。ビルドの既定の版（`0.1.0-SNAPSHOT`）はローカル公開には使わない。
+  - Phase 4 で足したこと:
+    - 公開の前に hx4s の npm 依存を `npm ci` で lockfile どおりに入れる（clone 直後に `node_modules` が無くても公開できる）。
+    - sbt と npm の公開記録を `hx4s-publish-sbt.json` / `hx4s-publish-npm.json` に分ける。両方が同じ版・commit・作業ツリーの状態で成果物がそろったときだけ、
+      完了の記録 `hx4s-publish.json`（Maven の成果物の一覧と tgz の SHA-256。時刻なし）と `hx4s-version.txt` を書く。部分公開や失敗の後に完了の印が残らない。
+    - `hx4s-version.txt` は残す。JSON を読めない `project/plugins.sbt` が版を読むため。意味は「完了したときだけ書く」に変えた。
+    - `--verify` で、完了の記録を今の HEAD・作業ツリー・`~/.ivy2/local`・tgz のハッシュと照らす。利用側はこれで再公開を省けるかを判断する。
+    - 利用側は lock ファイル（commit の完全な SHA と版）を持ち、セットアップスクリプトで hx4s の HEAD とクリーンさを確かめてから `--verify`、通らなければ `--version` で公開する。
+      手順とスクリプトの例は [local-dependency.md](../local-dependency.md)。
+    - npm・sbt はシェルを介さずに起動する（Windows の sbt.bat だけは cmd.exe に引用済みの 1 行で渡す）。パスの空白・`&` で壊れないようにするため。
 - CI での **公開を伴う** 解決方式は Phase 5 で決める。
 - ただし、公開が無くても再現できる検証経路は Phase 4 の前提にする。
   - commit を固定した hx4s の checkout から、`publishLocal` と npm パッケージの準備（`npm pack` など）を行う手順をスクリプトにする。

@@ -15,8 +15,10 @@ Phase 0（設計）で書き、Phase 3（hx4s リポジトリへの分離、2026
 | [compatibility.md](compatibility.md) | 依存バージョン、HonoX アルファ版への追従方針、ライセンス |
 | [roadmap.md](roadmap.md) | P0 / P1 / P2 の機能と状態、未決事項 |
 | [codegen.md](codegen.md) | hx4s-codegen の宣言の規則・出力の規則・エラーの形式・設定 |
+| [local-dependency.md](local-dependency.md) | ローカル公開の記録と照合、利用側で版と commit を固定する手順とセットアップスクリプトの例 |
 | [reviews/phase0-review.md](reviews/phase0-review.md) | Phase 0 のレビュー記録（セルフレビューと Codex CLI の指摘、反映先） |
 | [reviews/phase3-review.md](reviews/phase3-review.md) | Phase 3 の検証結果とセルフレビュー |
+| [reviews/phase4-feedback.md](reviews/phase4-feedback.md) | 最初の利用側の移行（Phase 4）と Codex の指摘への対応 |
 
 ADR（1 判断 1 ファイル）:
 
