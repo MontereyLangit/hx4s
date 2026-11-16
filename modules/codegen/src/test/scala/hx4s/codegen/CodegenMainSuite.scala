@@ -26,26 +26,25 @@ class CodegenMainSuite extends FunSuite {
   test("--key value の引数から設定を組み立て、省いた moduleID と仮想モジュール接頭辞は既定値にする") {
     withTempDir { root =>
       val parsed = CodegenMain.parse("island-components" :: args(root, "--scala-output", "out/Islands.scala"))
-      assertEquals(parsed, Right(CodegenMain.Command.IslandComponents -> TestConfig(root.toAbsolutePath.normalize())
-        .copy(scalaOutput = Some(java.nio.file.Paths.get("out/Islands.scala")))))
+      assertEquals(parsed, Right(CodegenMain.Invocation(CodegenMain.Command.IslandComponents, TestConfig(root.toAbsolutePath.normalize())
+        .copy(scalaOutput = Some(java.nio.file.Paths.get("out/Islands.scala"))), None)))
     }
   }
 
-  test("ソースはカンマ区切りでも繰り返しでも指定できる") {
+  test("ソースは 1 ファイルずつ繰り返して指定し、カンマや空白を含むパスも 1 つのパスとして扱う") {
     withTempDir { root =>
-      val parsed = CodegenMain.parse("app" :: args(root, "--server-sources", "a.scala, b.scala", "--server-sources", "c.scala"))
-      assertEquals(parsed.map(_._2.serverSources), Right(List("server/App.scala", "a.scala", "b.scala", "c.scala")))
+      val parsed = CodegenMain.parse("app" :: args(root, "--server-sources", "client,old/Main.scala", "--server-sources", " with space.scala"))
+      assertEquals(parsed.map(_.config.serverSources), Right(List("server/App.scala", "client,old/Main.scala", " with space.scala")))
     }
   }
 
-  test("不明なキー・値の欠落・必須キーの欠落・重複はまとめて誤りにする") {
+  test("不明なキー・値の欠落・重複はまとめて誤りにする") {
     withTempDir { root =>
       val found = CodegenMain.parse(List("build", "--unknown", "x", "--route-dir")).left.getOrElse(fail("expected errors"))
       assertEquals(found.map(_.message), List("expected command app or island-components, found build", "unknown option --unknown",
         "missing value for --route-dir"))
-      val missing = CodegenMain.parse(List("app", "--scala-object", "A", "--scala-object", "B")).left.getOrElse(fail("expected errors"))
-      assertEquals(missing.map(_.message), List("option --scala-object is given more than once", "missing option --server-sources",
-        "missing option --client-sources"))
+      val repeated = CodegenMain.parse(List("app", "--scala-object", "A", "--scala-object", "B")).left.getOrElse(fail("expected errors"))
+      assertEquals(repeated.map(_.message), List("option --scala-object is given more than once"))
     }
   }
 
@@ -53,7 +52,7 @@ class CodegenMainSuite extends FunSuite {
     withTempDir { root =>
       val minimal = List("app", "--project-root", root.toString, "--server-sources", "server/App.scala", "--client-sources", "client/App.scala")
       val expected = CodegenConfig.default(root.toAbsolutePath.normalize(), List("server/App.scala"), List("client/App.scala"))
-      assertEquals(CodegenMain.parse(minimal), Right(CodegenMain.Command.App -> expected))
+      assertEquals(CodegenMain.parse(minimal), Right(CodegenMain.Invocation(CodegenMain.Command.App, expected, None)))
       assertEquals((expected.routeDir, expected.islandDir, expected.islandIdPrefix, expected.serverModule, expected.clientModule,
         expected.virtualModulePrefix, expected.scalaObject), ("app/routes", "app/islands", "/app/islands/", "server", "client", "scalajs:", "IslandComponents"))
       assertEquals((expected.scalaPackage, expected.islandBridge, expected.islandExportType, expected.annotationPackage),
@@ -96,7 +95,7 @@ class CodegenMainSuite extends FunSuite {
     withTempDir { root =>
       val spaced = Files.createDirectories(root.resolve("with space [x]"))
       val parsed = CodegenMain.parse(List("app", "--server-sources", "a.scala", "--client-sources", "b.scala"), spaced)
-      assertEquals(parsed.map(_._2.projectRoot), Right(spaced.toAbsolutePath.normalize()))
+      assertEquals(parsed.map(_.config.projectRoot), Right(spaced.toAbsolutePath.normalize()))
     }
   }
 
@@ -123,13 +122,92 @@ class CodegenMainSuite extends FunSuite {
         """object Handlers { @route("hello.ts") @route("hello.ts", "POST") @JSExportTopLevel("hello", "server") def hello(c: Any) = c }""")
       Files.writeString(root.resolve("client/App.scala"),
         """object Widgets { @islands[example.WidgetProps]("widget.tsx") @JSExportTopLevel("WidgetJs", "client") val widget = 1 }""")
-      val (_, config) = CodegenMain.parse("app" :: args(root, "--scala-output", "out/Islands.scala")).toOption.get
+      val config = CodegenMain.parse("app" :: args(root, "--scala-output", "out/Islands.scala")).toOption.get.config
       assertEquals(Codegen.appFiles(config).map(s => (s.written.size, s.unchanged.size)), Right((2, 0)))
       assertEquals(Codegen.appFiles(config).map(s => (s.written.size, s.unchanged.size)), Right((0, 2)))
-      assert(Files.readString(root.resolve("app/routes/hello.ts")).contains("export const POST = createRoute((c) => hello(c));"))
-      assert(Files.readString(root.resolve("app/islands/widget.tsx")).contains("export default WidgetJs;"))
+      assert(Files.readString(root.resolve("app/routes/hello.ts")).contains("export const POST = __hx4s_createRoute((c) => __hx4s_handler_hello(c));"))
+      assert(Files.readString(root.resolve("app/islands/widget.tsx")).contains("import { WidgetJs as __hx4s_island } from \"scalajs:client.js\";"))
       assertEquals(Codegen.islandComponents(config).map(_.written.size), Right(1))
       assert(Files.readString(root.resolve("out/Islands.scala")).contains("def `WidgetJs`(props: _root_.example.WidgetProps)"))
     }
+  }
+
+  test("ソースを省くと空として扱い、最後の route / island を消すと古い生成物が消えて空の Scala API になる") {
+    withTempDir { root =>
+      Files.createDirectories(root.resolve("server"))
+      Files.createDirectories(root.resolve("client"))
+      Files.writeString(root.resolve("server/App.scala"), """object A { @route("a.ts") @JSExportTopLevel("a", "server") def a(c: Any) = c }""")
+      Files.writeString(root.resolve("client/App.scala"), """object B { @islands("b.tsx") @JSExportTopLevel("B", "client") val b = 1 }""")
+      val output = List("--scala-output", "out/Islands.scala")
+      def run(command: String, extra: List[String]): Unit =
+        CodegenMain.main((List(command, "--project-root", root.toString) ++ extra).toArray)
+      Console.withOut(new java.io.ByteArrayOutputStream()) {
+        run("app", List("--server-sources", "server/App.scala", "--client-sources", "client/App.scala"))
+        run("island-components", List("--client-sources", "client/App.scala") ++ output)
+        assert(Files.exists(root.resolve("app/routes/a.ts")) && Files.exists(root.resolve("app/islands/b.tsx")))
+        assert(Files.readString(root.resolve("out/Islands.scala")).contains("@JSImport"))
+        run("app", Nil)
+        run("island-components", output)
+      }
+      assert(!Files.exists(root.resolve("app/routes/a.ts")) && !Files.exists(root.resolve("app/islands/b.tsx")))
+      val api = Files.readString(root.resolve("out/Islands.scala"))
+      assert(api.contains("object IslandComponents {}") && !api.contains("@JSImport"), api)
+    }
+  }
+
+  test("--output-list に、書いたファイルと据え置いたファイルの絶対パスを 1 行ずつ書く") {
+    withTempDir { root =>
+      Files.createDirectories(root.resolve("server"))
+      Files.writeString(root.resolve("server/App.scala"), """object A {
+        |  @route("b.ts") @JSExportTopLevel("b", "server") def b(c: Any) = c
+        |  @route("a.ts") @JSExportTopLevel("a", "server") def a(c: Any) = c
+        |}""".stripMargin)
+      val list = root.resolve("out/list.txt")
+      val routes = root.toAbsolutePath.normalize().resolve("app/routes")
+      Console.withOut(new java.io.ByteArrayOutputStream()) {
+        List(1, 2).foreach { _ =>
+          CodegenMain.main(Array("app", "--project-root", root.toString, "--server-sources", "server/App.scala", "--output-list", list.toString))
+          assertEquals(Files.readAllLines(list).toArray.toList, List(routes.resolve("a.ts").toString, routes.resolve("b.ts").toString))
+        }
+      }
+    }
+  }
+
+  test("生成ソースへ埋め込む設定値は、引用符・改行・バックスラッシュ・コメントの終わりなどを含めば拒否する") {
+    val lineSeparator = 0x2028.toChar
+    val bad = List("a\"b", "a\nb", "a\\b", "a*/b", "a b", s"a${lineSeparator}b")
+    val config = TestConfig()
+    val cases: List[(String, String => CodegenConfig)] = List(
+      "serverModule" -> (v => config.copy(serverModule = v)),
+      "clientModule" -> (v => config.copy(clientModule = v)),
+      "virtualModulePrefix" -> (v => config.copy(virtualModulePrefix = v)),
+      "islandIdPrefix" -> (v => config.copy(islandIdPrefix = v)),
+      "scalaPackage" -> (v => config.copy(scalaPackage = v)),
+      "scalaObject" -> (v => config.copy(scalaObject = v)),
+      "islandBridge" -> (v => config.copy(islandBridge = v)),
+      "islandExportType" -> (v => config.copy(islandExportType = v)),
+      "annotationPackage" -> (v => config.copy(annotationPackage = v))
+    )
+    cases.foreach { case (name, update) =>
+      bad.foreach { value =>
+        val found = Codegen.validate(update(value)).left.getOrElse(fail(s"$name accepted $value"))
+        assert(found.exists(_.message.startsWith(s"invalid $name ")), found)
+      }
+    }
+    List("type", "pkg.object", "a..b").foreach { name =>
+      assert(Codegen.validate(config.copy(scalaPackage = name)).isLeft, name)
+    }
+    assert(Codegen.validate(config.copy(scalaObject = "match")).isLeft)
+    List("// banner\r", s"// banner$lineSeparator").foreach { line =>
+      assert(Codegen.validate(config.copy(banner = List("// generated-by-test", line))).isLeft, line)
+    }
+    assert(OutputWriter.markerProblem(s"// marker$lineSeparator").isDefined)
+    assert(Codegen.validate(config.copy(serverModule = "app-server.v2", virtualModulePrefix = "@scalajs/x:", islandIdPrefix = "/static/~islands/")).isRight)
+  }
+
+  test("文字列リテラルは TS と Scala で同じ値になるようエスケープする") {
+    val lineSeparator = 0x2028.toChar
+    assertEquals(AppFileRenderer.quote(s"a\"b\\c\nd$lineSeparator"), "\"a\\\"b\\\\c\\u000ad\\u2028\"")
+    assertEquals(AppFileRenderer.quote("/app/islands/x.tsx"), "\"/app/islands/x.tsx\"")
   }
 }

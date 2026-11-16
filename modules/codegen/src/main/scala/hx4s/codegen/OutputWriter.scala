@@ -4,7 +4,7 @@ import hx4s.codegen.CodegenError.Result
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{Files, LinkOption, Path}
+import java.nio.file.{AtomicMoveNotSupportedException, Files, LinkOption, Path, StandardCopyOption, StandardOpenOption}
 import java.util.Locale
 import scala.jdk.CollectionConverters.*
 import scala.util.{Try, Using}
@@ -19,54 +19,68 @@ final case class WriteSummary(written: List[Path], unchanged: List[Path], delete
 /**
  * 生成ファイルを書き出す。設定・パス・既存ファイルとの衝突の誤りは書き込みの前に集めて返し、I/O の失敗も例外にせず返す
  * managed 配下にある生成ファイルのうち今回出力しないものは、書き込みが済んでから消す。生成マーカーの無いファイルは上書きも削除もしない
- * シンボリックリンクとジャンクションは辿らずに誤りにする
+ * シンボリックリンクとジャンクションは、base より下（出力ルートの祖先を含む）にあれば辿らずに誤りにする
  */
 object OutputWriter {
   private val GeneratedExtensions = List(".ts", ".tsx", ".scala")
+  private val TempSuffix = ".hx4s-tmp"
 
-  /** 書き込みの計画。deleteFirst は出力と大文字小文字だけ違う古い生成ファイルで、同じ実体を上書きしないよう先に消す */
-  private final case class Plan(changed: List[(Path, String)], unchanged: List[Path], deleteFirst: List[Path], deleteAfter: List[Path])
+  /** 書き込みの計画。leftovers は前回の失敗で残った一時ファイル、deleteFirst は出力と大文字小文字だけ違う古い生成ファイル */
+  private final case class Plan(changed: List[(Path, String)], unchanged: List[Path], leftovers: List[Path], deleteFirst: List[Path],
+                                deleteAfter: List[Path])
 
   /** 生成マーカーとして使えない値なら理由を返す。空や `//` だけのマーカーはどのファイルにも当てはまってしまう */
   def markerProblem(marker: String): Option[String] = {
     if (marker.trim.isEmpty) Some("generatedMarker must not be empty or blank")
-    else if (marker.exists(c => c == '\n' || c == '\r')) Some("generatedMarker must be a single line")
+    else if (marker.exists(Codegen.LineTerminators)) Some("generatedMarker must be a single line")
     else if (marker.trim.stripPrefix("//").trim.isEmpty) Some("generatedMarker needs text after the comment prefix")
     else None
   }
 
-  def write(files: List[GeneratedFile], managed: List[Path], marker: String): Result[WriteSummary] =
+  /** files を書き、managed 配下の古い生成ファイルを消す。base から出力ルートまでの祖先もリンクでないことを確かめる */
+  def write(files: List[GeneratedFile], managed: List[Path], marker: String, base: Path): Result[WriteSummary] =
     for {
       _ <- markerProblem(marker).toLeft(()).left.map(reason => List(CodegenError("<config>", None, reason)))
-      planned <- attempt("<output>", "read existing files")(plan(files, managed.map(_.toAbsolutePath.normalize()), marker)).flatten
+      planned <- attempt("<output>", "read existing files")(
+        plan(files, managed.map(_.toAbsolutePath.normalize()), marker, base.toAbsolutePath.normalize())).flatten
       summary <- execute(planned)
     } yield summary
 
-  /** 内容が同じ（改行コードの違いは無視する）なら書かない。生成マーカーは確かめない */
-  def writeIfChanged(path: Path, content: String): Boolean = {
-    val changed = !sameContent(path, content)
-    if (changed) {
-      Files.createDirectories(path.getParent)
-      Files.write(path, content.getBytes(StandardCharsets.UTF_8))
-    }
-    changed
-  }
-
-  /** 先に消す古いファイル → 書き込み → 残りの古いファイルの削除、の順に行う。途中で失敗しても再実行で収束する */
+  /** 一時ファイルの残骸と大文字小文字だけ違う古いファイルの削除 → 書き込み → 残りの古いファイルの削除、の順に行う。途中で失敗しても再実行で収束する */
   private def execute(plan: Plan): Result[WriteSummary] = {
     def each[A](items: List[A], action: String)(path: A => Path)(run: A => Unit): Result[Unit] =
       items.foldLeft[Result[Unit]](Right(())) { (done, item) => done.flatMap(_ => attempt(path(item).toString, action)(run(item))) }
     for {
+      _ <- each(plan.leftovers, "delete temporary file")(identity)(Files.delete)
       _ <- each(plan.deleteFirst, "delete stale file")(identity)(Files.delete)
-      _ <- each(plan.changed, "write file")(_._1) { case (path, content) =>
-        Files.createDirectories(path.getParent)
-        Files.write(path, content.getBytes(StandardCharsets.UTF_8))
-      }
+      _ <- each(plan.changed, "write file")(_._1) { case (path, content) => replace(path, content) }
       _ <- each(plan.deleteAfter, "delete stale file")(identity)(Files.delete)
     } yield WriteSummary(plan.changed.map(_._1), plan.unchanged, plan.deleteFirst ++ plan.deleteAfter)
   }
 
-  private def plan(files: List[GeneratedFile], managed: List[Path], marker: String): Result[Plan] = {
+  /** 同じディレクトリの一時ファイルに書き終えてから置き換える。途中で失敗しても既存のファイルは元の内容のまま残る */
+  private def replace(path: Path, content: String): Unit = {
+    Files.createDirectories(path.getParent)
+    val temp = tempFile(path)
+    Files.deleteIfExists(temp)
+    try {
+      Files.write(temp, content.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+      try { Files.move(temp, path, StandardCopyOption.ATOMIC_MOVE) }
+      catch { case _: AtomicMoveNotSupportedException => Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING) }
+    } finally {
+      Try(Files.deleteIfExists(temp))
+    }
+  }
+
+  /** ドットで始まり生成対象の拡張子で終わらない名前にし、HonoX の glob にも古い生成ファイルの判定にも掛からないようにする */
+  private def tempFile(path: Path): Path = path.resolveSibling(s".${path.getFileName}$TempSuffix")
+
+  private def isTemp(path: Path): Boolean = {
+    val name = path.getFileName.toString
+    name.startsWith(".") && name.endsWith(TempSuffix) && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+  }
+
+  private def plan(files: List[GeneratedFile], managed: List[Path], marker: String, base: Path): Result[Plan] = {
     val resolved = CodegenError.sequence(files.map { file =>
       OutputPath.resolve(file.root, file.relativePath)
         .map(path => (file, path))
@@ -74,10 +88,20 @@ object OutputWriter {
     })
     for {
       outputs <- resolved
+      _ <- ancestors((files.map(_.root.toAbsolutePath.normalize()) ++ managed).distinct, base)
       _ <- structure(outputs)
       walked <- CodegenError.sequence(managed.map(managedFiles))
       result <- contents(outputs, walked.flatten, managed, marker)
     } yield result
+  }
+
+  /** base から各出力ルートまでの祖先（base 自体は除く）がリンクでも通常ファイルでもないことを確かめる。base の外のルートは対象外 */
+  private def ancestors(roots: List[Path], base: Path): Result[Unit] = {
+    val errors = roots.filter(root => root.startsWith(base) && root != base).flatMap(root => chain(base, root).drop(1).init).distinct.collect {
+      case p if exists(p) && isLink(p) => CodegenError(p.toString, None, "refusing to follow a symbolic link or junction")
+      case p if exists(p) && !Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS) => CodegenError(p.toString, None, "output root ancestor is not a directory")
+    }
+    if (errors.nonEmpty) Left(errors) else Right(())
   }
 
   /** リンク・ファイルとディレクトリの衝突を、既存ファイルを読む前に確かめる */
@@ -98,7 +122,7 @@ object OutputWriter {
     val nested = for {
       (parent, parentKey) <- keys
       (child, childKey) <- keys
-      if childKey.startsWith(parentKey + java.io.File.separator)
+      if childKey.startsWith(s"$parentKey${java.io.File.separator}")
     } yield CodegenError(child.toString, None, s"output $parent is also used as a directory")
     val errors = (links ++ types ++ nested).distinct
     if (errors.nonEmpty) Left(errors) else Right(())
@@ -107,7 +131,7 @@ object OutputWriter {
   private def contents(outputs: List[(GeneratedFile, Path)], walked: List[Path], managed: List[Path], marker: String): Result[Plan] = {
     val outputKeys = outputs.map(_._2.toString).toSet
     val sameKey = outputs.groupBy(_._2.toString.toLowerCase(Locale.ROOT)).values.toList.collect {
-      case group if group.size > 1 =>
+      case group if group.sizeIs > 1 =>
         CodegenError(group.head._2.toString, None, s"outputs collide (case-insensitive): ${group.map(_._2).mkString(", ")}")
     }
     val existing = outputs.flatMap { case (file, path) =>
@@ -119,6 +143,7 @@ object OutputWriter {
     if (errors.nonEmpty) Left(errors.distinct)
     else {
       val stale = walked.filter(path => !outputKeys(path.toString) && isGenerated(path, marker))
+      val leftovers = (walked.filter(isTemp) ++ outputs.map(_._2.getParent).distinct.flatMap(siblings).filter(isTemp)).distinct
       def lower(path: Path): String = path.toString.toLowerCase(Locale.ROOT)
       val lowerOutputs = outputKeys.map(_.toLowerCase(Locale.ROOT))
       val (deleteFirst, deleteAfter) = stale.partition(path => lowerOutputs(lower(path)))
@@ -126,7 +151,7 @@ object OutputWriter {
       val (unchanged, changed) = outputs.map { case (file, path) => path -> file.content }.partition { case (path, content) =>
         !renamed(lower(path)) && sameContent(path, content)
       }
-      Right(Plan(changed, unchanged.map(_._1), deleteFirst, deleteAfter))
+      Right(Plan(changed, unchanged.map(_._1), leftovers, deleteFirst, deleteAfter))
     }
   }
 
@@ -136,6 +161,9 @@ object OutputWriter {
     base.relativize(path).iterator().asScala.toList.scanLeft(base)(_.resolve(_))
   }
 
+  private def siblings(dir: Path): List[Path] =
+    if (Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) Using.resource(Files.list(dir))(_.iterator().asScala.toList) else Nil
+
   /** 出力パスの各階層で、名前の大文字小文字だけが違う既存のファイル・ディレクトリを探す。消してよい古い生成ファイルは除く */
   private def caseConflicts(root: Path, path: Path, outputKeys: Set[String], managed: List[Path], marker: String): List[CodegenError] = {
     val base = root.toAbsolutePath.normalize()
@@ -143,13 +171,12 @@ object OutputWriter {
     names.indices.toList.flatMap { depth =>
       val parent = names.take(depth).foldLeft(base)(_.resolve(_))
       val name = names(depth)
-      val siblings = if (Files.isDirectory(parent)) Using.resource(Files.list(parent))(_.iterator().asScala.toList) else Nil
-      siblings.filter { sibling =>
+      siblings(parent).filter { sibling =>
         val siblingName = sibling.getFileName.toString
         siblingName != name && siblingName.equalsIgnoreCase(name)
       }.filterNot { sibling =>
         val isLeaf = depth == names.size - 1
-        isLeaf && !outputKeys(sibling.toString) && managed.exists(sibling.startsWith(_)) && Files.isRegularFile(sibling) && isGenerated(sibling, marker)
+        isLeaf && !outputKeys(sibling.toString) && managed.exists(sibling.startsWith) && Files.isRegularFile(sibling) && isGenerated(sibling, marker)
       }.map(sibling => CodegenError(path.toString, None, s"differs only by case from existing $sibling"))
     }
   }

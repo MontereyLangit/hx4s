@@ -7,18 +7,18 @@ class AppFileRendererSuite extends FunSuite {
   private val config = TestConfig()
   private val bodyAfterBanner: String => String = _.linesIterator.drop(config.banner.size).mkString("\n") + "\n"
 
-  test("route ファイルは GET を export default、ほかを named export にし、import を重複させない") {
+  test("route ファイルは GET を export default、ほかを named export にし、import は重複させず生成器専用の別名で受ける") {
     val entry = RouteEntry("api/items.ts", List(
       RouteHandler(HttpMethod.PUT, "putHandler"), RouteHandler(HttpMethod.POST, "itemsHandler"), RouteHandler(HttpMethod.GET, "itemsHandler")
     ))
     val expected =
-      """import { createRoute } from "honox/factory";
+      """import { createRoute as __hx4s_createRoute } from "honox/factory";
         |// @ts-expect-error scalajs:server.js は仮想モジュール（vite.config.ts参照）。
-        |import { itemsHandler, putHandler } from "scalajs:server.js";
+        |import { itemsHandler as __hx4s_handler_itemsHandler, putHandler as __hx4s_handler_putHandler } from "scalajs:server.js";
         |
-        |export default createRoute((c) => itemsHandler(c));
-        |export const POST = createRoute((c) => itemsHandler(c));
-        |export const PUT = createRoute((c) => putHandler(c));
+        |export default __hx4s_createRoute((c) => __hx4s_handler_itemsHandler(c));
+        |export const POST = __hx4s_createRoute((c) => __hx4s_handler_itemsHandler(c));
+        |export const PUT = __hx4s_createRoute((c) => __hx4s_handler_putHandler(c));
         |""".stripMargin.replace("\r\n", "\n")
     assertEquals(bodyAfterBanner(AppFileRenderer.route(entry, config)), expected)
   }
@@ -27,8 +27,8 @@ class AppFileRendererSuite extends FunSuite {
     val rendered = AppFileRenderer.island(IslandEntry("item-view.tsx", "ItemViewJs", "client.js"), config)
     val expected =
       """// @ts-expect-error scalajs:client.js は @scala-js/vite-plugin-scalajs が解決する仮想モジュール（.d.ts無し）。
-        |import { ItemViewJs } from "scalajs:client.js";
-        |export default ItemViewJs;
+        |import { ItemViewJs as __hx4s_island } from "scalajs:client.js";
+        |export default __hx4s_island;
         |""".stripMargin.replace("\r\n", "\n")
     assertEquals(bodyAfterBanner(rendered), expected)
   }

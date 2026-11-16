@@ -16,7 +16,7 @@ class OutputWriterSuite extends FunSuite {
     Using.resource(Files.list(root))(_.iterator().asScala.map(_.getFileName.toString).toList.sorted)
 
   private def write(root: Path, files: (String, String)*) =
-    OutputWriter.write(files.toList.map { case (path, content) => GeneratedFile(root, path, content) }, List(root), marker)
+    OutputWriter.write(files.toList.map { case (path, content) => GeneratedFile(root, path, content) }, List(root), marker, root)
 
   test("再生成は古い生成ファイルを削除し、手書きファイルは残し、件数を返す") {
     withTempDir { root =>
@@ -100,7 +100,7 @@ class OutputWriterSuite extends FunSuite {
     withTempDir { root =>
       Files.writeString(root.resolve("manual.ts"), "export default manual;\n")
       List("", "   ", "//", " // ", "// generated\nsecond").foreach { blank =>
-        val result = OutputWriter.write(List(GeneratedFile(root, "fresh.ts", s"$blank\n")), List(root), blank)
+        val result = OutputWriter.write(List(GeneratedFile(root, "fresh.ts", s"$blank\n")), List(root), blank, root)
         assert(result.left.exists(_.exists(_.message.contains("generatedMarker"))), s"$blank: $result")
       }
       assertEquals(names(root), List("manual.ts"))
@@ -125,19 +125,35 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("書き込みに失敗したら誤りを返して古い生成ファイルを残し、直してから再実行すると収束する") {
+  test("書き込みに失敗しても既存の生成ファイルは元の内容とマーカーのまま残り、直してから再実行すると収束する") {
     withTempDir { root =>
       Files.writeString(root.resolve("stale.ts"), generated)
-      val locked = root.resolve("locked.ts")
-      Files.writeString(locked, s"$marker\nold\n")
-      locked.toFile.setWritable(false)
-      assume(!Files.isWritable(locked), "cannot make a file read-only here")
-      val failed = write(root, "locked.ts" -> generated)
-      locked.toFile.setWritable(true)
+      val target = root.resolve("target.ts")
+      Files.writeString(target, s"$marker\nold\n")
+      // 一時ファイルの名前に空でないディレクトリを置き、一時ファイルを作れないようにする
+      val obstacle = Files.createDirectories(root.resolve(".target.ts.hx4s-tmp"))
+      Files.writeString(obstacle.resolve("keep"), "x")
+      val failed = write(root, "target.ts" -> generated)
       assert(failed.left.exists(_.exists(_.message.startsWith("cannot write file"))), failed)
+      assertEquals(Files.readString(target), s"$marker\nold\n")
       assert(Files.exists(root.resolve("stale.ts")), "書き込みが済むまで古い生成ファイルは消さない")
-      assertEquals(write(root, "locked.ts" -> generated).map(_.render), Right("wrote 1, unchanged 0, deleted 1"))
-      assertEquals(write(root, "locked.ts" -> generated).map(_.render), Right("wrote 0, unchanged 1, deleted 0"))
+      Files.delete(obstacle.resolve("keep"))
+      Files.delete(obstacle)
+      assertEquals(write(root, "target.ts" -> generated).map(_.render), Right("wrote 1, unchanged 0, deleted 1"))
+      assertEquals(write(root, "target.ts" -> generated).map(_.render), Right("wrote 0, unchanged 1, deleted 0"))
+      assertEquals(names(root), List("target.ts"))
+    }
+  }
+
+  test("前回の失敗で残った一時ファイルは手書きとみなさず、次の実行で消す") {
+    withTempDir { root =>
+      Files.createDirectories(root.resolve("nested"))
+      Files.writeString(root.resolve(".page.ts.hx4s-tmp"), "partial")
+      Files.writeString(root.resolve("nested/.old.ts.hx4s-tmp"), "")
+      assertEquals(write(root, "page.ts" -> generated).map(_.render), Right("wrote 1, unchanged 0, deleted 0"))
+      assertEquals(names(root), List("nested", "page.ts"))
+      assertEquals(names(root.resolve("nested")), Nil)
+      assertEquals(Files.readString(root.resolve("page.ts")), generated)
     }
   }
 
@@ -179,7 +195,7 @@ class OutputWriterSuite extends FunSuite {
       assertRefusesLink(write(root, "dangling.ts" -> generated))
       val linkedRoot = root.getParent.resolve("linked-root")
       symlink(linkedRoot, outside)
-      assertRefusesLink(OutputWriter.write(List(GeneratedFile(linkedRoot, "new.ts", generated)), Nil, marker))
+      assertRefusesLink(OutputWriter.write(List(GeneratedFile(linkedRoot, "new.ts", generated)), Nil, marker, linkedRoot.getParent))
       assertEquals(names(outside), List("target.ts"))
       assertEquals(Files.readString(outside.resolve("target.ts")), generated)
     }
@@ -201,9 +217,41 @@ class OutputWriterSuite extends FunSuite {
       assertRefusesLink(write(root, "fresh.ts" -> generated))
       val joinedRoot = root.getParent.resolve("joined-root")
       junction(joinedRoot, outside)
-      assertRefusesLink(OutputWriter.write(List(GeneratedFile(joinedRoot, "new.ts", generated)), List(joinedRoot), marker))
+      assertRefusesLink(OutputWriter.write(List(GeneratedFile(joinedRoot, "new.ts", generated)), List(joinedRoot), marker, joinedRoot.getParent))
       assertEquals(names(outside), List("target.ts"))
       assertEquals(names(root), List("joined"))
+    }
+  }
+
+  /** project/app がリンクで、出力ルート project/app/routes はその先の通常ディレクトリという配置で書く */
+  private def writeThroughLinkedAncestor(link: (Path, Path) => Unit): Unit =
+    withOutside { (project, outside) =>
+      val routes = Files.createDirectories(outside.resolve("routes"))
+      Files.writeString(routes.resolve("old.ts"), generated)
+      link(project.resolve("app"), outside)
+      val root = project.resolve("app").resolve("routes")
+      assertRefusesLink(OutputWriter.write(List(GeneratedFile(root, "new.ts", generated)), List(root), marker, project))
+      val scalaOutput = project.resolve("app").resolve("generated")
+      assertRefusesLink(OutputWriter.write(List(GeneratedFile(scalaOutput, "Api.scala", s"$marker\n")), Nil, marker, project))
+      assertEquals(names(outside), List("routes", "target.ts"))
+      assertEquals(names(routes), List("old.ts"))
+    }
+
+  test("出力ルートの祖先（基準ディレクトリより下）がシンボリックリンクなら拒否する") {
+    writeThroughLinkedAncestor(symlink)
+  }
+
+  test("出力ルートの祖先（基準ディレクトリより下）がジャンクションなら拒否する") {
+    writeThroughLinkedAncestor(junction)
+  }
+
+  test("基準ディレクトリ自体とその外の祖先は確かめない") {
+    withOutside { (project, _) =>
+      val result = OutputWriter.write(List(GeneratedFile(project.resolve("a/b"), "x.ts", generated)), Nil, marker, project.resolve("a"))
+      assertEquals(result.map(_.render), Right("wrote 1, unchanged 0, deleted 0"))
+      val elsewhere = project.getParent.resolve("elsewhere")
+      assertEquals(OutputWriter.write(List(GeneratedFile(elsewhere, "x.ts", generated)), Nil, marker, project).map(_.render),
+        Right("wrote 1, unchanged 0, deleted 0"))
     }
   }
 }
