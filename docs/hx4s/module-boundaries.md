@@ -95,6 +95,11 @@
    両者が共有する型（island の Props）は shared に置く。これらは hx4s の規約として文書化する。
    検査は、sbt の依存グラフ（client の推移的依存に server が入らないこと）と、Vite のモジュールグラフ（client ビルドに server のモジュールが入らないこと）で行う。
    バンドルの文字列検査（3ch の `tests/client-bundle.test.js`）は、これらの検査をすり抜けたものを拾う補助であって、主たる保証ではない。
+   - **sbt の依存グラフ: 実装済み（Phase 3 レビュー K7）**。sbt-hx4s の `hx4sCheckDependencies` が、`hx4sClientProject` とその推移的な `dependsOn`（Compile に効くもの）が
+     `Hx4sPlugin` を有効にしたプロジェクトに届くか、server が client に届けば、経路を出してビルドを失敗させる。`hx4sGenerate` と `IslandComponents` の生成の前に走る。
+     shared → server は、client が shared に依存していれば client → shared → server の経路として検出する。shared → client、server → shared → client も同じ。
+   - **Vite のモジュールグラフ: 未実装**。sbt の検査をすり抜ける経路（client の Scala.js が server のリンク成果物を `@JSImport` する、`app/client.ts` が server 用のモジュールを import する など）は、
+     今は examples のバンドルの文字列検査でしか見ていない（[roadmap.md](roadmap.md)）。
 
 ## 3. 公開 API と内部 API
 
@@ -102,9 +107,9 @@
 | --- | --- | --- |
 | hx4s-core | `hx4s.annotation.route`、`hx4s.annotation.islands[P]` の名前・引数の順と名前。JS 側の `hx4s.props.{JsShape, JsKind, JsField}` | — |
 | hx4s-react | `hx4s.react.Island.apply`、`hx4s.react.IslandExport[P]`（`apply` / `unchecked`）と export に付ける検証関数の名前 `hx4sValidate`、`hx4s.hono.Context[Env, R]` / `HonoRequest` の facade、`renderPromise` | `HonoXIsland` の facade と `IslandProps`（H1）。`private` にしてある |
-| hx4s-codegen | 設定 case class（3ch の `CodegenConfig` が原型。名前は Phase 3 で確定）、CLI の引数、生成物の形（バナー・ファイル配置・`IslandComponents` のメソッド名規則） | `AppEntries` などの中間表現、`AppFileRenderer` のテンプレート関数 |
-| sbt-hx4s | 設定キー（`hx4s*`）と `hx4sGenerate` タスク | 専用 configuration の名前、隔離実行の方式 |
-| hx4s-vite | `hx4s()` プラグイン関数のオプション、Node 用 loader のエントリ | 内部で組む Vite 設定の細部（alias の接頭辞など） |
+| hx4s-codegen | 設定 case class（3ch の `CodegenConfig` が原型。名前は Phase 3 で確定）、CLI の引数、生成物の形（バナー・ファイル配置・import の別名・`IslandComponents` のメソッド名規則） | `AppEntries` などの中間表現、`AppFileRenderer` のテンプレート関数、`RoutePath` |
+| sbt-hx4s | 設定キー（`hx4s*`）と `hx4sGenerate`・`hx4sIslandComponents`・`hx4sCheckDependencies` タスク | 専用 configuration の名前、隔離実行の方式、codegen との受け渡し（`--output-list`） |
+| hx4s-vite | `hx4s()` プラグイン関数のオプション、`hx4s-vite/client` の `islandPropsProblem`、Node 用 loader のエントリ | 内部で組む Vite 設定の細部（alias の接頭辞など） |
 
 生成物の形（TS の import 文、バナー文言）は「公開」に含める。利用者のリポジトリにコミットされるため、変えると差分が全ファイルに出る。
 変える場合はマイナー版を上げ、変更点を CHANGELOG に書く。

@@ -12,8 +12,8 @@ hx4s は「Scala の宣言から HonoX の規約どおりのファイルを生�
 | `hx4s-core`（Scala, JVM + JS） | `@route(filePath, method)`・`@islands[P](filePath)` アノテーション。JS 側に island の props を確かめる `hx4s.props.JsShape` |
 | `hx4s-react`（Scala.js） | HonoX の island 境界を付ける `hx4s.react.Island`、client の export を props の型 `P` に結び付ける `hx4s.react.IslandExport[P]`、Hono の Context の facade `hx4s.hono.Context[Env, R]`（Request / Response は scalajs-dom の型） |
 | `hx4s-codegen`（Scala 3, JVM） | scalameta で宣言を読み、`app/routes/**/*.ts`・`app/islands/**/*.tsx` と SSR 用の `IslandComponents.scala` を生成する。出力の安全策（手書きファイルの保護、リンクの拒否、全検査後の書き込み）を持つ |
-| `sbt-hx4s`（sbt 1.x プラグイン） | `Hx4sPlugin`。`hx4sGenerate` で TS を、`Compile / sourceGenerators` で `IslandComponents` を生成する。codegen は fork した JVM で動く |
-| `hx4s-vite`（npm） | `hx4s()` Vite プラグイン（server / client の Scala.js プロジェクトの登録、`scalajs:client.js` の別名、honox の React 設定、client ビルドの出力名）と Node 用 loader `hx4s-vite/node-register` |
+| `sbt-hx4s`（sbt 1.x プラグイン） | `Hx4sPlugin`。`hx4sGenerate` で TS を、`Compile / sourceGenerators` で `IslandComponents` を生成する。codegen は fork した JVM で動く。client と server の間の禁止された依存を `hx4sCheckDependencies` で検出する |
+| `hx4s-vite`（npm） | `hx4s()` Vite プラグイン（server / client の Scala.js プロジェクトの登録、`scalajs:client.js` の別名、honox の React 設定、client ビルドの出力名）、hydrate 前の props の検証 `hx4s-vite/client`、Node 用 loader `hx4s-vite/node-register` |
 
 実行基盤（Cloudflare Workers など）は利用側が `@hono/vite-build` のアダプタで選ぶ。hx4s のモジュールは Cloudflare に依存しない。
 未実装の機能（型付きルート、Client Router、npm CLI、dev server の HMR など）は [docs/hx4s/roadmap.md](docs/hx4s/roadmap.md) を参照。
@@ -57,12 +57,13 @@ npm run typecheck             # hx4s-vite の型検査
 まだ Maven Central / npm に公開していない。利用側は次のスクリプトでローカルに公開したものを使う。
 
 ```bash
-node scripts/publish-local.mjs              # 版は 0.1.0-local.g<commit>（変更があれば .dirty 付き）
+node scripts/publish-local.mjs              # 版は 0.1.0-local.g<commit>（未コミットの変更があれば .dirty-<内容のハッシュ> 付き）
 node scripts/publish-local.mjs --version 0.1.0-local.3
 ```
 
 sbt の成果物は `~/.ivy2/local` に、`hx4s-vite` は `target/local/hx4s-vite.tgz` に置かれ、公開した版は `target/local/hx4s-version.txt` に書かれる。
-利用側は `addSbtPlugin(... % "<version>")` と `"hx4s-vite": "file:<hx4s>/target/local/hx4s-vite.tgz"` で参照する。
+利用側は `addSbtPlugin(... % "<version>")` と `"hx4s-vite": "file:<hx4s>/target/local/hx4s-vite.tgz"` で参照する
+（tgz の整合性ハッシュは公開のたびに変わるので、lockfile で依存を固定したいときは examples と同じく `npm ci` の後に `npm install --no-save <tgz>` で入れる）。
 
 ## examples/minimal
 
@@ -71,8 +72,8 @@ hx4s はローカル公開した成果物だけで解決する。
 
 ```bash
 node scripts/publish-local.mjs
+node scripts/setup-example.mjs minimal   # lockfile どおりに npm ci し、hx4s-vite の tgz を --no-save で入れる
 cd examples/minimal
-npm install
 npx playwright install chromium   # E2E テストを動かすとき
 npm run build                     # hx4sGenerate → client ビルド → Worker ビルド
 npm run dev                       # http://127.0.0.1:8787

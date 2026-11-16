@@ -61,7 +61,8 @@ ScalablyTyped は使っていない（`project/plugins.sbt` のコメント「ha
 
 ## 2. HonoX がアルファである点
 
-HonoX の README は自身をアルファ版と位置づけている（0.1.x）。hx4s は HonoX の内部 API に 10 か所依存する（[architecture.md](architecture.md) 4 章の H1〜H10）。
+HonoX の README は自身をアルファ版と位置づけている（0.1.x）。hx4s は HonoX の内部 API に 12 か所依存する（[architecture.md](architecture.md) 4 章の H1〜H12。
+H11 の `honox/server/server`・`honox/server/utils/file` と H12 の template の復元は Phase 3 のレビューで加えた）。
 特に H1（`HonoXIsland` の props の形）、H3（`component-name` の形式）、H4（`hono/jsx` の文字列置換）、H10（入れ子の扱い）は、
 HonoX 側の変更で hx4s の SSR が黙って壊れる（hydration されない、静的 HTML のままになる）種類のものである。
 
@@ -98,8 +99,8 @@ hx4s の互換性テストは、これらを次のように分けて整える。
 | island のファイル名 | 許可名（`[A-Za-z0-9-]+\.tsx`）は SSR → 探索 → hydration まで通る。`foo_bar.tsx`・`foo.bar.tsx` などは生成時に拒否される（[rendering-model.md](rendering-model.md) 1.4） | H5 |
 | script 埋め込み（将来） | props を `<script type="application/json">` に置く方式を入れるときに限り、`</script><script>…` を含む値の往復と、注入したスクリプトが実行されないこと（[rendering-model.md](rendering-model.md) 1.2） | — |
 | ルート | 生成ルートの GET / POST が `createApp` で登録される。`HEAD` が生成時に拒否される。`_` 始まりのファイル名が拒否される | H7・H8 |
-| URL 変換 | hx4s-codegen の `filePathToPath` 相当が HonoX の実装と一致する（同じ入力表を両方に通す） | H7 |
-| ビルド | `hx4s-vite` の 2 モードで、client の推移的依存（sbt の依存グラフ）と Vite のモジュールグラフに server のモジュールが入らない。client 成果物に server 側のマーカー文字列が入らないことの文字列検査は補助（3ch の KB-27 検査の一般化。[module-boundaries.md](module-boundaries.md) 2 章） | H9 |
+| URL 変換 | hx4s-codegen の `filePathToPath` 相当が HonoX の実装と一致する（同じ入力表を両方に通す）。実装済み: `modules/codegen/src/test/resources/route-paths.tsv` を `RoutePathSuite` と `tests/route-paths.test.js`（HonoX の `createApp` が登録するパス）に通す | H7・H11 |
+| ビルド | `hx4s-vite` の 2 モードで、client の推移的依存（sbt の依存グラフ）と Vite のモジュールグラフに server のモジュールが入らない。sbt の依存グラフは `hx4sCheckDependencies`（scripted の `dependencies`）で実装済み、Vite のモジュールグラフは未実装。client 成果物に server 側のマーカー文字列が入らないことの文字列検査は補助（3ch の KB-27 検査の一般化。[module-boundaries.md](module-boundaries.md) 2 章） | H9 |
 | 書き出し | symlink / junction 経由の外部書き込み・削除が起きない（[build-integration.md](build-integration.md) 3.3）。失敗注入の後に再実行で収束する | — |
 
 テストの実行対象:

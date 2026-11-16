@@ -222,3 +222,5 @@ hx4s ではこれらを 1 か所に集め、互換性テスト（[compatibility.
 | H8 | `honox/factory` の `createRoute`（= `createFactory().createHandlers`） | 生成ルート | `AppFileRenderer.route` | 公開 |
 | H9 | `honox()` が `ssr.noExternal: true` を設定し、devServer の入口を `./app/server.ts` にする | Workers ビルド | `vite.config.ts` | オプションは公開 |
 | H10 | 入れ子 island の扱い（`IslandContext` で内側はラップしない、children は template へ） | Hydration 境界の数 | `tests/islands-hydration.test.js` | 非公開 |
+| H11 | `honox/server/utils/file` の `filePathToPath` と、`createApp` がディレクトリごとの sub app を `app.route` で載せること（hono の `mergePath`） | 生成ルートの URL の衝突検査 | `hx4s.codegen.RoutePath`、`tests/route-paths.test.js`（`honox/server/server` の `createApp` を直接呼ぶ） | package.json の exports にはあるが、変換規則は README に無い |
+| H12 | `createClient` が要素 props を template から復元するときの要素の形（`createElement(component, props)`、配列の children） | template 内の island の検証（`hx4s-vite/client`） | `vite/src/client.ts`、`tests/islands-hydration.test.js` | 非公開 |

@@ -1,6 +1,8 @@
 # ADR 0007: props の検証は hx4s-core の JS 側、typed export は hx4s-react の `IslandExport[P]`
 
 - 状態: 承認（2026-11-16、Phase 3）
+- 更新（2026-11-16、Phase 3 レビュー K6）: hydrate 前の検証を雛形への直書きから `hx4s-vite/client` の `islandPropsProblem(element)` に移した。
+  最外側の island だけでなく、要素 props（template から復元する子）の中の island も確かめる。下の「hydrate の前の検証」の 2 段落目は当初の判断として残す
 - 関連: [ADR 0003](0003-typed-island-props.md)、[rendering-model.md](../rendering-model.md) 2.3・2.4、[roadmap.md](../roadmap.md) U-12・U-24・U-26、Phase 0 レビュー C5
 
 ## 背景

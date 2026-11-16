@@ -1,6 +1,8 @@
 # ADR 0001: 名前と公開座標
 
 - 状態: 承認（2026-11-16、Phase 0）
+- 更新（2026-11-16、Phase 3）: 「影響」の旧バナーを移行期間だけ自動で認める案は採らなかった。生成マーカーは設定値 1 つで、旧バナーの生成物を置き換えるときは
+  利用側が `hx4sBanner` / `hx4sGeneratedMarker` を旧値にする（[codegen.md](../codegen.md) の「設定」、[build-integration.md](../build-integration.md) 3.3）
 - 関連: [roadmap.md](../roadmap.md) U-1・U-2・U-20
 
 ## 背景

@@ -1,6 +1,8 @@
 # ADR 0002: 初期モジュール構成
 
 - 状態: 承認（2026-11-16、Phase 0）
+- 更新（2026-11-16、Phase 3）: `hx4s-core` は Pure ではなく Full の crossProject にした。JS 側に props の検証 `hx4s.props.JsShape` を置くため（[ADR 0007](0007-props-validation-and-typed-export.md)）。
+  JVM 側はアノテーションだけを持つ
 - 関連: [architecture.md](../architecture.md) 3.2、[module-boundaries.md](../module-boundaries.md)
 
 ## 背景

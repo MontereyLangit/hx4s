@@ -145,6 +145,17 @@ SSR の HTML（server が出す `data-serialized-props`）と、client の asset
 P0 の方針: client の入口で `validate` を行い、不一致なら `console.error` を出し、hydration せずに SSR の markup を残す（見た目は静的 HTML のまま。2.2）。
 これは世代ずれが起きたときに画面を壊さないための最低限であり、ずれ自体を防ぐものではない。
 
+実装（Phase 3）: `app/client.ts` の `hydrate` が `hx4s-vite/client` の `islandPropsProblem(element)` を呼び、理由が返れば `hydrateRoot` を呼ばない。保証の範囲は次のとおり。
+
+| 区分 | 内容 |
+| --- | --- |
+| 確かめる | hydrate する island（HonoX の境界 1 つ）の props。その要素 props（HonoX が `<template>` から復元する子。配列の中と、復元した要素のさらに要素 props も辿る）に含まれる island の props。対象は `IslandExport.apply` で作った export（検証関数 `hx4sValidate` を持つもの） |
+| 不一致のとき | その境界全体を hydrate しない。内側の island だけが不正でも、外側を含めて SSR の markup のまま残す（部分的には hydrate しない）。理由は `props.children[1]: props.start: missing` のように位置付きで返る |
+| 確かめない | `IslandExport.unchecked` や JS で書いた island。要素 props 以外（普通の値の中）に入った要素。hydrate の後に読み込まれる chunk の世代。HonoX の Suspense（`template[id^="H:"]`）で後から届く内容 |
+
+雛形に検証を直書きしていた Phase 3 の当初の実装は、最外側の `element.type` だけを見ていた。template 内の island が不正だと外側の hydrate が始まり、
+内側の `IslandExport` が空を描画して SSR の内容を失うことがあった（Phase 3 レビュー K6）。
+
 未決事項（[roadmap.md](roadmap.md) U-26）:
 
 - entry のハッシュ名化（`client.[hash].js`）と、HTML がハッシュ付きの名前を参照する方法（HonoX は manifest を使う方法を持つが、3ch の client ビルドは `honox()` を使っていない）。
@@ -152,6 +163,8 @@ P0 の方針: client の入口で `validate` を行い、不一致なら `consol
 - 旧 asset の保持期間（デプロイ後も一定期間、旧世代の chunk を配信し続けるか）。
 - Props スキーマ変更の指針: フィールドの追加は `js.UndefOr` で受ける、削除は 2 段階にする、必須フィールドの追加は避ける、など。
 - 新旧の組み合わせの検証: 旧 HTML + 新 client、新 HTML + 旧 client の両方で、`validate` が不一致を検出して SSR の markup が残ること。
+  旧 HTML + 新 client は `tests/islands-hydration.test.js`（最外側と template 内）と examples の `tests/hydration.test.js` で確かめている。
+- client の出力名は `hx4s()` の `client.output` で変えられるようにした（既定は固定名のまま）。ハッシュ名を既定にするかと、HTML への受け渡しは未決のまま。
 
 ## 3. 型付き Props 方式の比較
 

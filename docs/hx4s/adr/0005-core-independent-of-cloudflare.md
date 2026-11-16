@@ -1,6 +1,8 @@
 # ADR 0005: Core は Cloudflare 固有 API に依存しない
 
 - 状態: 承認（2026-11-16、Phase 0）
+- 更新（2026-11-16、Phase 3）: `examples/minimal` は Node アダプタではなく Cloudflare Workers（`@hono/vite-build/cloudflare-workers` と wrangler）で動かすことにした
+  （[extraction-plan.md](../extraction-plan.md) 3-5）。Cloudflare に依存するのは examples の設定とテストの起動だけで、hx4s のモジュールが Cloudflare に依存しないという決定は変わらない
 - 関連: [module-boundaries.md](../module-boundaries.md) 2 章、[extraction-plan.md](../extraction-plan.md) 4 章
 
 ## 背景

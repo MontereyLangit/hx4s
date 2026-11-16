@@ -124,7 +124,9 @@ Phase 3 の実施結果（2026-11-16）: 3-1〜3-6 と 3-1a を実装した。U-
 - 生成物の書き出しの symlink / junction に対する負のテスト（[build-integration.md](build-integration.md) 3.3）。
 - Windows と Linux の両方で `examples/minimal` のビルドが通る（CI の OS 行列。Windows は少なくとも手元で確認）。
 
-完了条件: hx4s の `develop` に入り、CI が通る。この時点で 3ch はまだ Phase 2 の内蔵版を使っている。
+完了条件: hx4s の `develop` に入り、ローカルで全検証（`sbt test`、`sbt sbtHx4s/scripted`、`-no-indent` の確認、`npm test`、`npm run typecheck`、
+`scripts/publish-local.mjs`、クリーンな状態からの examples/minimal の install・build・typecheck・test、`scripts/check-independence.mjs`）が通る。
+リモートの CI（Ubuntu / Windows）が通ることの確認は、push（ユーザーの判断）の後に行う。この時点で 3ch はまだ Phase 2 の内蔵版を使っている。
 
 ### Phase 4: 3ch を hx4s の利用側へ移行
 

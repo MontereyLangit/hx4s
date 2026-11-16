@@ -1,6 +1,6 @@
 # ロードマップ
 
-2026-11-16 時点。Phase 3（hx4s リポジトリへの分離）の実装が入った状態を書く。「実装済み」は hx4s のリポジトリにあり、テストが通ることを意味する。
+2026-11-16 時点。Phase 3（hx4s リポジトリへの分離）の実装と、そのレビュー指摘の修正（[reviews/phase3-review.md](reviews/phase3-review.md) 5 章）が入った状態を書く。「実装済み」は hx4s のリポジトリにあり、テストが通ることを意味する。
 移動元の掲示板プロジェクト（3ch）はまだ hx4s を使っていない（Phase 4）。
 
 ## 1. P0（最初の分離で揃えるもの）
@@ -15,16 +15,19 @@
 | 型付き Props の補助（`IslandComponents.Xxx(props: P)`、typed export `IslandExport[P]`、hydrate 前の検証） | hx4s-react / hx4s-codegen | 実装済み。server の呼び出しと client の export の型違いはコンパイルエラー、`@islands[P]` と export の宣言型は codegen が構文で照合（U-24 決定） |
 | アノテーション解析・route TS / island TSX / `IslandComponents` 生成 | hx4s-codegen | 実装済み（`hx4s.codegen`） |
 | 安全な書き出し（バナー保護、古い生成物の削除、大文字小文字の衝突） | hx4s-codegen | 実装済み |
-| 書き出しの追加規則（同内容なら書かない、改行の正規化、全検査後に書く、リンクの拒否、新規書き込み → 古い生成物の削除の順） | hx4s-codegen | 実装済み（[build-integration.md](build-integration.md) 3.3） |
-| `@route` の検査強化 | hx4s-codegen | `HEAD` 拒否と HonoX / `import.meta.glob` が拾わないファイル名の拒否は実装済み。**URL パターンの衝突検出と、手書きルートとの衝突の警告は未実装**（[routing-design.md](routing-design.md) 2.2） |
+| 書き出しの追加規則（同内容なら書かない、改行の正規化、全検査後に書く、出力ルートの祖先を含むリンクの拒否、一時ファイル経由の置き換え、新規書き込み → 古い生成物の削除の順） | hx4s-codegen | 実装済み（[build-integration.md](build-integration.md) 3.3、[codegen.md](codegen.md)） |
+| 生成コードの識別子の衝突回避（import の別名）と、生成ソースへ埋め込む設定値の検証・エスケープ | hx4s-codegen | 実装済み（[codegen.md](codegen.md)） |
+| `@route` の検査強化 | hx4s-codegen | `HEAD` 拒否、HonoX / `import.meta.glob` が拾わないファイル名の拒否、生成ルート同士の URL パターンの衝突検出（`RoutePath`）は実装済み。**手書きルートとの衝突の警告は未実装**（[routing-design.md](routing-design.md) 2.2） |
 | CLI main（引数で設定を受ける） | hx4s-codegen | 実装済み（`hx4s.codegen.CodegenMain`） |
-| 設定キーと `hx4sGenerate`、専用 configuration と fork 実行 | sbt-hx4s | 実装済み（`Hx4sPlugin`。scripted テストあり） |
-| Scala.js プロジェクトの登録・`buildStart` 直列化・`scalajs:client.js` alias・honox の React 設定・client ビルド設定 | hx4s-vite | 実装済み（`hx4s()`） |
+| 設定キーと `hx4sGenerate`、専用 configuration と fork 実行 | sbt-hx4s | 実装済み（`Hx4sPlugin`。scripted テストあり）。client なし（SSR だけ）の構成も扱う |
+| client と server の依存の向きの検査 | sbt-hx4s | sbt の依存グラフは実装済み（`hx4sCheckDependencies`、scripted の `dependencies`）。**Vite のモジュールグラフの検査は未実装**（[module-boundaries.md](module-boundaries.md) 2 章） |
+| Scala.js プロジェクトの登録・`buildStart` 直列化・`scalajs:client.js` alias・honox の React 設定・client ビルド設定 | hx4s-vite | 実装済み（`hx4s()`。client の出力名は `client.output` で上書きできる） |
+| hydrate 前の props の検証（template 内の island を含む） | hx4s-vite | 実装済み（`hx4s-vite/client` の `islandPropsProblem`。[rendering-model.md](rendering-model.md) 2.4） |
 | Node 用 loader（`scalajs:client.js`、HonoX 内の `hono/jsx`） | hx4s-vite | 実装済み（`hx4s-vite/node-register`、環境変数 `HX4S_CLIENT_JS_DIR`） |
-| ローカル公開の手順 | scripts | 実装済み（`scripts/publish-local.mjs`。版は `0.1.0-local.g<commit>`） |
-| `examples/minimal`（SSR + Islands、Cloudflare Workers） | examples | 実装済み（ローカル公開の成果物だけで解決する） |
-| 互換性テスト | 各モジュール | SSR・hydration（単純・入れ子・要素 props・複数インスタンス・Scala.js の client island）・Props の往復（Unicode・`</script>`・引用符・入れ子）・世代ずれ・island のファイル名・ルートの登録（GET / POST / HEAD）・ビルドのバンドル文字列・書き出しの負のテストは実装済み。**URL 変換（`filePathToPath`）の照合、非有限の `Double`・循環参照の挙動、`honox@latest` の定期実行、Vite のモジュールグラフによる依存方向の検査は未実装** |
-| CI | `.github/workflows/ci.yml` | ファイルを置いた（Ubuntu / Windows）。リモートでは未実行 |
+| ローカル公開の手順 | scripts | 実装済み（`scripts/publish-local.mjs`。版は `0.1.0-local.g<commit>`、未コミットの変更があれば `.dirty-<内容のハッシュ>`） |
+| `examples/minimal`（SSR + Islands、Cloudflare Workers） | examples | 実装済み（ローカル公開の成果物だけで解決する。npm 依存は lockfile で固定し、`scripts/setup-example.mjs` で入れる） |
+| 互換性テスト | 各モジュール | SSR・hydration（単純・入れ子・要素 props・複数インスタンス・Scala.js の client island）・Props の往復（Unicode・`</script>`・引用符・入れ子）・世代ずれ・island のファイル名・ルートの登録（GET / POST / HEAD）・ビルドのバンドル文字列・書き出しの負のテストは実装済み。URL 変換（`filePathToPath`）の照合、template 内の island の検証、生成 TS の識別子の衝突も実装済み。**非有限の `Double`・循環参照の挙動、`honox@latest` の定期実行、Vite のモジュールグラフによる依存方向の検査は未実装** |
+| CI | `.github/workflows/ci.yml` | ファイルを置いた（Ubuntu / Windows。生成物の確認は未追跡ファイルも見る）。リモートでは未実行（push はユーザーの判断） |
 
 ## 2. P1
 
@@ -62,12 +65,12 @@
 | U-4 | ライセンス | **決定（2026-11-16）: Apache-2.0**。リポジトリ直下に `LICENSE` と `NOTICE` を置いた（[compatibility.md](compatibility.md) 4 章） |
 | U-5 | 3ch から移すコードの git 履歴を引き継ぐか | 提案: `git filter-repo` で移動対象（`codegen/.../framework/` など。extraction-plan.md 3 章の対応表）の履歴だけを持ってくる。3ch の他の履歴（秘匿値を含みうる）を持ち込まないことを確認してから |
 | U-6 | Fetch API の型: scalajs-dom の `Request` / `Response` を使うか、hx4s が facade を持つか | **決定（Phase 3）: scalajs-dom**（`hx4s.hono.Context` / `HonoRequest`） |
-| U-7 | `app/client.ts` 相当のヘルパー（`hx4s-vite/client` の `createReactClient()` 等）を提供するか | 提案: P0 では雛形のみ。中身が 10 行程度で、ヘルパーにすると HonoX の `createClient` のオプションを覆い隠すため |
+| U-7 | `app/client.ts` 相当のヘルパー（`hx4s-vite/client` の `createReactClient()` 等）を提供するか | **決定（Phase 3 レビュー K6）**: `createClient` を包むヘルパーは作らず、検証の関数 `islandPropsProblem(element)` だけを `hx4s-vite/client` で提供する。雛形は `createClient` のオプションをそのまま書く。以前の提案: P0 では雛形のみ（中身が 10 行程度で、ヘルパーにすると HonoX の `createClient` のオプションを覆い隠すため） |
 | U-8 | `hx4s-vite` の `honox` / `@scala-js/vite-plugin-scalajs` を peerDependencies にするか dependencies にするか | 提案: peerDependencies。版の決定を利用側に残し、検証済みの範囲を宣言する |
 | U-9 | （決定）`IslandComponents.scala` の出力先 | **決定: `src_managed`（`sourceGenerators`）**。3ch は `875a47b` 時点でこの方式になっている（`build.sbt` の `generateIslandComponents`）。TS 側（`app/`）は Vite が読むので従来どおりソースツリーに出す |
 | U-10 | `hx4s-codegen` を Scala 2.12 にもクロスビルドし、sbt の中で直接呼ぶか。sbt 2 への移行をいつ前提にするか | 提案: P0 は Scala 3 のみ + fork。2.12 クロスはコードの書き方を制約するので避ける |
 | U-11 | `@islands[P]` の `P` の書き方: 完全修飾名に限るか、import を解決するか | 提案: P0 は完全修飾名に限る（3ch の計画の推奨と同じ）。import の解決は構文解析では不完全になる |
-| U-12 | Props の `validate` に失敗したときの描画 | **決定（Phase 3）**: `IslandExport` の検証関数を `app/client.ts` の hydrate が呼び、不一致なら `console.error` を出して hydrate せず SSR の markup を残す（[ADR 0007](adr/0007-props-validation-and-typed-export.md)） |
+| U-12 | Props の `validate` に失敗したときの描画 | **決定（Phase 3）**: `IslandExport` の検証関数を `app/client.ts` の hydrate が（`hx4s-vite/client` の `islandPropsProblem` を通して、template 内の island も含めて）呼び、不一致なら `console.error` を出して hydrate せず SSR の markup を残す（[ADR 0007](adr/0007-props-validation-and-typed-export.md)） |
 | U-13 | `HEAD` の扱いと `ALL` メソッド | 提案: `HEAD` は拒否（GET が応答する）。`ALL` は P1 |
 | U-14 | `IslandComponents` のメソッド名: export 名（`PostingFormJs`）のままか、派生名（`PostingForm`）か | 提案: export 名のまま。規則を増やすと衝突検査も増える。3ch の既存呼び出しも変えずに済む |
 | U-15 | sbt の起動回数を減らす（sbt client / 1 回の `print` で複数プロジェクトの出力を得る） | 未調査。3ch の `v6:build` は sbt を 4 回起動する。所要時間は測っていない |
@@ -81,4 +84,4 @@
 | U-23 | 手書きルートとの URL 衝突を拒否するか警告にとどめるか | 提案: 警告。手書きで意図的に上書きする運用を妨げないため |
 | U-24 | client の export を `@islands[P]` の `P` に結び付ける typed export 補助 | **決定（Phase 3）: `IslandExport[P]`**（[ADR 0007](adr/0007-props-validation-and-typed-export.md)）。以下は Phase 0 の記述: 型が保証するのは server の呼び出し側だけで、client のコンポーネントが同じ `P` を読む保証が無い（[rendering-model.md](rendering-model.md) 2.3）。`IslandExport[P]` のような型で、`P` と一致しない export をコンパイルエラーにする案 |
 | U-25 | appDir・moduleID・仮想モジュール接頭辞を codegen と hx4s-vite に同じ値で渡す共通設定 | P0 は `app/routes`・`app/islands`・moduleID `server` / `client` を既定かつ検証済みの唯一の組み合わせとする（[build-integration.md](build-integration.md) 2.0）。共通設定は P1 で決める。HonoX の glob が `/app` 固定なので、変更には HonoX 側の `ISLAND_FILES` などのオプション指定も要る |
-| U-26 | HTML と client asset の世代ずれへの対策: entry のハッシュ名化、キャッシュ制御、旧 asset の保持、Props スキーマ変更の指針、新旧組み合わせの検証 | P0 は client の入口の `validate` で不一致を検出し、`console.error` と SSR の markup の維持にとどめる。それ以外は未決（[rendering-model.md](rendering-model.md) 2.4、[ADR 0003](adr/0003-typed-island-props.md)） |
+| U-26 | HTML と client asset の世代ずれへの対策: entry のハッシュ名化、キャッシュ制御、旧 asset の保持、Props スキーマ変更の指針、新旧組み合わせの検証 | P0 は client の入口の `validate` で不一致を検出し、`console.error` と SSR の markup の維持にとどめる。client の出力名は `hx4s()` の `client.output` で変えられる（既定は固定名）。ハッシュ名を既定にするかとその HTML への受け渡し、それ以外は未決（[rendering-model.md](rendering-model.md) 2.4、[ADR 0003](adr/0003-typed-island-props.md)） |
