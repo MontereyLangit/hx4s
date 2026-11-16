@@ -107,6 +107,22 @@ hx4s は独自のルート表を持たず、`@route` を「どのファイルを
 
 Phase 3 の実装は `hx4s.hono.Context[Env, R <: js.Object]`（R は `c.render` に渡すレンダラの props）と `hx4s.hono.HonoRequest`（`raw: org.scalajs.dom.Request`、`param` / `query` / `header` / `method` / `url` / `path`）で、
 `Context` には `res`・`header`・`status`・`text`・`json`・`redirect`・`render` と拡張メソッド `renderPromise` がある。facade の名前は scalajs-dom の `Request` と紛れないよう `HonoRequest` にした。
+
+Phase 4 で最初の利用側が乗り換えたときの不足を受けて、次を足した（[reviews/phase4-feedback.md](reviews/phase4-feedback.md)）。
+
+| 追加 | 内容 |
+| --- | --- |
+| `Context.executionCtx: hx4s.hono.ExecutionContext` | `waitUntil(promise)` と `passThroughOnException()` だけを持つ facade。Hono の `executionCtx` は getter で、実行基盤が渡していないと `Error("This context has no ExecutionContext")` を投げる（hono 4.13.18 の `dist/context.js`）。この facade もアクセス時に `js.JavaScriptException` になる |
+| 拡張メソッド `executionCtxOption: Option[ExecutionContext]` | 上の例外を `None` にする。Node の SSR 検証や `app.request()` のように実行コンテキストを渡さない呼び出しでも同じハンドラを動かすため |
+| `Context.html`・`set` / `get` と拡張メソッド `setVariable` / `getVariable`（`ContextVariable[A]`） | `set` / `get` は Hono のままの名前と `js.Any` の口。型付きで読み書きするときは `ContextVariable[A]("name")` を 1 つ定義して両側で共有する |
+| `HonoRequest.queries`・`text()`・`json()`・`formData()` | 本文は Hono が読んだ結果をキャッシュするので、`raw` の本文を直接読んだ後には使えない |
+
+`ExecutionContext` を型引数にせず最小の trait にしたのは次の理由による。
+
+- 型引数を足すと、既存の `Context[Env, R]` を書いている箇所がすべて変わる。実行基盤ごとの差（Cloudflare の `props`・`exports` など）を使う場面は少ない。
+- hx4s のモジュールを Cloudflare の型に依存させない（[ADR 0005](adr/0005-core-independent-of-cloudflare.md)）。基盤固有のメンバが要る利用側は、`ExecutionContext` を継承した自前の `@js.native` trait を定義して読み替える。
+- 名前は Hono に合わせて `ExecutionContext` にした。`scala.concurrent.ExecutionContext` と同じファイルで使うときは import で別名を付ける。
+
 下は Phase 0 の案。
 
 ```scala

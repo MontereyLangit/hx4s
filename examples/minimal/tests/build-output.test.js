@@ -63,6 +63,15 @@ test('POST のルートはフォームの値を検証して描画する', async 
   assert.equal(missing.response.status, 400);
 });
 
+test('API のルートは c.json で返し、繰り返した ?tag= を c.req.queries で読む', async () => {
+  const all = await workerFetch('/api/items');
+  assert.equal(all.status, 200);
+  assert.match(all.headers.get('content-type'), /application\/json/);
+  assert.deepEqual((await all.json()).map((item) => item.id), ['1', '2', '3']);
+  const fruit = await (await workerFetch(`/api/items?tag=${encodeURIComponent('果物')}&tag=${encodeURIComponent('赤')}`)).json();
+  assert.deepEqual(fruit, [{ id: '1', name: 'りんご', tags: ['果物', '赤'] }]);
+});
+
 test('client のバンドルに server だけのコードが入らず、island の chunk は分かれている', () => {
   const clientFiles = listFiles(path.join(root, 'dist/client')).filter((file) => file.endsWith('.js'));
   const names = clientFiles.map((file) => path.relative(path.join(root, 'dist/client'), file).replaceAll('\\', '/'));

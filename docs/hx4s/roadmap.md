@@ -11,7 +11,7 @@
 | `@islands[P](filePath)`（型引数で Props を指定） | hx4s-core | 実装済み（`hx4s.annotation.islands`。型引数は省ける） |
 | props の検証 `JsShape`（`validate` / `read`） | hx4s-core（JS） | 実装済み（`hx4s.props`。[ADR 0007](adr/0007-props-validation-and-typed-export.md)） |
 | HonoX Island ブリッジ `Island(component, props, componentName)` | hx4s-react | 実装済み（`hx4s.react.Island`） |
-| 汎用 Hono Context facade（Env を型引数） | hx4s-react | 実装済み（`hx4s.hono.Context[Env, R]`、`HonoRequest`。Request / Response は scalajs-dom。U-6 決定） |
+| 汎用 Hono Context facade（Env を型引数） | hx4s-react | 実装済み（`hx4s.hono.Context[Env, R]`、`HonoRequest`、`ExecutionContext`。Request / Response は scalajs-dom。U-6 決定。Phase 4 の利用側の移行で `executionCtx`・`html`・`set` / `get`・本文の読み取りなどを足した） |
 | 型付き Props の補助（`IslandComponents.Xxx(props: P)`、typed export `IslandExport[P]`、hydrate 前の検証） | hx4s-react / hx4s-codegen | 実装済み。server の呼び出しと client の export の型違いはコンパイルエラー、`@islands[P]` と export の宣言型は codegen が構文で照合（U-24 決定） |
 | アノテーション解析・route TS / island TSX / `IslandComponents` 生成 | hx4s-codegen | 実装済み（`hx4s.codegen`） |
 | 安全な書き出し（バナー保護、古い生成物の削除、大文字小文字の衝突） | hx4s-codegen | 実装済み |

@@ -28,6 +28,12 @@ class TypedPropsSuite extends FunSuite {
     assert(html.contains(Pages.ServerOnlyMarker))
   }
 
+  test("タグの絞り込みはすべてのタグを持つ品目だけを返す") {
+    assertEquals(Catalog.withTags(Nil).map(_.id), List("1", "2", "3"))
+    assertEquals(Catalog.withTags(List("果物", "赤")).map(_.id), List("1"))
+    assertEquals(Catalog.withTags(List("果物", "記号")), Nil)
+  }
+
   test("名前の検証は空と長すぎる名前を拒否する") {
     assertEquals(Catalog.rename("  新しい名前 "), Right("新しい名前"))
     assertEquals(Catalog.rename(" "), Left("名前を入力してください"))

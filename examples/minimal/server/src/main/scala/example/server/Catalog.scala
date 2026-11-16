@@ -13,6 +13,9 @@ object Catalog {
 
   def find(id: String): Option[Item] = items.find(_.id == id)
 
+  /** tags をすべて持つ品目。tags が空なら全件 */
+  def withTags(tags: List[String]): List[Item] = items.filter(item => tags.forall(item.tags.contains))
+
   /** 新しい名前を確かめる。空や長すぎる名前は理由を返す */
   def rename(name: String): Either[String, String] = {
     val trimmed = name.trim

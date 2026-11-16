@@ -1,9 +1,10 @@
 package example.server
 
+import example.shared.ItemProps
 import hx4s.annotation.route
 import hx4s.hono.Context
 import japgolly.scalajs.react.facade.React
-import org.scalajs.dom.{Response, URLSearchParams}
+import org.scalajs.dom.Response
 
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
@@ -42,9 +43,13 @@ object Main {
   @JSExportTopLevel("itemUpdate", "server")
   def itemUpdate(c: AppContext): js.Promise[Response] = {
     val id = c.req.param("id").getOrElse("")
-    c.req.raw.text().toFuture.flatMap { body =>
+    c.req.formData().toFuture.flatMap { form =>
+      val name = (form.get("name"): Any) match {
+        case value: String => value
+        case _ => ""
+      }
       val result = Catalog.find(id).toRight(Pages.notFound(id)).flatMap { item =>
-        Catalog.rename(Option(new URLSearchParams(body).get("name")).getOrElse("")).map(name => Pages.item(item, saved = Some(name)))
+        Catalog.rename(name).map(renamed => Pages.item(item, saved = Some(renamed)))
           .left.map(reason => Pages.item(item, saved = None, error = Some(reason)))
       }
       result match {
@@ -54,6 +59,16 @@ object Main {
           c.renderPromise(page.rawElement, titled("保存できません")).toFuture
       }
     }.toJSPromise
+  }
+
+  /** 品目の JSON。?tag= を繰り返すと、そのタグをすべて持つ品目に絞る */
+  @route("api/items.ts")
+  @JSExportTopLevel("itemsApi", "server")
+  def itemsApi(c: AppContext): Response = {
+    val tags = c.req.queries("tag").fold(List.empty[String])(_.toList)
+    c.json(Catalog.withTags(tags).map { item =>
+      new ItemProps { val id = item.id; val name = item.name; val tags = item.tags.toJSArray }
+    }.toJSArray)
   }
 
   /** HTML のシェル。app/routes/_renderer.tsx が呼ぶ */
