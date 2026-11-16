@@ -1,0 +1,39 @@
+{
+  "name": "hx4s-example-minimal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "sbt --batch server/hx4sGenerate",
+    "build:client": "vite build --mode client",
+    "build:server": "vite build",
+    "build": "npm run generate && npm run build:client && npm run build:server",
+    "dev": "npm run build && wrangler dev",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "sbt --batch test && node --test --test-force-exit tests/*.test.js"
+  },
+  "dependencies": {
+    "@hono/react-renderer": "1.0.1",
+    "hono": "4.13.11",
+    "honox": "0.1.62",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@hono/vite-build": "1.11.1",
+    "@scala-js/vite-plugin-scalajs": "1.1.0",
+    "@types/node": "^22",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "hx4s-vite": "file:../../target/local/hx4s-vite.tgz",
+    "jsdom": "^29.1.1",
+    "playwright": "1.65.1",
+    "typescript": "^5",
+    "vite": "8.3.3",
+    "wrangler": "4.162.0"
+  },
+  "overrides": {
+    "@scala-js/vite-plugin-scalajs": {
+      "vite": "$vite"
+    }
+  }
+}
