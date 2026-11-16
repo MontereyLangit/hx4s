@@ -28,6 +28,7 @@ Phase 4 で移動元の掲示板プロジェクト（3ch）が hx4s に乗り換
 | ローカル公開の手順 | scripts | 実装済み（`scripts/publish-local.mjs`。版は `0.1.0-local.g<commit>`、未コミットの変更があれば `.dirty-<内容のハッシュ>`）。Phase 4 で `npm ci` から始めること、sbt・npm に分けた公開記録と完了の記録 `hx4s-publish.json`、`--verify`、シェルを介さない起動を足した（[local-dependency.md](local-dependency.md)） |
 | `examples/minimal`（SSR + Islands、Cloudflare Workers） | examples | 実装済み（ローカル公開の成果物だけで解決する。npm 依存は lockfile で固定し、`scripts/setup-example.mjs` で入れる） |
 | 互換性テスト | 各モジュール | SSR・hydration（単純・入れ子・要素 props・複数インスタンス・Scala.js の client island）・Props の往復（Unicode・`</script>`・引用符・入れ子）・世代ずれ・island のファイル名・ルートの登録（GET / POST / HEAD）・ビルドのバンドル文字列・書き出しの負のテストは実装済み。URL 変換（`filePathToPath`）の照合、template 内の island の検証、生成 TS の識別子の衝突も実装済み。**非有限の `Double`・循環参照の挙動、`honox@latest` の定期実行、Vite のモジュールグラフによる依存方向の検査は未実装** |
+| 利用者向けの文書（OSS 公開用） | README、`docs/`、CONTRIBUTING、CHANGELOG | 実装済み（2026-11-16。[docs/README.md](../README.md)）。コード例は `examples/minimal` と同じか、作業用の複製でコンパイル・実行して確かめたものだけ。API だけの構成とページ全体を 1 つの island にする構成は examples に含まれない。リリースの手順は公開方式が未決のため未整備（[release.md](../release.md)） |
 | CI | `.github/workflows/ci.yml` | ファイルを置いた（Ubuntu / Windows。生成物の確認は未追跡ファイルも見る）。リモートでは未実行（push はユーザーの判断） |
 
 ## 2. P1
