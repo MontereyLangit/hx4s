@@ -55,7 +55,7 @@
 | U-1 | npm のスコープ: `hx4s-vite` か `@hx4s/vite` か | 提案: 公開時に `@hx4s` スコープが取れるなら `@hx4s/vite`。将来 `@hx4s/cli` などを足しやすい。取れなければ `hx4s-vite` |
 | U-2 | Maven organization の確定 | 仮に `io.github.montereylangit`。独自ドメインを持つなら変える |
 | U-3 | CI での依存解決（git 参照の sbt source dependency / submodule / Maven Central・npm 公開 / GitHub Packages） | [ADR 0006](adr/0006-one-way-dependency-and-local-publish.md) の比較。提案: 公開までは submodule + `publishLocal`、公開後は Central / npm |
-| U-4 | ライセンス | 提案: Apache-2.0（[compatibility.md](compatibility.md) 4 章） |
+| U-4 | ライセンス | **決定（2026-11-16）: Apache-2.0**。リポジトリ直下に `LICENSE` と `NOTICE` を置いた（[compatibility.md](compatibility.md) 4 章） |
 | U-5 | 3ch から移すコードの git 履歴を引き継ぐか | 提案: `git filter-repo` で移動対象（`codegen/.../framework/` など。extraction-plan.md 3 章の対応表）の履歴だけを持ってくる。3ch の他の履歴（秘匿値を含みうる）を持ち込まないことを確認してから |
 | U-6 | Fetch API の型: scalajs-dom の `Request` / `Response` を使うか、hx4s が facade を持つか | 提案: scalajs-dom。3ch は手書き facade を持つが、hx4s が独自に持つと利用側で型が 2 系統になる |
 | U-7 | `app/client.ts` 相当のヘルパー（`hx4s-vite/client` の `createReactClient()` 等）を提供するか | 提案: P0 では雛形のみ。中身が 10 行程度で、ヘルパーにすると HonoX の `createClient` のオプションを覆い隠すため |
