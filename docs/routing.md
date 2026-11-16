@@ -63,6 +63,7 @@ URL は HonoX の `createApp` の規則で決まる。hx4s の codegen は衝突
 
 ```
 [error] [hx4s-codegen] error: server/src/main/scala/example/server/Bad.scala:8: HEAD is not registered by HonoX createApp (GET handlers also answer HEAD)
+[error] (server / hx4sGenerate) hx4s-codegen app failed: 1 error(s)
 ```
 
 `<ソースのパス>:<行>: <理由>` の形で、パスは `hx4sProjectRoot` からの相対。

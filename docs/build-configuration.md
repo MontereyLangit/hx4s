@@ -41,7 +41,7 @@ hx4s のビルドは 3 つの部品でできている。
 
 - `IslandComponents` の増分判定のキーは、client のソースの内容、codegen への引数、`javaHome`、`hx4sCodegenJavaOptions`、codegen のクラスパス（JAR の内容のハッシュを含む）。
 - `hx4sGenerate` と `hx4sIslandComponents` は、先に `hx4sCheckDependencies` を実行する。
-- `hx4s-codegen` は Scala 3 製で sbt 1.x（Scala 2.12）では動かせないので、専用 configuration で解決して fork する。失敗すると codegen の `error:` の行を含むメッセージでタスクが失敗する。
+- `hx4s-codegen` は Scala 3 製で sbt 1.x（Scala 2.12）では動かせないので、専用 configuration で解決して fork する。失敗すると codegen の誤りの行（`[hx4s-codegen] error: <パス>:<行>: <理由>`）を 1 回ずつログに出し、要約（`hx4s-codegen app failed: 2 error(s)`）でタスクが失敗する。例外の `getMessage` は要約と誤りの行を含む。
 - **既定値以外の appDir・moduleID・接頭辞は未検証。** `hx4sServerModule` / `hx4sClientModule` / `hx4sVirtualModulePrefix` / `hx4sIslandIdPrefix` / `hx4sRouteDir` / `hx4sIslandDir` を変えるときは、
   HonoX の固定値（`/app/routes`・`/app/islands`）と `hx4s()` の側も合わせる必要があり、組み合わせの検証は例の既定値だけ。
 

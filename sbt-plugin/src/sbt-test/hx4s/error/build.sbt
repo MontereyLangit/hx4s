@@ -18,6 +18,22 @@ checkGenerateFailure := {
   assert(message.contains("server/src/main/scala/app/Main.scala:7: HEAD is not registered by HonoX createApp"), message)
   assert(message.contains("client app/src/main/scala/app/Main.scala:10: IslandExport[app.shared.OtherProps] does not match @islands[app.shared.CounterProps]"), message)
   assert(!((ThisBuild / baseDirectory).value / "app").exists, "nothing is written when there are errors")
+  val lines = message.split("\n").toList
+  assert(lines.distinct == lines, s"duplicated lines in the message: $message")
+}
+
+val checkGenerateLog = taskKey[Unit]("hx4sGenerate の失敗のログに、誤りの行が 1 回ずつだけ出ることを確かめる")
+
+checkGenerateLog := {
+  val logs = ((server / target).value / "streams" ** "out").get.filter(_.getPath.contains("hx4sGenerate"))
+  assert(logs.size == 1, s"expected one log of hx4sGenerate: $logs")
+  val lines = IO.readLines(logs.head)
+  val errors = lines.filter(_.contains("[hx4s-codegen] error: "))
+  val text = lines.mkString("\n")
+  assert(errors.size == 2, text)
+  assert(errors.exists(_.contains("server/src/main/scala/app/Main.scala:7: HEAD is not registered by HonoX createApp")), text)
+  assert(errors.exists(_.contains("client app/src/main/scala/app/Main.scala:10: IslandExport[app.shared.OtherProps] does not match")), text)
+  assert(!lines.exists(_.contains("Exception in thread")), text)
 }
 
 val checkIslandComponentsFailure = taskKey[Unit]("sourceGenerators の失敗にソースのパスと行番号が出ることを確かめる")

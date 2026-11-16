@@ -4,4 +4,6 @@
 $ absent app/routes/index.ts
 # 失敗のメッセージに「パス:行: 理由」が出る
 > checkGenerateFailure
+# 誤りの行はログに 1 回だけ出る（fork した JVM の出力・例外のメッセージ・最後の要約で繰り返さない）
+> checkGenerateLog
 > checkIslandComponentsFailure

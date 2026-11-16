@@ -2,6 +2,7 @@ package hx4s.sbt
 
 import sbt._
 import sbt.Keys._
+import sbt.internal.util.FeedbackProvidedException
 
 import scala.collection.mutable.ListBuffer
 
@@ -157,27 +158,31 @@ object Hx4sPlugin extends AutoPlugin {
     run((hx4sClientSources.value ++ classpathFiles :+ argumentsFile).toSet).toSeq
   }
 
-  /** hx4s-codegen を fork した JVM で実行する。失敗したら codegen の誤りの行をメッセージに含めてタスクを失敗させる */
+  /** hx4s-codegen を fork した JVM で実行する。失敗したら codegen の誤りの行を 1 回だけログに出し、要約を持つ例外でタスクを失敗させる */
   private def runCodegen(classpath: Seq[File], arguments: Seq[String], root: File, javaHomeDir: Option[File], javaOptions: Seq[String],
                          log: Logger): Unit = {
     if (classpath.isEmpty) throw new MessageOnlyException("hx4s-codegen could not be resolved (check hx4sCodegenVersion and resolvers)")
-    val recorder = new RecordingLogger(log)
+    val output = new CodegenOutput(log)
     val options = ForkOptions()
       .withJavaHome(javaHomeDir)
       .withWorkingDirectory(root)
       .withRunJVMOptions(javaOptions.toVector)
-      .withOutputStrategy(OutputStrategy.LoggedOutput(recorder))
+      .withOutputStrategy(OutputStrategy.LoggedOutput(output))
     val command = Seq("-cp", classpath.map(_.getAbsolutePath).mkString(java.io.File.pathSeparator), MainClass) ++ arguments
     val exitCode = Fork.java(options, command)
     if (exitCode != 0) {
-      val errors = recorder.lines.filter(_.contains("error:"))
-      throw new MessageOnlyException((s"hx4s-codegen ${arguments.head} failed (exit code $exitCode)" +: errors).mkString("\n"))
+      val errors = output.errors
+      errors.foreach(line => log.error(line))
+      val count = if (errors.isEmpty) s"exit code $exitCode" else s"${errors.size} error(s)"
+      throw new CodegenFailed(s"hx4s-codegen ${arguments.head} failed: $count", errors)
     }
   }
 
-  /** 受け取った行を覚えてから元のロガーへ渡す */
-  private final class RecordingLogger(underlying: Logger) extends Logger {
-    val lines: ListBuffer[String] = ListBuffer.empty
+  /** codegen の誤りの行は覚えるだけにし、終了の例外の行は捨て、ほかの行は元のロガーへ渡す */
+  private final class CodegenOutput(underlying: Logger) extends Logger {
+    private val errorLines: ListBuffer[String] = ListBuffer.empty
+
+    def errors: List[String] = errorLines.synchronized { errorLines.toList }
 
     override def trace(t: => Throwable): Unit = underlying.trace(t)
 
@@ -185,8 +190,17 @@ object Hx4sPlugin extends AutoPlugin {
 
     override def log(level: Level.Value, message: => String): Unit = {
       val text = message
-      lines.synchronized { lines += text }
-      underlying.log(level, text)
+      if (text.startsWith(CodegenErrorPrefix)) errorLines.synchronized { errorLines += text }
+      else if (!text.startsWith(CodegenExitLine)) underlying.log(level, text)
     }
+  }
+
+  private val CodegenErrorPrefix = "[hx4s-codegen] error: "
+  private val CodegenExitLine = "Exception in thread \"main\" hx4s.codegen.CodegenFailure"
+
+  /** codegen の失敗。誤りの行はログに出してあるので、sbt は最後の行に要約（toString）だけを出す。getMessage は誤りの行を含む */
+  private final class CodegenFailed(summary: String, errors: Seq[String])
+    extends RuntimeException((summary +: errors).mkString("\n"), null, false, false) with FeedbackProvidedException {
+    override def toString: String = summary
   }
 }
