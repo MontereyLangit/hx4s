@@ -1,7 +1,7 @@
 # ロードマップ
 
 2026-11-16 時点。Phase 3（hx4s リポジトリへの分離）の実装と、そのレビュー指摘の修正（[reviews/phase3-review.md](reviews/phase3-review.md) 5 章）、
-Phase 4 で移動元の掲示板プロジェクト（3ch）が hx4s に乗り換えたときに分かった不足と Codex の指摘への対応（[reviews/phase4-feedback.md](reviews/phase4-feedback.md)）が入った状態を書く。
+Phase 4 で移動元の掲示板プロジェクト（3ch）が hx4s に乗り換えたときに分かった不足と Codex の指摘への対応（[reviews/phase4-feedback.md](reviews/phase4-feedback.md)）と、利用者向けの文書を書く過程で見つかった不整合の修正（同 4 章）が入った状態を書く。
 「実装済み」は hx4s のリポジトリにあり、テストが通ることを意味する。
 
 ## 1. P0（最初の分離で揃えるもの）
@@ -87,4 +87,7 @@ Phase 4 で移動元の掲示板プロジェクト（3ch）が hx4s に乗り換
 | U-23 | 手書きルートとの URL 衝突を拒否するか警告にとどめるか | 提案: 警告。手書きで意図的に上書きする運用を妨げないため |
 | U-24 | client の export を `@islands[P]` の `P` に結び付ける typed export 補助 | **決定（Phase 3）: `IslandExport[P]`**（[ADR 0007](adr/0007-props-validation-and-typed-export.md)）。以下は Phase 0 の記述: 型が保証するのは server の呼び出し側だけで、client のコンポーネントが同じ `P` を読む保証が無い（[rendering-model.md](rendering-model.md) 2.3）。`IslandExport[P]` のような型で、`P` と一致しない export をコンパイルエラーにする案 |
 | U-25 | appDir・moduleID・仮想モジュール接頭辞を codegen と hx4s-vite に同じ値で渡す共通設定 | P0 は `app/routes`・`app/islands`・moduleID `server` / `client` を既定かつ検証済みの唯一の組み合わせとする（[build-integration.md](build-integration.md) 2.0）。共通設定は P1 で決める。HonoX の glob が `/app` 固定なので、変更には HonoX 側の `ISLAND_FILES` などのオプション指定も要る |
+| U-27 | `IslandExport` の `fields` と props の trait の食い違いをコンパイルで見つける | 今は別々に書くので、キーの名前・型・省略の可否が食い違っても見つからない（codegen の照合は `@islands[P]` と `IslandExport[T]` の型名の構文上の一致だけ）。案: trait から `fields` を導出する。Scala 3 の `Mirror` は JS の trait に使えないので、マクロか codegen。P1（[reviews/phase4-feedback.md](reviews/phase4-feedback.md) 4.1） |
+| U-28 | JDK 25 で sbt の起動のたびに `sun.misc.Unsafe` の警告が出る | 既知の制約。sbt の起動の部品が呼ぶもので hx4s からは消せない。ビルドは sbt を 4 回起動するので 4 回出る（U-15）。動作への影響は見ていない |
+| U-29 | 要素 props・入れ子 island を `IslandComponents` / `IslandExport` で書く例と、`JsKind` の種類 | 例が無い。`JsKind` に React の要素や `null` を表す種類が無いので、要素 props を `JsShape` で検証できない。例と種類の追加は未定 |
 | U-26 | HTML と client asset の世代ずれへの対策: entry のハッシュ名化、キャッシュ制御、旧 asset の保持、Props スキーマ変更の指針、新旧組み合わせの検証 | P0 は client の入口の `validate` で不一致を検出し、`console.error` と SSR の markup の維持にとどめる。client の出力名は `hx4s()` の `client.output` で変えられる（既定は固定名）。ハッシュ名を既定にするかとその HTML への受け渡し、それ以外は未決（[rendering-model.md](rendering-model.md) 2.4、[ADR 0003](adr/0003-typed-island-props.md)） |

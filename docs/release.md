@@ -48,6 +48,7 @@
    npm test
    node scripts/publish-local.mjs --version <版> && node scripts/publish-local.mjs --verify --version <版> --commit <40 桁の SHA>
    node scripts/setup-example.mjs minimal && (cd examples/minimal && npm run build && npm run typecheck && npm test)
+   node scripts/setup-example.mjs api-only && (cd examples/api-only && npm run build && npm run typecheck && npm test)
    ```
 
 4. **文書を確かめる**: README と `docs/` の版・コード例・リンクが実物と合っていること。`node scripts/check-independence.mjs` が通ること
