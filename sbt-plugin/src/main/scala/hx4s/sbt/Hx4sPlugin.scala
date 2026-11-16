@@ -18,6 +18,9 @@ object Hx4sPlugin extends AutoPlugin {
   object autoImport {
     val Hx4sCodegen = config("hx4s-codegen").hide
 
+    /** このプラグインの版。hx4s-core / hx4s-react の依存に同じ版を使う */
+    val hx4sVersion: String = Hx4sBuildInfo.version
+
     val hx4sClientProject = settingKey[ProjectReference]("@islands を持つ client プロジェクト。hx4sClientSources の既定の取り出し元")
     val hx4sServerSources = taskKey[Seq[File]]("@route を探すソースファイル。既定はこのプロジェクトの Compile の Scala ソース")
     val hx4sClientSources = taskKey[Seq[File]]("@islands を探すソースファイル。既定は hx4sClientProject の Compile の Scala ソース")
