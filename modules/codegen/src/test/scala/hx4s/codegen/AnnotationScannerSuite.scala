@@ -138,7 +138,7 @@ class AnnotationScannerSuite extends FunSuite {
   }
 
   test("HonoX の route の glob と import.meta.glob が拾わないファイル名は拒否し、先頭の .well-known は許す") {
-    def route(path: String) = routes("@route(\"" + path + "\") @JSExportTopLevel(\"x\", \"server\") def x() = 1")
+    def route(path: String) = routes(s"@route(\"$path\") @JSExportTopLevel(\"x\", \"server\") def x() = 1")
     List("-draft.ts", "$param.ts", "a/-x.ts", "page.test.ts", "a/page.spec.ts", "-private/page.ts", "a/-private/page.ts",
       ".hidden/page.ts", "a/.hidden/page.ts", ".page.ts", "node_modules/page.ts", "a/.well-known/x.ts", ".well-known.ts").foreach { path =>
       assert(route(path).isLeft, path)
@@ -146,7 +146,7 @@ class AnnotationScannerSuite extends FunSuite {
     assert(errors(route("-draft.ts")).head.message.contains("ignored by HonoX"))
     assertEquals(route(".well-known/security.txt.ts").map(_.map(_.filePath)), Right(List(".well-known/security.txt.ts")))
     List(".hidden/view.tsx", "node_modules/view.tsx").foreach { path =>
-      assert(islands("@islands(\"" + path + "\") @JSExportTopLevel(\"X\", \"client\") val x = 1").isLeft, path)
+      assert(islands(s"@islands(\"$path\") @JSExportTopLevel(\"X\", \"client\") val x = 1").isLeft, path)
     }
   }
 
@@ -204,5 +204,21 @@ class AnnotationScannerSuite extends FunSuite {
       "A.scala" -> """object A { @route("a.ts") @JSExportTopLevel("same", "server") def a() = 1 }""",
       "B.scala" -> """object B { @route("b.ts") @JSExportTopLevel("same", "server") def b() = 1 }"""
     ), config).isLeft)
+  }
+
+  test("HonoX で同じ URL になる別々の route ファイルは、同じメソッドなら拒否する（パラメータ名は区別しない）") {
+    def pair(first: String, second: String, method: String = "GET") = routes(
+      s"""@route("$first") @JSExportTopLevel("first", "server") def first() = 1
+         |@route("$second", "$method") @JSExportTopLevel("second", "server") def second() = 1""".stripMargin)
+    List("foo.ts" -> "foo/index.ts", "items/[a].ts" -> "items/[b].ts", "index.ts" -> "index/index.ts", "page.ts" -> "page.md.ts",
+      "docs/[...a].ts" -> "docs/[...b].ts").foreach { case (first, second) =>
+      val found = errors(pair(first, second))
+      assert(found.forall(_.message.startsWith("route files map GET to the same URL:")), found)
+      assertEquals(found.map(_.line), List(Some(2), Some(3)))
+    }
+    assert(errors(pair("foo.ts", "foo/index.ts")).head.message.contains("foo.ts (/foo), foo/index.ts (/foo)"))
+    assert(pair("foo.ts", "foo/index.ts", "POST").isRight, "メソッドが違えば同じ URL でもよい")
+    assert(pair("docs/[a].ts", "docs/[...b].ts").isRight, "catch-all と 1 区切りのパラメータは別のパターン")
+    assert(pair("items/[id].ts", "items/new.ts").isRight, "固定の区切りとパラメータは HonoX の並び順で両立する")
   }
 }

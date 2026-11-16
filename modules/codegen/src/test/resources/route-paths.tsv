@@ -1,0 +1,20 @@
+# route 出力ディレクトリからの相対パス<TAB>HonoX の createApp が登録する URL パターン。RoutePathSuite と tests/route-paths.test.js が同じ表を使う
+index.ts	/
+about.ts	/about
+a.b.ts	/a.b
+items/index.ts	/items
+items/[id].ts	/items/:id
+items/[id]/edit.ts	/items/:id/edit
+items/[id]/index.ts	/items/:id
+[a]/[b].ts	/:a/:b
+docs/[...slug].ts	/docs/:slug{.+}
+[...a]/[...b].ts	/:a{.+}/:b{.+}
+foo/index/index.ts	/foo
+foo/index/bar.ts	/foo/bar
+index/index.ts	/
+a/b/index.ts	/a/b
+page.md.ts	/page
+.well-known/security.txt.ts	/.well-known/security.txt
+(group)/about.ts	/about
+a$b.ts	/a$b
+[$id].ts	/:$id
