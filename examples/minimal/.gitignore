@@ -1,2 +1,0 @@
-# hx4s-vite はローカルで npm pack した tgz を参照するので、整合性ハッシュが公開のたびに変わる
-package-lock.json

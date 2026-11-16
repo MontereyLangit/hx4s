@@ -29,6 +29,9 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            examples/minimal/package-lock.json
 
       - name: Install workspace dependencies
         run: npm ci
@@ -46,10 +49,9 @@ jobs:
       - name: Publish locally
         run: node scripts/publish-local.mjs
       - name: examples/minimal install
-        working-directory: examples/minimal
         run: |
-          npm install
-          npx playwright install --with-deps chromium
+          node scripts/setup-example.mjs minimal
+          cd examples/minimal && npx playwright install --with-deps chromium
       - name: examples/minimal build
         working-directory: examples/minimal
         run: npm run build
@@ -60,4 +62,7 @@ jobs:
         working-directory: examples/minimal
         run: npm test
       - name: Generated files are up to date
-        run: git diff --exit-code -- examples/minimal/app
+        # 新しく生成されてコミットされていないファイルも見る
+        run: |
+          git status --porcelain --untracked-files=all -- examples/minimal/app
+          test -z "$(git status --porcelain --untracked-files=all -- examples/minimal/app)"
