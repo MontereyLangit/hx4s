@@ -1,7 +1,8 @@
 # ロードマップ
 
-2026-11-16 時点。Phase 3（hx4s リポジトリへの分離）の実装と、そのレビュー指摘の修正（[reviews/phase3-review.md](reviews/phase3-review.md) 5 章）が入った状態を書く。「実装済み」は hx4s のリポジトリにあり、テストが通ることを意味する。
-移動元の掲示板プロジェクト（3ch）はまだ hx4s を使っていない（Phase 4）。
+2026-11-16 時点。Phase 3（hx4s リポジトリへの分離）の実装と、そのレビュー指摘の修正（[reviews/phase3-review.md](reviews/phase3-review.md) 5 章）、
+Phase 4 で移動元の掲示板プロジェクト（3ch）が hx4s に乗り換えたときに分かった不足と Codex の指摘への対応（[reviews/phase4-feedback.md](reviews/phase4-feedback.md)）が入った状態を書く。
+「実装済み」は hx4s のリポジトリにあり、テストが通ることを意味する。
 
 ## 1. P0（最初の分離で揃えるもの）
 
@@ -23,8 +24,8 @@
 | client と server の依存の向きの検査 | sbt-hx4s | sbt の依存グラフは実装済み（`hx4sCheckDependencies`、scripted の `dependencies`）。**Vite のモジュールグラフの検査は未実装**（[module-boundaries.md](module-boundaries.md) 2 章） |
 | Scala.js プロジェクトの登録・`buildStart` 直列化・`scalajs:client.js` alias・honox の React 設定・client ビルド設定 | hx4s-vite | 実装済み（`hx4s()`。client の出力名は `client.output` で上書きできる） |
 | hydrate 前の props の検証（template 内の island を含む） | hx4s-vite | 実装済み（`hx4s-vite/client` の `islandPropsProblem`。[rendering-model.md](rendering-model.md) 2.4） |
-| Node 用 loader（`scalajs:client.js`、HonoX 内の `hono/jsx`） | hx4s-vite | 実装済み（`hx4s-vite/node-register`、環境変数 `HX4S_CLIENT_JS_DIR`） |
-| ローカル公開の手順 | scripts | 実装済み（`scripts/publish-local.mjs`。版は `0.1.0-local.g<commit>`、未コミットの変更があれば `.dirty-<内容のハッシュ>`） |
+| Node 用 loader（`scalajs:client.js`、HonoX 内の `hono/jsx`） | hx4s-vite | 実装済み（`hx4s-vite/node-register`、環境変数 `HX4S_CLIENT_JS_DIR`）。利用側の loader と並べる方法と `Test / jsEnv` の例は [build-integration.md](build-integration.md) 2.3 |
+| ローカル公開の手順 | scripts | 実装済み（`scripts/publish-local.mjs`。版は `0.1.0-local.g<commit>`、未コミットの変更があれば `.dirty-<内容のハッシュ>`）。Phase 4 で `npm ci` から始めること、sbt・npm に分けた公開記録と完了の記録 `hx4s-publish.json`、`--verify`、シェルを介さない起動を足した（[local-dependency.md](local-dependency.md)） |
 | `examples/minimal`（SSR + Islands、Cloudflare Workers） | examples | 実装済み（ローカル公開の成果物だけで解決する。npm 依存は lockfile で固定し、`scripts/setup-example.mjs` で入れる） |
 | 互換性テスト | 各モジュール | SSR・hydration（単純・入れ子・要素 props・複数インスタンス・Scala.js の client island）・Props の往復（Unicode・`</script>`・引用符・入れ子）・世代ずれ・island のファイル名・ルートの登録（GET / POST / HEAD）・ビルドのバンドル文字列・書き出しの負のテストは実装済み。URL 変換（`filePathToPath`）の照合、template 内の island の検証、生成 TS の識別子の衝突も実装済み。**非有限の `Double`・循環参照の挙動、`honox@latest` の定期実行、Vite のモジュールグラフによる依存方向の検査は未実装** |
 | CI | `.github/workflows/ci.yml` | ファイルを置いた（Ubuntu / Windows。生成物の確認は未追跡ファイルも見る）。リモートでは未実行（push はユーザーの判断） |
@@ -38,7 +39,7 @@
 | `ALL` メソッドの `@route` | hx4s-codegen | 構想（U-13） |
 | npm CLI（`npx hx4s generate` 等） | hx4s-vite か別パッケージ | 構想（[build-integration.md](build-integration.md) 4 章） |
 | プロジェクトの雛形（templates、`sbt new` / `npm create`） | templates | 構想 |
-| `Test / jsEnv` の補助（Node loader と client の先行リンク） | sbt-hx4s | 構想。P0 は `hx4s-vite/node-register` と examples/minimal の `build.sbt` の設定例まで |
+| `Test / jsEnv` の補助（Node loader と client の先行リンク） | sbt-hx4s | 構想。P0 は `hx4s-vite/node-register`・`hx4s-vite/node-loader` と、設定例（examples/minimal の `build.sbt`、利用側の loader と並べる例は [build-integration.md](build-integration.md) 2.3）まで |
 | 仮想モジュール `scalajs:*.js` の `.d.ts` 生成（`@ts-expect-error` をなくす） | hx4s-codegen | 構想（U-16） |
 | case class + `Mirror` 導出 codec による Props（追加 API） | hx4s-react | 構想（[rendering-model.md](rendering-model.md) 3 章） |
 | island を使わないページで client script を省く | hx4s-codegen / hx4s-react | 構想 |
