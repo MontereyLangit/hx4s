@@ -24,7 +24,7 @@ sbt test                      # core / react / codegen の munit
 sbt sbtHx4s/scripted          # sbt-hx4s の scripted テスト（codegen を publishLocal してから走る）
 sbt 'set ThisBuild / scalacOptions += "-no-indent"' Test/compile   # インデント構文が残っていないことの確認
 npm test                      # hx4s-vite のビルド、island の SSR・hydration、独立性の検査
-npm run typecheck             # hx4s-vite の型検査
+npm run typecheck             # hx4s-vite と、文書の TypeScript の例（tests/docs-typecheck）の型検査
 node scripts/check-independence.mjs
 ```
 

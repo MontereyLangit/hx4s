@@ -127,6 +127,20 @@ def helloPage(c: Context[Bindings, js.Object]): Response =
 
 手書きのミドルウェアが `c.set` した値を Scala から型付きで読む例。名前を 1 か所に定義して、書く側と読む側で共有する。
 
+TypeScript の `c.set` は、Hono の `ContextVariableMap` に宣言したキーしか受け付けない。Scala の `ContextVariable` は TypeScript の宣言にはならないので、
+`tsconfig.json` の `include` に入る宣言ファイルで足す。
+
+```ts
+// app/env.d.ts（手書き）
+import "hono";
+
+declare module "hono" {
+  interface ContextVariableMap {
+    requestId: string;
+  }
+}
+```
+
 ```ts
 // app/routes/api/_middleware.ts（手書き）
 import { createRoute } from "honox/factory";
@@ -146,7 +160,8 @@ def whoami(c: ApiContext): Response =
   c.json(js.Dynamic.literal(requestId = c.getVariable(RequestId).orUndefined))
 ```
 
-`getVariable` は未設定なら `None`。型の保証は呼び出し側の約束で、実行時には検査しない。
+`getVariable` は未設定なら `None`。型の保証は呼び出し側の約束で、実行時には検査しない（TypeScript の宣言と Scala の `ContextVariable` の型は、自分でそろえる）。
+この TypeScript の 2 つのファイルは、hx4s の `npm run typecheck` が `tests/docs-typecheck` で型検査している。
 
 ## 手書きのルートとの併用
 

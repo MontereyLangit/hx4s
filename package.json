@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "build:vite": "npm run build -w hx4s-vite",
-    "typecheck": "npm run typecheck -w hx4s-vite",
+    "typecheck": "npm run typecheck -w hx4s-vite && tsc -p tests/docs-typecheck/tsconfig.json",
     "pretest": "npm run build:vite && sbt --batch react/Test/fastLinkJS \"codegen/Test/runMain hx4s.codegen.TsFixtures target/ts-fixtures\"",
     "test": "node --test tests/*.test.js",
     "check:independence": "node scripts/check-independence.mjs",
