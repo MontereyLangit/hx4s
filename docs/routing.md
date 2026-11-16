@@ -117,7 +117,8 @@ def helloPage(c: Context[Bindings, js.Object]): Response =
 
 `param`・`query`・`header` は `js.UndefOr[String]` を返す。拡張メソッドを使うには `import hx4s.hono.Context.*` が要る。
 
-- **本文は 1 種類だけ読める**: `text()` / `json()` / `formData()` は Hono が結果をキャッシュするが、`c.req.raw` の本文を直接読んだあとには使えない
+- **本文の読み直し**: `text()` / `json()` / `formData()` は最初に読んだ形を Hono がキャッシュし、別の形でも読み直せる（`formData()` の後の `text()` は multipart に組み直した文字列）。
+  `c.req.raw` の本文を直接読むと `c.req` からは読めなくなり、`c.req` で読んだ後の `raw` も読めない（[api.md](api.md)）
 - **`executionCtx`**: 実行基盤が渡していないと Hono が例外を投げる。Node 上の検証など渡さない呼び出しでも動かすなら `executionCtxOption` を使う
 - **本文の無い応答**（`204`・`304`）: `c.body(null, 204)` で返す。`c.text("", 204)` は空文字列でも本文ありになり、Response の規則で失敗する
 - **Not Found**: `c.notFound()` はアプリの Not Found ハンドラの応答を返す。戻り値は `Response | js.Promise[Response]`（[api.md](api.md)）

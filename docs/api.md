@@ -42,7 +42,11 @@ def itemGet(c: ApiContext): Response = {
 | フォームの本文 | `c.req.formData()` | `js.Promise[FormData]`（scalajs-dom） |
 | テキストの本文 | `c.req.text()` | `js.Promise[String]` |
 
-本文は 1 種類だけ読める。Promise は `toFuture` で Future にして、`toJSPromise` で戻す。
+本文は、最初に読んだ形（`text()`・`json()`・`formData()` のどれか）を Hono がキャッシュするので、同じリクエストで何度でも、別の形でも読める。
+`text()` と `json()` は同じ本文の文字列から作られる。`formData()` を先に読むと、後の `text()` は multipart に組み直した文字列になり、元の本文とは違う。
+`c.req.raw` の本文を直接読むと、`c.req` からは読めなくなる（逆に `c.req` で読んだ後の `raw` も読めない）。
+
+Promise は `toFuture` で Future にして、`toJSPromise` で戻す。
 
 ```scala
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue

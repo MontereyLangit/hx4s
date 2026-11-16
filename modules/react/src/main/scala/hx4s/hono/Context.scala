@@ -6,7 +6,7 @@ import org.scalajs.dom.{BodyInit, FormData, Request, Response}
 import scala.scalajs.js
 import scala.scalajs.js.|
 
-/** Hono の `c.req` の facade。raw は Fetch API の Request。本文（text / json / formData）は 1 種類だけ読める */
+/** Hono の `c.req` の facade。本文は最初に読んだ形を Hono がキャッシュし、text / json / formData のどれでも何度でも読める。raw を直接読むと読めなくなる */
 @js.native
 trait HonoRequest extends js.Object {
   val raw: Request = js.native

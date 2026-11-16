@@ -38,6 +38,16 @@ class ContextSuite extends FunSuite {
 
   private def handler(body: Ctx => Response | js.Promise[Response]): Handler = body
 
+  private def post(contentType: String, content: String): RequestInit = {
+    val requestHeaders = new Headers()
+    requestHeaders.set("content-type", contentType)
+    new RequestInit {
+      method = HttpMethod.POST
+      headers = requestHeaders
+      body = content
+    }
+  }
+
   test("executionCtx は実行基盤が渡したものを返し、渡していなければ executionCtxOption が None になる") {
     val app = new Hono().get("/", handler { c =>
       c.executionCtxOption match {
@@ -139,15 +149,6 @@ class ContextSuite extends FunSuite {
   }
 
   test("HonoRequest は method・path・url・queries と、本文を text / json / formData で読める") {
-    def post(contentType: String, content: String): RequestInit = {
-      val requestHeaders = new Headers()
-      requestHeaders.set("content-type", contentType)
-      new RequestInit {
-        method = HttpMethod.POST
-        headers = requestHeaders
-        body = content
-      }
-    }
     val app = new Hono()
       .get("/info", handler { c =>
         val tags = c.req.queries("tag").fold("none")(_.mkString(","))
@@ -171,6 +172,49 @@ class ContextSuite extends FunSuite {
       assertEquals(text, "cba")
       assertEquals(json, """[{"n":1}]""")
       assertEquals(form, "山田")
+    }
+  }
+
+  test("本文は最初に読んだ形を Hono がキャッシュし、別の形でも読み直せる。raw を直接読むと HonoRequest では読めない") {
+    def outcome(c: Ctx, read: Future[String]): js.Promise[Response] =
+      read.map(body => c.text(s"read $body")).recover { case error => c.text(s"failed ${error.getClass.getSimpleName}") }.toJSPromise
+    val app = new Hono()
+      .post("/text-json", handler(c => (for {
+        text <- c.req.text().toFuture
+        json <- c.req.json().toFuture
+      } yield c.text(s"$text ${js.JSON.stringify(json)}")).toJSPromise))
+      .post("/json-text", handler(c => (for {
+        json <- c.req.json().toFuture
+        text <- c.req.text().toFuture
+        again <- c.req.json().toFuture
+      } yield c.text(s"${js.JSON.stringify(json)} $text ${js.JSON.stringify(again)}")).toJSPromise))
+      .post("/text-form", handler(c => (for {
+        text <- c.req.text().toFuture
+        form <- c.req.formData().toFuture
+      } yield c.text(s"$text ${form.get("name")}")).toJSPromise))
+      .post("/form-text", handler(c => (for {
+        _ <- c.req.formData().toFuture
+        text <- c.req.text().toFuture
+      } yield c.text(text)).toJSPromise))
+      .post("/raw-then-req", handler(c => outcome(c, c.req.raw.text().toFuture.flatMap(_ => c.req.text().toFuture))))
+      .post("/req-then-raw", handler(c => outcome(c, c.req.text().toFuture.flatMap(_ => c.req.raw.text().toFuture))))
+    val json = post("application/json", """{"n":1}""")
+    val form = post("application/x-www-form-urlencoded", "name=%E5%B1%B1%E7%94%B0")
+    for {
+      textJson <- call(app, "/text-json", json).flatMap(_.text().toFuture)
+      jsonText <- call(app, "/json-text", json).flatMap(_.text().toFuture)
+      textForm <- call(app, "/text-form", form).flatMap(_.text().toFuture)
+      formText <- call(app, "/form-text", form).flatMap(_.text().toFuture)
+      rawThenReq <- call(app, "/raw-then-req", json).flatMap(_.text().toFuture)
+      reqThenRaw <- call(app, "/req-then-raw", json).flatMap(_.text().toFuture)
+    } yield {
+      assertEquals(textJson, """{"n":1} {"n":1}""")
+      assertEquals(jsonText, """{"n":1} {"n":1} {"n":1}""")
+      assertEquals(textForm, "name=%E5%B1%B1%E7%94%B0 山田")
+      assertNotEquals(formText, "name=%E5%B1%B1%E7%94%B0")
+      assert(formText.contains("Content-Disposition: form-data; name=\"name\""), formText)
+      assertEquals(rawThenReq, "failed JavaScriptException")
+      assertEquals(reqThenRaw, "failed JavaScriptException")
     }
   }
 }
