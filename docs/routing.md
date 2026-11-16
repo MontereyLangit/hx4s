@@ -109,7 +109,7 @@ def helloPage(c: Context[Bindings, js.Object]): Response =
 | 対象 | メンバ |
 | --- | --- |
 | `c.req`（`HonoRequest`） | `raw`（scalajs-dom の `Request`）、`method`、`url`、`path`、`param(name)`、`query(name)`、`queries(name)`、`header(name)`、`text()`、`json()`、`formData()` |
-| 応答 | `c.text(body, status)`、`c.json(body, status)`、`c.html(body, status)`、`c.redirect(location, status)`、`c.status(code)`、`c.header(name, value)`、`c.res` |
+| 応答 | `c.text(body, status)`、`c.json(body, status)`、`c.html(body, status)`、`c.body(data, status, headers)`、`c.redirect(location, status)`、`c.notFound()`、`c.status(code)`、`c.header(name, value)`、`c.res` |
 | 描画 | `c.render(children, props)`、拡張メソッド `c.renderPromise(children, props)`（戻り値を `Promise` にそろえる） |
 | 変数 | `c.set(key, value)`、`c.get(key)`、拡張メソッド `setVariable` / `getVariable`（`ContextVariable[A]`） |
 | 実行コンテキスト | `c.executionCtx`、拡張メソッド `executionCtxOption`（`waitUntil`、`passThroughOnException`） |
@@ -119,8 +119,8 @@ def helloPage(c: Context[Bindings, js.Object]): Response =
 
 - **本文は 1 種類だけ読める**: `text()` / `json()` / `formData()` は Hono が結果をキャッシュするが、`c.req.raw` の本文を直接読んだあとには使えない
 - **`executionCtx`**: 実行基盤が渡していないと Hono が例外を投げる。Node 上の検証など渡さない呼び出しでも動かすなら `executionCtxOption` を使う
-- **ステータスだけ指定して本文が無い応答**（`204` など）: `c.text("", 204)` は Response の規則で失敗する（`204` は本文を持てない）。
-  scalajs-dom の `new Response(null, new ResponseInit { status = 204 })` を返す。`Context` に `c.body` / `c.notFound` は無い
+- **本文の無い応答**（`204`・`304`）: `c.body(null, 204)` で返す。`c.text("", 204)` は空文字列でも本文ありになり、Response の規則で失敗する
+- **Not Found**: `c.notFound()` はアプリの Not Found ハンドラの応答を返す。戻り値は `Response | js.Promise[Response]`（[api.md](api.md)）
 - **Hono の Context にあるが facade に無いもの**: 自分で `@js.native` の facade を書くか、手書きの TS のルートで扱う
 
 ### 変数（`ContextVariable`）

@@ -60,8 +60,8 @@ props に使える型は限られる（`String`・`Int`・`Double`・`Boolean`�
 - `R` は `c.render` に渡す renderer の props の型
 - **Request / Response / FormData は scalajs-dom の型**。独自の型や `js.Dynamic` で受けていたコードは、scalajs-dom の型に合わせる
 - `c.executionCtx` は基盤が渡さないと例外になるので、渡さない呼び出しがあるなら `executionCtxOption` を使う
-- 足りないメンバ（`c.body`・`c.notFound`・`parseBody` など）は facade に無い。自前の facade を残すか、`@js.native` の trait を追加する。
-  `204` のような本文の無い応答は、scalajs-dom の `new Response(null, new ResponseInit { status = 204 })` で返す（[routing.md](routing.md)）
+- `204` / `304` のような本文の無い応答は `c.body(null, 204)`、Not Found は `c.notFound()` で返す（[api.md](api.md)）
+- 足りないメンバ（`parseBody`・`arrayBuffer` など）は facade に無い。自前の facade を残すか、`@js.native` の trait を追加する
 
 ## 5. Vite と client の入口
 
@@ -72,7 +72,7 @@ props に使える型は限られる（`String`・`Int`・`Double`・`Boolean`�
 5. `app/client.ts` の hydrate で `islandPropsProblem` を呼ぶ（[getting-started.md](getting-started.md)）
 6. client の出力名を変えている場合は `client.output` で指定する（[build-configuration.md](build-configuration.md)）
 
-`hx4s()` は server モードで client の sbt プロジェクトもリンクする。client が無い構成は扱えない（[api.md](api.md)）。
+`hx4s()` は server モードで client の sbt プロジェクトもリンクする。client の無い構成（API だけ・island の無い SSR）は `hx4s({ mode, client: false, ... })` にし、sbt 側は `hx4sClientProject` を設定しない（[api.md](api.md)、[build-configuration.md](build-configuration.md)、`examples/api-only`）。
 
 ## 6. Node 上のテスト
 

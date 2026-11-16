@@ -115,6 +115,7 @@ Phase 4 で最初の利用側が乗り換えたときの不足を受けて、次
 | `Context.executionCtx: hx4s.hono.ExecutionContext` | `waitUntil(promise)` と `passThroughOnException()` だけを持つ facade。Hono の `executionCtx` は getter で、実行基盤が渡していないと `Error("This context has no ExecutionContext")` を投げる（hono 4.13.18 の `dist/context.js`）。この facade もアクセス時に `js.JavaScriptException` になる |
 | 拡張メソッド `executionCtxOption: Option[ExecutionContext]` | 上の例外を `None` にする。Node の SSR 検証や `app.request()` のように実行コンテキストを渡さない呼び出しでも同じハンドラを動かすため |
 | `Context.html`・`set` / `get` と拡張メソッド `setVariable` / `getVariable`（`ContextVariable[A]`） | `set` / `get` は Hono のままの名前と `js.Any` の口。型付きで読み書きするときは `ContextVariable[A]("name")` を 1 つ定義して両側で共有する |
+| `Context.body`・`notFound` | 利用者向け文書の作成で足した。`body(null, 204)` で本文の無い `204` / `304` を返す。`notFound()` はアプリの Not Found ハンドラの応答 |
 | `HonoRequest.queries`・`text()`・`json()`・`formData()` | 本文は Hono が読んだ結果をキャッシュするので、`raw` の本文を直接読んだ後には使えない |
 
 `ExecutionContext` を型引数にせず最小の trait にしたのは次の理由による。
