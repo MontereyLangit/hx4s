@@ -3,6 +3,8 @@
   "name": "hx4s-minimal",
   "main": "dist/server/index.js",
   "compatibility_date": "2025-09-01",
+  // react-dom/server が node:async_hooks を import する
+  "compatibility_flags": ["nodejs_compat"],
   // client の成果物だけを静的配信する（dist/server の Worker のコードは公開しない）
   "assets": {
     "directory": "dist/client"
