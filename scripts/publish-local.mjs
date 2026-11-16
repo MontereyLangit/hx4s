@@ -3,9 +3,11 @@
 //   2. hx4s-vite をビルドして npm pack し、target/local/hx4s-vite.tgz に置く
 //   3. 公開した版を target/local/hx4s-version.txt に書く（examples/minimal と利用側が読む）
 // 使い方: node scripts/publish-local.mjs [--version 0.1.0-local.N] [--skip-sbt] [--skip-npm]
-// 版を省くと 0.1.0-local.g<commit> にする（追跡中のファイルに変更があれば末尾に .dirty を付ける）。
+// 版を省くと 0.1.0-local.g<commit> にする（公開対象のソースに未コミットの変更や未追跡のファイルがあれば、
+// 末尾にその内容のハッシュを .dirty-<8 桁> として付ける）。
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -37,10 +39,31 @@ function parseArgs(argv) {
   return options;
 }
 
+// 公開物に入るソース。テストは除く
+const publishedSources = ["build.sbt", "project", "modules", "sbt-plugin/src/main", "vite", "LICENSE", "NOTICE", ":(exclude,glob)**/src/test/**"];
+
+/** 追跡中・未追跡の公開対象ソースのうち HEAD と違うものの、パスと内容のハッシュ（変更が無ければ undefined） */
+function dirtyHash() {
+  const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=all", "--no-renames", "-z", "--", ...publishedSources],
+    { cwd: root, encoding: "utf8" });
+  if (status.status !== 0) throw new Error(`git status failed: ${status.stderr}`);
+  const changed = status.stdout.split("\0").filter(Boolean).map((entry) => entry.slice(3)).sort();
+  if (changed.length === 0) return undefined;
+  const hash = createHash("sha256");
+  for (const file of changed) {
+    const absolute = path.join(root, file);
+    hash.update(`${file}\0`);
+    hash.update(existsSync(absolute) && statSync(absolute).isFile() ? readFileSync(absolute) : "<deleted>");
+    hash.update("\0");
+  }
+  return hash.digest("hex").slice(0, 8);
+}
+
 function defaultVersion() {
   const commit = capture("git", ["rev-parse", "--short=10", "HEAD"]);
-  const dirty = capture("git", ["status", "--porcelain", "--untracked-files=no"]) !== "";
-  return `0.1.0-local.g${commit}${dirty ? ".dirty" : ""}`;
+  const dirty = dirtyHash();
+  // 数字だけの識別子は semver で先頭の 0 を許さないので、ハッシュは dirty- に続けて 1 つの識別子にする
+  return `0.1.0-local.g${commit}${dirty === undefined ? "" : `.dirty-${dirty}`}`;
 }
 
 const options = parseArgs(process.argv.slice(2));
