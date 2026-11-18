@@ -1,147 +1,147 @@
-# 互換性
+# Compatibility
 
-## 1. 3ch の依存バージョン（2026-11-16 時点）
+## 1. 3ch's dependency versions (as of 2026-11-16)
 
 ### 1.1 Scala / sbt
 
-出典: `build.sbt`、`project/plugins.sbt`、`project/build.properties`。推移的依存は coursier キャッシュ上の POM で確認した。
+Sources: `build.sbt`, `project/plugins.sbt`, `project/build.properties`. Transitive dependencies were checked in the POMs in the coursier cache.
 
-| 対象 | 版 | 出典・備考 |
+| Target | Version | Source / notes |
 | --- | --- | --- |
 | sbt | 1.13.0 | `project/build.properties` |
-| Scala | 3.3.8（LTS） | `build.sbt` の `scala3Version` |
-| Scala.js（sbt-scalajs） | 1.22.0 | `project/plugins.sbt` |
-| sbt-scalajs-crossproject | 1.3.2 | 同上 |
-| scalajs-react `core` | 4.0.0 | `bbs` と `bbsClient` の `libraryDependencies`。POM 上は Scala 3.3.7 / Scala.js 1.20.1 でビルドされている |
-| scalajs-dom | 2.8.1（推移的） | scalajs-react 4.0.0 の POM。最終的な解決版は `sbt bbsClient/dependencyTree` などで Phase 1 に確定する（本調査では sbt を実行していない） |
-| scalameta | 4.17.4（`_2.13` 成果物を `CrossVersion.for3Use2_13` で利用） | `codegen` の `libraryDependencies` |
+| Scala | 3.3.8 (LTS) | `scala3Version` in `build.sbt` |
+| Scala.js (sbt-scalajs) | 1.22.0 | `project/plugins.sbt` |
+| sbt-scalajs-crossproject | 1.3.2 | Same as above |
+| scalajs-react `core` | 4.0.0 | `libraryDependencies` of `bbs` and `bbsClient`. According to the POM, built with Scala 3.3.7 / Scala.js 1.20.1 |
+| scalajs-dom | 2.8.1 (transitive) | The POM of scalajs-react 4.0.0. The final resolved version is to be confirmed in Phase 1 with `sbt bbsClient/dependencyTree` or similar (sbt was not run in this investigation) |
+| scalameta | 4.17.4 (the `_2.13` artifact used with `CrossVersion.for3Use2_13`) | `libraryDependencies` of `codegen` |
 | munit | 1.0.0 | `commonSettings` |
-| JDK | 未固定 | `docs/client-build-review.md` に Java 25 の Unsafe 警告の記録がある。CI の版は未決 |
+| JDK | Not pinned | `docs/client-build-review.md` records Java 25's Unsafe warning. The CI version is undecided |
 
-ScalablyTyped は使っていない（`project/plugins.sbt` のコメント「hand-written @js.native facades only」）。
+ScalablyTyped is not used (the comment "hand-written @js.native facades only" in `project/plugins.sbt`).
 
 ### 1.2 npm
 
-出典: `package.json`（範囲指定）と `package-lock.json`（lockfileVersion 3、解決版）。
+Sources: `package.json` (ranges) and `package-lock.json` (lockfileVersion 3, resolved versions).
 
-| パッケージ | `package.json` | 解決版 | ライセンス |
+| Package | `package.json` | Resolved | License |
 | --- | --- | --- | --- |
 | hono | 4.13.11 | 4.13.11 | MIT |
 | honox | ^0.1.62 | 0.1.62 | MIT |
 | @hono/react-renderer | 1.0.1 | 1.0.1 | MIT |
 | @hono/vite-build | 1.11.1 | 1.11.1 | MIT |
-| @hono/vite-dev-server | （honox の依存 ^0.25.1） | 0.25.3 | MIT |
+| @hono/vite-dev-server | (honox's dependency ^0.25.1) | 0.25.3 | MIT |
 | vite | 8.3.3 | 8.3.3 | MIT |
-| rolldown | （vite の依存） | 1.2.16 | MIT |
-| esbuild | （推移的） | 0.28.2 | MIT |
+| rolldown | (vite's dependency) | 1.2.16 | MIT |
+| esbuild | (transitive) | 0.28.2 | MIT |
 | react / react-dom | 19.2.8 | 19.2.8 | MIT |
 | @scala-js/vite-plugin-scalajs | 1.1.0 | 1.1.0 | Apache-2.0 |
 | @tailwindcss/vite / tailwindcss | 4.3.3 | 4.3.3 | MIT |
 | typescript | ^5 | 5.9.3 | Apache-2.0 |
 | wrangler | ^4.146.0 | 4.158.0 | MIT OR Apache-2.0 |
-| workerd | （wrangler の依存） | 1.20261104.1 | Apache-2.0 |
+| workerd | (wrangler's dependency) | 1.20261104.1 | Apache-2.0 |
 | jsdom | ^29.1.1 | 29.1.1 | MIT |
-| @types/react / @types/react-dom | ^19.3.0 | 19.3.0（react） | MIT |
+| @types/react / @types/react-dom | ^19.3.0 | 19.3.0 (react) | MIT |
 | @types/node | ^22 | 22.20.4 | MIT |
 
-調査環境の Node は v22.18.0。`engines` の指定は 3ch の `package.json` に無い。
+Node in the investigation environment was v22.18.0. 3ch's `package.json` has no `engines`.
 
-### 1.3 注意点
+### 1.3 Caveats
 
-- **vite-plugin-scalajs と Vite 8**: `@scala-js/vite-plugin-scalajs` 1.1.0 は `vite` を `"4.1.4 - 7"` の **dependencies** に持つ。3ch は
-  `overrides` で `"vite": "$vite"` にして Vite 8 を使わせている。上流が Vite 8 に対応するまで、hx4s-vite も同じ override を利用者に求めるか、
-  hx4s-vite 側で互換性を宣言する必要がある。
-- **Rolldown と `sequential`**: Vite 8 は Rolldown を使う。`buildStart` の `{ sequential: true, handler }` はもとは Rollup の機能で、
-  Rolldown の型定義（`rolldown/dist/shared/define-config-*.d.mts`）にも `sequential` がある。3ch の実ビルドで直列になっていることは
-  `tests/islands-bridge.test.js` が設定値を見ているだけで、実際の起動順は測っていない。
-- **honox の範囲指定**: `^0.1.62` は 0.x の caret なので `>=0.1.62 <0.2.0`。パッチ版の更新で内部 API（[architecture.md](architecture.md) 4 章）が変わりうる。
-  hx4s は honox を厳密な版で検証し、利用側にも lock を勧める。
-- **scalajs-react と Scala の版**: scalajs-react 4.0.0 は Scala 3.3.7 でビルドされ、3ch は 3.3.8 で使っている。Scala 3 の LTS 系列の範囲では問題にならない想定。
-  hx4s-react も Scala 3.3 LTS でビルドし、利用側の Scala 3 の新しい版から使えるようにする（Scala 3 の TASTy は後方互換で、新しいコンパイラが古いライブラリを読める）。
+- **vite-plugin-scalajs and Vite 8**: `@scala-js/vite-plugin-scalajs` 1.1.0 has `vite` as a `"4.1.4 - 7"` **dependency**. 3ch makes it use Vite 8
+  with `"vite": "$vite"` in `overrides`. Until upstream supports Vite 8, hx4s-vite must either ask users for the same override
+  or declare compatibility on the hx4s-vite side.
+- **Rolldown and `sequential`**: Vite 8 uses Rolldown. `{ sequential: true, handler }` for `buildStart` is originally a Rollup feature,
+  and Rolldown's type definitions (`rolldown/dist/shared/define-config-*.d.mts`) also have `sequential`. That the real 3ch build is serialized is only checked
+  by `tests/islands-bridge.test.js` looking at the setting; the actual start order was not measured.
+- **The honox range**: `^0.1.62` is a 0.x caret, so `>=0.1.62 <0.2.0`. Patch updates may change internal APIs ([architecture.md](architecture.md) chapter 4).
+  hx4s verifies against an exact honox version and recommends that users lock it too.
+- **scalajs-react and the Scala version**: scalajs-react 4.0.0 is built with Scala 3.3.7, and 3ch uses it with 3.3.8. Within the Scala 3 LTS series, this isn't expected to be a problem.
+  hx4s-react is also built with Scala 3.3 LTS so that it can be used from newer Scala 3 versions (Scala 3's TASTy is backward compatible; newer compilers can read older libraries).
 
-## 2. HonoX がアルファである点
+## 2. HonoX being an alpha
 
-HonoX の README は自身をアルファ版と位置づけている（0.1.x）。hx4s は HonoX の内部 API に 12 か所依存する（[architecture.md](architecture.md) 4 章の H1〜H12。
-H11 の `honox/server/server`・`honox/server/utils/file` と H12 の template の復元は Phase 3 のレビューで加えた）。
-特に H1（`HonoXIsland` の props の形）、H3（`component-name` の形式）、H4（`hono/jsx` の文字列置換）、H10（入れ子の扱い）は、
-HonoX 側の変更で hx4s の SSR が黙って壊れる（hydration されない、静的 HTML のままになる）種類のものである。
+HonoX's README describes itself as an alpha (0.1.x). hx4s depends on HonoX's internal APIs in 12 places (H1–H12 in chapter 4 of [architecture.md](architecture.md);
+H11's `honox/server/server` and `honox/server/utils/file`, and H12's template restoration were added in the Phase 3 review).
+In particular, H1 (the props shape of `HonoXIsland`), H3 (the format of `component-name`), H4 (string substitution of `hono/jsx`) and H10 (handling of nesting) are the kind where
+changes on the HonoX side silently break hx4s's SSR (no hydration; it stays static HTML).
 
-対策:
+Countermeasures:
 
-1. **依存箇所を 1 か所に集める**: H1 は `hx4s-react` の `private` な facade に、H3・H5 は `hx4s-codegen` の定数に、H4 は `hx4s-vite` の既定設定に閉じ込める。
-2. **版の範囲を狭く宣言する**: hx4s の各リリースは、検証した honox の版（例: `0.1.62`）を明記する。`hx4s-vite` の peerDependencies は検証済みの範囲だけにする。
-3. **互換性テスト**（3 章）を hx4s の CI で回す。
-4. **上流との関係**: Scala 以外の利用者にも意味のある変更（`HonoXIsland` の公開 API 化、`islandDir` と `component-name` の対応の明文化など）は、
-   HonoX へ issue / PR で提案する。受け入れられるかは分からないので、hx4s の設計はそれを前提にしない。
+1. **Gather the dependencies in one place**: H1 is confined to a `private` facade in `hx4s-react`, H3 and H5 to constants in `hx4s-codegen`, and H4 to the default settings of `hx4s-vite`.
+2. **Declare narrow version ranges**: each hx4s release states the verified honox version (e.g. `0.1.62`). The peerDependencies of `hx4s-vite` list only the verified range.
+3. **Run compatibility tests** (chapter 3) in hx4s's CI.
+4. **Relationship with upstream**: changes meaningful to non-Scala users too (making `HonoXIsland` a public API, documenting the mapping between `islandDir` and `component-name`, etc.)
+   are proposed to HonoX through issues / PRs. Whether they will be accepted is unknown, so hx4s's design doesn't assume they will.
 
-## 3. 互換性テストの方針
+## 3. Compatibility test policy
 
-3ch の `tests/` の既存テストを土台にする。実際の HonoX を Vite で動かす点は共通だが、**確かめている範囲はテストごとに異なる**。次のとおり分けて書く（調査基準 commit `875a47b`）。
+The existing tests in 3ch's `tests/` are the foundation. They share running the real HonoX with Vite, but **what each test checks differs**. It is broken down as follows (reference commit `875a47b`).
 
-| 既存のテスト | 実際に確かめていること | 確かめていないこと |
+| Existing test | What it actually checks | What it doesn't check |
 | --- | --- | --- |
-| `tests/islands-bridge.test.js`（1 件目） | `vite.config.ts` を読み、`scalajs:client.js` の alias と、2 つの Scala.js プラグインの `buildStart.sequential` の設定値を検査する | 実際の sbt の起動順 |
-| `tests/islands-bridge.test.js`（2 件目） | **JS の代替 export**（`Probe`）を fixture に置き、Vite で SSR ビルドして `renderToString` した HTML の文字列を検査する。`<honox-island>`・`component-name`・`data-serialized-props`・`rawElement` 直描画との違い。ファイル冒頭のコメントのとおり Scala コンパイラのテストではない | jsdom での hydration。実際の Scala.js のリンク成果物 |
-| `tests/islands-hydration.test.js` | **実際にリンクした Scala の bridge**（`bbs-test-fastopt/island-test.js` の `renderIslandTest`）で SSR し、JS の fixture コンポーネントを `honox/client` の `createClient` で **jsdom 上で hydrate**（単純・入れ子・要素 props の 3 通り）。境界の数、SSR DOM の再利用、hydration エラー無し、クリックで状態が変わる | 実際の client island（Scala.js）。型付き Props |
-| `tests/board-top-hydration.test.js` | 板トップの実 SSR HTML（`bbs` のテスト用 export）を、リンクした client を使って `createClient` で jsdom 上で hydrate する | hx4s の汎用部分（3ch の画面に依存する） |
-| `tests/board-islands.test.js` | リンクした client の island の挙動を jsdom で確かめる（個別の `hydrateRoot` を含むものがある） | HonoX の探索・SSR の包み |
-| `tests/client-bundle.test.js` | `dist/static/` の JS を走査し、サーバ専用の文字列が無いことと island が入っていることを確かめる（要 `dist/`） | モジュールグラフ・依存方向（文字列検査のみ。[module-boundaries.md](module-boundaries.md) 2 章） |
+| `tests/islands-bridge.test.js` (1st) | Reads `vite.config.ts` and checks the settings of the `scalajs:client.js` alias and `buildStart.sequential` of the two Scala.js plugins | The actual sbt start order |
+| `tests/islands-bridge.test.js` (2nd) | Puts a **JS stand-in export** (`Probe`) in a fixture, SSR-builds with Vite, and checks the HTML string of `renderToString`. `<honox-island>`, `component-name`, `data-serialized-props`, the difference from rendering `rawElement` directly. As the comment at the top of the file says, it isn't a Scala compiler test | Hydration on jsdom. The real Scala.js link output |
+| `tests/islands-hydration.test.js` | SSRs with **the actually linked Scala bridge** (`renderIslandTest` in `bbs-test-fastopt/island-test.js`), and **hydrates on jsdom** JS fixture components with `createClient` from `honox/client` (three cases: simple, nested, element props). Number of boundaries, reuse of the SSR DOM, no hydration errors, clicks change state | Real client islands (Scala.js). Typed props |
+| `tests/board-top-hydration.test.js` | Hydrates the real SSR HTML of the board top (the test export of `bbs`) on jsdom with `createClient`, using the linked client | The generic parts of hx4s (it depends on 3ch's screens) |
+| `tests/board-islands.test.js` | Checks the behavior of linked client islands on jsdom (some include individual `hydrateRoot` calls) | HonoX's discovery and SSR wrapping |
+| `tests/client-bundle.test.js` | Scans the JS in `dist/static/` and checks that there are no server-only strings and that islands are included (requires `dist/`) | Module graph and dependency direction (string checks only; [module-boundaries.md](module-boundaries.md) chapter 2) |
 
-hx4s の互換性テストは、これらを次のように分けて整える。型付き Props のコンパイル検証（`P` 以外の引数がコンパイルエラーになること）は、どのテストにも無いので **別に必須** とする。
+hx4s's compatibility tests reorganize these as follows. Compile verification of typed props (arguments other than `P` are compile errors) isn't in any test, so it is **separately mandatory**.
 
-| テスト | 確かめること | 対応する依存 |
+| Test | What it checks | Corresponding dependencies |
 | --- | --- | --- |
-| island の SSR | `<honox-island>`、`component-name="/app/islands/x.tsx"`、`data-serialized-props` が出る。`rawElement` を直接描画すると出ない（現行の `islands-bridge` 2 件目の範囲） | H1・H2・H3・H4 |
-| hydration | 単純・入れ子・要素 props の 3 通りで、境界の数、hydration エラー無し、SSR DOM の再利用、クリックで状態が変わる（現行の `islands-hydration` の範囲。実 Scala.js の client island での hydration は `board-top-hydration` の範囲） | H2・H5・H6・H10 |
-| Props の往復 | `"<&>`、非 ASCII、サロゲートの片割れ、`undefined` のキー、空配列が `JSON.parse` で期待どおりに戻る。非有限の `Double`・循環参照・入れ子オブジェクト内の React 要素で SSR が失敗する、または hydration が不一致になること、その場合の挙動が仕様どおりであること（[rendering-model.md](rendering-model.md) 2.3） | H2 |
-| 型付き Props（コンパイル） | `IslandComponents.Xxx(props: P)` に `P` 以外を渡すとコンパイルエラー。typed export 補助を入れた場合は client の export が `P` と合わないこともコンパイルエラー（[ADR 0003](adr/0003-typed-island-props.md)）。Scala のコンパイラテストとして書く | — |
-| 世代ずれ | 旧 HTML + 新 client、新 HTML + 旧 client の両方で、client の `validate` が不一致を検出し、`console.error` を出して SSR の markup が残る（[rendering-model.md](rendering-model.md) 2.4） | H2 |
-| island のファイル名 | 許可名（`[A-Za-z0-9-]+\.tsx`）は SSR → 探索 → hydration まで通る。`foo_bar.tsx`・`foo.bar.tsx` などは生成時に拒否される（[rendering-model.md](rendering-model.md) 1.4） | H5 |
-| script 埋め込み（将来） | props を `<script type="application/json">` に置く方式を入れるときに限り、`</script><script>…` を含む値の往復と、注入したスクリプトが実行されないこと（[rendering-model.md](rendering-model.md) 1.2） | — |
-| ルート | 生成ルートの GET / POST が `createApp` で登録される。`HEAD` が生成時に拒否される。`_` 始まりのファイル名が拒否される | H7・H8 |
-| URL 変換 | hx4s-codegen の `filePathToPath` 相当が HonoX の実装と一致する（同じ入力表を両方に通す）。実装済み: `modules/codegen/src/test/resources/route-paths.tsv` を `RoutePathSuite` と `tests/route-paths.test.js`（HonoX の `createApp` が登録するパス）に通す | H7・H11 |
-| ビルド | `hx4s-vite` の 2 モードで、client の推移的依存（sbt の依存グラフ）と Vite のモジュールグラフに server のモジュールが入らない。sbt の依存グラフは `hx4sCheckDependencies`（scripted の `dependencies`）で実装済み、Vite のモジュールグラフは未実装。client 成果物に server 側のマーカー文字列が入らないことの文字列検査は補助（3ch の KB-27 検査の一般化。[module-boundaries.md](module-boundaries.md) 2 章） | H9 |
-| 書き出し | symlink / junction 経由の外部書き込み・削除が起きない（[build-integration.md](build-integration.md) 3.3）。失敗注入の後に再実行で収束する | — |
+| Island SSR | `<honox-island>`, `component-name="/app/islands/x.tsx"` and `data-serialized-props` are output. They aren't when `rawElement` is rendered directly (the scope of the current 2nd `islands-bridge` test) | H1, H2, H3, H4 |
+| Hydration | In the three cases simple, nested and element props: number of boundaries, no hydration errors, reuse of the SSR DOM, clicks change state (the scope of the current `islands-hydration`; hydration with real Scala.js client islands is the scope of `board-top-hydration`) | H2, H5, H6, H10 |
+| Props round trip | `"<&>`, non-ASCII, lone surrogates, `undefined` keys and empty arrays come back as expected through `JSON.parse`. With non-finite `Double`s, cyclic references and React elements inside nested objects, SSR fails or hydration mismatches, and the behavior in that case is as specified ([rendering-model.md](rendering-model.md) 2.3) | H2 |
+| Typed props (compile) | Passing something other than `P` to `IslandComponents.Xxx(props: P)` is a compile error. If the typed export helper is in, a client export not matching `P` is a compile error too ([ADR 0003](adr/0003-typed-island-props.md)). Written as Scala compiler tests | — |
+| Version skew | With both old HTML + new client and new HTML + old client, the client's `validate` detects the mismatch, logs `console.error`, and the SSR markup remains ([rendering-model.md](rendering-model.md) 2.4) | H2 |
+| Island file names | Allowed names (`[A-Za-z0-9-]+\.tsx`) go through SSR → discovery → hydration. `foo_bar.tsx`, `foo.bar.tsx` and the like are rejected at generation time ([rendering-model.md](rendering-model.md) 1.4) | H5 |
+| Script embedding (future) | Only when putting props in `<script type="application/json">` is introduced: round-tripping values containing `</script><script>…`, and that injected scripts don't run ([rendering-model.md](rendering-model.md) 1.2) | — |
+| Routes | GET / POST of generated routes are registered by `createApp`. `HEAD` is rejected at generation time. File names starting with `_` are rejected | H7, H8 |
+| URL conversion | hx4s-codegen's equivalent of `filePathToPath` matches HonoX's implementation (the same input table goes through both). Implemented: `modules/codegen/src/test/resources/route-paths.tsv` goes through `RoutePathSuite` and `tests/route-paths.test.js` (the paths HonoX's `createApp` registers) | H7, H11 |
+| Build | In both modes of `hx4s-vite`, no server modules end up in the client's transitive dependencies (sbt dependency graph) or Vite's module graph. The sbt dependency graph is implemented with `hx4sCheckDependencies` (scripted `dependencies`); Vite's module graph is not. String checks that no server-side marker strings end up in the client output are a supplement (a generalization of 3ch's KB-27 check; [module-boundaries.md](module-boundaries.md) chapter 2) | H9 |
+| Output | No external writes or deletions through symlinks / junctions ([build-integration.md](build-integration.md) 3.3). Rerunning after failure injection converges | — |
 
-テストの実行対象:
+What the tests run against:
 
-- **固定版**: hx4s のリリースで検証した honox / hono / vite / react の組み合わせ。CI の必須。
-- **最新版**: `honox@latest`・`vite@latest` での実行を定期的に（週次など）回し、失敗しても CI 全体は落とさない。壊れた時点で issue にする。
-- **examples/minimal**: 上記の多くは `examples/minimal` を実際にビルドして確かめる。3ch に依存しないことの検査を兼ねる（[extraction-plan.md](extraction-plan.md)）。
+- **Pinned versions**: the combination of honox / hono / vite / react verified for the hx4s release. Required in CI.
+- **Latest versions**: run with `honox@latest` and `vite@latest` periodically (weekly, etc.) without failing the whole CI. Open an issue when it breaks.
+- **examples/minimal**: much of the above is checked by actually building `examples/minimal`. This doubles as the check that it doesn't depend on 3ch ([extraction-plan.md](extraction-plan.md)).
 
-## 4. ライセンス
+## 4. Licenses
 
-### 4.1 既存コードと依存のライセンス
+### 4.1 Licenses of the existing code and dependencies
 
-| 対象 | ライセンス |
+| Target | License |
 | --- | --- |
-| 3ch（3CH） | リポジトリに LICENSE ファイルが無い。公開の可否・条件は権利者が決める。3ch の `build.sbt` は参照実装 `ch3s-migration` を「踏襲する」と書いており、hx4s へ移すコードに同リポジトリ由来の部分がある場合は、その権利関係も確認が要る（U-21） |
+| 3ch (3CH) | The repository has no LICENSE file. Whether and how it is published is decided by the rights holder. 3ch's `build.sbt` says it "follows" the reference implementation `ch3s-migration`; if code moved to hx4s includes parts from that repository, its rights also need to be confirmed (U-21) |
 | Scala 3 / Scala.js / scalajs-react / munit / vite-plugin-scalajs | Apache-2.0 |
 | scalajs-dom | MIT |
-| scalameta | BSD（POM の表記。BSD-3-Clause と理解している） |
+| scalameta | BSD (as written in the POM; understood to be BSD-3-Clause) |
 | hono / honox / React / Vite / Rolldown | MIT |
 
-hx4s は HonoX のコードを複製しない（依存するだけ）。HonoX の内部規則（ファイル名の正規表現、`filePathToPath` の変換）を Scala で書き直す部分は、
-コードの写しではなく仕様の再実装とする。出典はコメントではなく `docs/` に書く。
+hx4s doesn't copy HonoX's code (it only depends on it). Parts that rewrite HonoX's internal rules in Scala (the file name regex, the `filePathToPath` conversion)
+are reimplementations of the specification, not copies of the code. Sources are cited in `docs/`, not in comments.
 
-### 4.2 MIT と Apache-2.0 の比較
+### 4.2 MIT vs. Apache-2.0
 
-| 観点 | MIT | Apache-2.0 |
+| Aspect | MIT | Apache-2.0 |
 | --- | --- | --- |
-| 文面の短さ・理解しやすさ | 短い | 長い |
-| 特許の許諾 | 明示なし | 明示的な特許許諾と、訴訟時の許諾終了条項がある |
-| 依存先との並び | Hono / HonoX / React / Vite と同じ | Scala / Scala.js / scalajs-react / vite-plugin-scalajs と同じ |
-| 再配布時の義務 | 著作権表示と許諾文の保持 | 同左に加え、NOTICE ファイルの保持と変更の明示 |
-| 他ライセンスとの組み合わせ | ほぼ制約なし | GPLv2 と非互換（GPLv3 とは互換） |
-| 貢献の受け入れ | CLA / DCO を別途決める | 第 5 条で貢献物も同じ条件になると定めている |
+| Length and readability of the text | Short | Long |
+| Patent grant | Not explicit | An explicit patent grant, with a clause terminating it upon litigation |
+| Alignment with dependencies | Same as Hono / HonoX / React / Vite | Same as Scala / Scala.js / scalajs-react / vite-plugin-scalajs |
+| Obligations on redistribution | Keep the copyright notice and the permission text | The same, plus keeping the NOTICE file and stating changes |
+| Combining with other licenses | Almost no restrictions | Incompatible with GPLv2 (compatible with GPLv3) |
+| Accepting contributions | CLA / DCO decided separately | Section 5 makes contributions subject to the same terms |
 
-### 4.3 提案
+### 4.3 Proposal
 
-**Apache-2.0** とする（2026-11-16 決定）。理由:
+**Apache-2.0** (decided 2026-11-16). Reasons:
 
-- hx4s の利用者は Scala.js のエコシステムの側にいる。Scala・Scala.js・scalajs-react・vite-plugin-scalajs がすべて Apache-2.0 で、並びが揃う。
-- 特許の許諾が明示されているので、企業の利用者が採用を判断しやすい。
-- MIT の依存（Hono / HonoX / React）を Apache-2.0 のプロジェクトから使うことに問題は無い。
+- hx4s's users are in the Scala.js ecosystem. Scala, Scala.js, scalajs-react and vite-plugin-scalajs are all Apache-2.0, so it lines up.
+- The patent grant is explicit, making adoption decisions easier for corporate users.
+- Using MIT dependencies (Hono / HonoX / React) from an Apache-2.0 project is not a problem.
 
-MIT にする利点は、HonoX 側への提案（PR）とライセンスを揃えやすいことと、文面の短さ。
-どちらにしても、3ch から移すコードの権利者がそのライセンスで公開することに同意している必要がある。移すコードの権利確認は未決事項 U-21 に残る。
+The advantages of MIT would be easier alignment of licenses for proposals (PRs) to HonoX, and its short text.
+Either way, the rights holders of the code moved from 3ch need to agree to publishing it under that license. Confirming rights to the moved code remains open question U-21.

@@ -1,7 +1,7 @@
-// Node の module hooks で、Vite がビルド時に行う解決を Node 上で再現する（Scala.js のテストや SSR の検証用）。
-// それ以外の指定子は Node 既定の解決へ委ねる。実行基盤固有の指定子（cloudflare:workers など）は利用側の loader で扱う。
-//   scalajs:client.js  -> $HX4S_CLIENT_JS_DIR/client.js（client の Scala.js リンク成果物）
-//   honox 内の hono/jsx(-runtime) -> react（honox() の islandComponents.reactApiImportSource と同じ置換）
+// Reproduces on Node, with module hooks, the resolution Vite performs at build time (for Scala.js tests and SSR verification).
+// Other specifiers go to Node's default resolution. Runtime-specific specifiers (such as cloudflare:workers) are handled by the user's loader.
+//   scalajs:client.js  -> $HX4S_CLIENT_JS_DIR/client.js (the Scala.js link output of the client)
+//   hono/jsx(-runtime) inside honox -> react (the same replacement as islandComponents.reactApiImportSource of honox())
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 

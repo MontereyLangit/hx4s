@@ -16,13 +16,13 @@ async function withSpacedDir(body) {
   }
 }
 
-test('quoteForCmd は cmd.exe で意味が変わる文字を拒み、末尾の \\ を倍にして引用する', () => {
+test('quoteForCmd rejects characters whose meaning changes in cmd.exe, and quotes with a trailing \\ doubled', () => {
   assert.equal(quoteForCmd('a b & c'), '"a b & c"');
   assert.equal(quoteForCmd('C:\\dir with space\\'), '"C:\\dir with space\\\\"');
   for (const arg of ['say "hi"', '%PATH%', 'wow!', 'a^b', 'two\nlines']) assert.throws(() => quoteForCmd(arg), /cmd\.exe/);
 });
 
-test('npm は空白と & を含む作業ディレクトリでもシェルなしで起動できる', async () => {
+test('npm starts without a shell even in a working directory containing spaces and &', async () => {
   await withSpacedDir(async (dir) => {
     const result = spawnTool('npm', ['--version'], { cwd: dir, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
@@ -30,7 +30,7 @@ test('npm は空白と & を含む作業ディレクトリでもシェルなし�
   });
 });
 
-test('Windows のバッチは空白と & を含むパスに置いても、空白と & を含む引数をそのまま受け取る', { skip: !windows && 'Windows のみ' }, async () => {
+test('a Windows batch file placed at a path containing spaces and & receives arguments containing spaces and & as-is', { skip: !windows && 'Windows only' }, async () => {
   await withSpacedDir(async (dir) => {
     const script = path.join(dir, 'print args.cmd');
     await writeFile(script, `@"${process.execPath}" -e "console.log(JSON.stringify(process.argv.slice(1)))" %*\r\n`);

@@ -1,31 +1,31 @@
-# SSR と hydration
+# SSR and hydration
 
-既定の構成は **SSR + Islands**。ページは server で HTML にし、対話が要る部分だけを island としてブラウザで hydrate する。
-ルートごとに静的な SSR・Islands・API を混在させられる（HonoX のファイルルートがルート単位で独立しているため）。
+The default setup is **SSR + Islands**. Pages are rendered to HTML on the server, and only the parts that need interaction are hydrated in the browser as islands.
+Static SSR, Islands and APIs can be mixed per route (HonoX's file routes are independent per route).
 
-## 描画の流れ
+## Rendering flow
 
-| 段階 | 入口 | 内容 |
+| Stage | Entry point | What happens |
 | --- | --- | --- |
-| 1. リクエスト | `app/server.ts`（`createApp`）→ 生成ルート `app/routes/**/*.ts` → Scala のハンドラ | ハンドラが scalajs-react の要素を作り、`c.renderPromise(element, props)` に渡す |
-| 2. renderer | `app/routes/_renderer.tsx`（`@hono/react-renderer`） | Scala の `renderShell` が HTML 全体を組み、client の `<script>` を置く |
-| 3. island の SSR | `IslandComponents.CounterJs(props)` | `<honox-island component-name="/app/islands/counter.tsx" data-serialized-props="…">` で包んだ HTML を出す |
-| 4. ブラウザ | `app/client.ts`（`createClient`） | `component-name` と `app/islands/**/*.tsx` を突き合わせ、`JSON.parse(data-serialized-props)` を props にして hydrate する |
+| 1. Request | `app/server.ts` (`createApp`) → generated route `app/routes/**/*.ts` → Scala handler | The handler builds a scalajs-react element and passes it to `c.renderPromise(element, props)` |
+| 2. Renderer | `app/routes/_renderer.tsx` (`@hono/react-renderer`) | Scala's `renderShell` builds the whole HTML and places the client `<script>` |
+| 3. Island SSR | `IslandComponents.CounterJs(props)` | Outputs HTML wrapped in `<honox-island component-name="/app/islands/counter.tsx" data-serialized-props="…">` |
+| 4. Browser | `app/client.ts` (`createClient`) | Matches `component-name` against `app/islands/**/*.tsx` and hydrates with `JSON.parse(data-serialized-props)` as props |
 
-`_renderer.tsx` と `app/client.ts` は手書きで、examples とほぼ同じ内容になる（[getting-started.md](getting-started.md)）。
-client の `<script>` は island の有無にかかわらず読み込む。island の無いページで省く最適化は未実装。
+`_renderer.tsx` and `app/client.ts` are hand-written and look almost the same as in the examples ([getting-started.md](getting-started.md)).
+The client `<script>` is loaded whether or not the page has islands. Omitting it on pages without islands is not implemented.
 
-## hydration の境界
+## Hydration boundaries
 
-境界は HonoX の `HonoXIsland` が決める。hx4s の `hx4s.react.Island` はそれを呼ぶだけの薄いブリッジで、`IslandComponents` が使う。
+Boundaries are decided by HonoX's `HonoXIsland`. hx4s's `hx4s.react.Island` is a thin bridge that just calls it, and `IslandComponents` uses it.
 
-- island の中で別の island を描画すると、内側は境界を作らず通常のコンポーネントとして描画される。hydration root は外側の 1 つ
-- props に React 要素（またはその配列）があると、HonoX はそれを `<template>` に SSR し、client が復元する
-- 同じ island を複数置いたときは、境界ごとに別の props を持つ
+- When an island renders another island inside it, the inner one doesn't create a boundary and renders as a normal component. The hydration root is the single outer one
+- When props contain React elements (or arrays of them), HonoX SSRs them into a `<template>` and the client restores them
+- When the same island is placed several times, each boundary has its own props
 
-## `app/client.ts` と props の検証
+## `app/client.ts` and props validation
 
-`hx4s-vite/client` の `islandPropsProblem(element)` を hydrate の前に呼ぶ。
+Call `islandPropsProblem(element)` from `hx4s-vite/client` before hydrating.
 
 ```ts
 hydrate: (element, root) => {
@@ -38,85 +38,85 @@ hydrate: (element, root) => {
 },
 ```
 
-| 区分 | 内容 |
+| Category | Content |
 | --- | --- |
-| 確かめる | hydrate する island の props。その要素 props（HonoX が `<template>` から復元する子。配列の中も辿る）に含まれる island の props。対象は `IslandExport(label, fields)` で作った export |
-| 不一致のとき | その境界全体を hydrate しない。内側だけが不正でも外側を含めて SSR の HTML のまま残す。理由は `props.children[1]: props.start: missing` のように位置付きで返る |
-| 確かめない | `IslandExport.unchecked` や JS で書いた island。要素 props 以外（普通の値の中）に入った要素。hydrate の後に読み込まれる chunk の世代。HonoX の Suspense で後から届く内容 |
+| Checked | The props of the island being hydrated, and the props of islands contained in its element props (children HonoX restores from `<template>`, including inside arrays). Targets are exports built with `IslandExport(label, fields)` |
+| On mismatch | The whole boundary is not hydrated. Even if only an inner island is invalid, the outer one is left as SSR HTML too. The reason is returned with its location, like `props.children[1]: props.start: missing` |
+| Not checked | `IslandExport.unchecked` and islands written in JS. Elements placed outside element props (inside ordinary values). The version of chunks loaded after hydration. Content that arrives later through HonoX's Suspense |
 
-`hx4s-vite/client` は Vite のプラグイン本体を import しないので、client のバンドルに Vite や HonoX の SSR 用のコードは入らない。
+`hx4s-vite/client` does not import the Vite plugin itself, so Vite and HonoX's SSR code don't end up in the client bundle.
 
-## HTML と client の世代ずれ
+## Version skew between HTML and client
 
-SSR の HTML と client の asset（`static/client.js` と island の chunk）は別々に配信され、別々にキャッシュされる。デプロイの前後で次の組み合わせが起こりうる。
+The SSR HTML and the client assets (`static/client.js` and island chunks) are served and cached separately. Around a deployment, the following combinations can happen:
 
-- 古い HTML（キャッシュ済み）と新しい client
-- 新しい HTML と古い client（asset のキャッシュが残っている）
+- Old HTML (cached) with a new client
+- New HTML with an old client (asset cache still alive)
 
-props の形（`P` のフィールド）が変わっていると、client が受け取る JSON が `P` に合わない。hx4s の挙動は次のとおり。
+If the shape of the props (fields of `P`) changed, the JSON the client receives doesn't match `P`. hx4s behaves as follows:
 
-- 上の検証が不一致を見つけると、`console.error` を出して**その island を hydrate せず、SSR の HTML を残す**。見た目は静的な HTML のままで、画面は壊れない
-- 旧 HTML と新 client の組み合わせ（props のキーが足りない）は、examples の `tests/hydration.test.js`（jsdom）で確かめている。新 HTML と旧 client は検証していない
+- When the validation above finds a mismatch, it logs `console.error` and **does not hydrate that island, keeping the SSR HTML**. It stays as static HTML, and the page doesn't break
+- The old HTML with new client combination (missing props keys) is checked by the examples' `tests/hydration.test.js` (jsdom). New HTML with an old client is not verified
 
-これは世代ずれが起きたときに画面を壊さないための最低限で、ずれ自体は防がない。client の入口は既定で固定名（`static/client.js`）で、ハッシュ名にしていない。
-キャッシュ制御・旧 asset の保持・props を変えるときの手順は未決（[hx4s/roadmap.md](hx4s/roadmap.md) U-26、[hx4s/rendering-model.md](hx4s/rendering-model.md) 2.4）。
-実務上は、必須キーの追加や型の変更を避け、追加するキーは `js.UndefOr` で受ける。
+This is the minimum to keep the page from breaking when skew happens; it doesn't prevent the skew itself. The client entry has a fixed name by default (`static/client.js`), not a hashed one.
+Cache control, keeping old assets and the procedure for changing props are undecided ([hx4s/roadmap.md](hx4s/roadmap.md) U-26, [hx4s/rendering-model.md](hx4s/rendering-model.md) 2.4).
+In practice, avoid adding required keys or changing types, and receive added keys as `js.UndefOr`.
 
-## JavaScript が無効なとき
+## When JavaScript is disabled
 
-SSR の HTML がそのまま表示される。island の部分も、server が描画した内容（ボタンの文言など）が出るだけで、対話は動かない。
-`examples/minimal` のトップページの HTML は、JavaScript なしで読める内容を持つ（`tests/build-output.test.js`）。ページ全体を 1 つの island にする構成（[spa.md](spa.md)）でも、JavaScript を無効にしたブラウザで SSR の部分が表示されることを試作で確かめた。
+The SSR HTML is shown as-is. Islands show only what the server rendered (button labels, etc.), and interaction doesn't work.
+The HTML of the `examples/minimal` top page has content readable without JavaScript (`tests/build-output.test.js`). For the setup that makes the whole page one island ([spa.md](spa.md)), a prototype confirmed that the SSR part is shown in a browser with JavaScript disabled.
 
-## XSS とシリアライズ
+## XSS and serialization
 
-props は HonoX が `JSON.stringify` して HTML の**属性値**（`data-serialized-props`）に入れる。属性値は React の SSR がエスケープするので、`"`・`<`・`&` や `</script>` を含む文字列も
-HTML の構造にならない。`examples/minimal` は、名前に `</script><b>タグ</b> "引用" 'single'` を含む品目と、`</script><!--` を含む props を使い、次を確かめている。
+HonoX runs `JSON.stringify` on props and puts them in an HTML **attribute value** (`data-serialized-props`). React's SSR escapes attribute values, so strings containing `"`, `<`, `&` or `</script>`
+don't become HTML structure. `examples/minimal` uses an item whose name contains `</script><b>tag</b> "quoted" 'single'` and props containing `</script><!--`, and checks that:
 
-- 出力に注入された `<script>` 要素が増えない
-- 値が client の props として元の文字列に戻る
+- No injected `<script>` elements are added to the output
+- The values come back to the original strings as client props
 
-props を `<script type="application/json">` に置く方式は採っていない（採る場合は `<` のエスケープが別に要る。[hx4s/rendering-model.md](hx4s/rendering-model.md) 2.2）。
-本文のテキストは React が通常どおりエスケープする。`dangerouslySetInnerHTML` を使う場合は自分で責任を持つ。
+Putting props in `<script type="application/json">` is not used (if it were, `<` would need separate escaping; [hx4s/rendering-model.md](hx4s/rendering-model.md) 2.2).
+Body text is escaped by React as usual. If you use `dangerouslySetInnerHTML`, that's your responsibility.
 
-## server のコードを client に入れない
+## Keeping server code out of the client
 
-server のハンドラや秘匿値がブラウザのバンドルに入らないように、次の 2 つで守る。
+Two mechanisms keep server handlers and secrets out of the browser bundle.
 
-1. **プロジェクトの分割**: server と client を別の sbt プロジェクトにし、client は server に依存しない。server が client を使うのは、Vite の仮想モジュール `scalajs:client.js`（island の実体）だけ。
-   Scala.js は client を別のリンク成果物として作る。
-2. **`hx4sCheckDependencies`**: sbt の依存グラフを検査する。`hx4sGenerate` と `hx4sIslandComponents` が先に呼ぶので、違反があると生成の時点で失敗する。
+1. **Project split**: server and client are separate sbt projects, and the client doesn't depend on the server. The server uses the client only through Vite's virtual module `scalajs:client.js` (the island code).
+   Scala.js builds the client as a separate link output.
+2. **`hx4sCheckDependencies`**: checks the sbt dependency graph. `hx4sGenerate` and `hx4sIslandComponents` call it first, so a violation fails at generation time.
 
 ```
 hx4s: the client project client must not depend on the server project server (client -> mid -> server). Put types shared by both, such as island props, in a project that neither depends on the other
 ```
 
-検査するのは、client（と推移的な `dependsOn`）が `Hx4sPlugin` を有効にしたプロジェクトに依存していないこと、server が client に依存していないこと。
-`dependsOn(x % "test")` のようなテストだけの依存は対象外。
+It checks that the client (and its transitive `dependsOn`) does not depend on a project with `Hx4sPlugin` enabled, and that the server does not depend on the client.
+Test-only dependencies such as `dependsOn(x % "test")` are excluded.
 
-**検査していないこと**: Vite のモジュールグラフ（TypeScript の import を含む）。`examples/minimal` は、client のバンドルに server だけの文字列が入っていないことを文字列で検査している
-（`tests/build-output.test.js`）が、依存方向の保証ではない。
+**Not checked**: Vite's module graph (including TypeScript imports). `examples/minimal` checks by string matching that the client bundle contains no server-only strings
+(`tests/build-output.test.js`), but this doesn't guarantee the dependency direction.
 
-## テスト
+## Testing
 
-| 目的 | 方法 | 例 |
+| Purpose | Method | Example |
 | --- | --- | --- |
-| SSR の HTML | ビルドした Worker の `fetch` を Node で呼び、jsdom で読む | `examples/minimal/tests/build-output.test.js` |
-| 型付き props | `compileErrors` で、誤った props のコンパイルエラーを確かめる | `examples/minimal/server/src/test/.../TypedPropsSuite.scala` |
-| hydration | `app/client.ts` をビルドして jsdom 上で動かし、クリックで状態が変わること・不一致の island が SSR のままであることを確かめる | `examples/minimal/tests/hydration.test.js` |
-| 実ブラウザ | `wrangler dev` と Playwright で、hydrate の誤りが出ないことを確かめる | `examples/minimal/tests/e2e.test.js` |
+| SSR HTML | Call the built Worker's `fetch` on Node and read it with jsdom | `examples/minimal/tests/build-output.test.js` |
+| Typed props | Check with `compileErrors` that wrong props fail to compile | `examples/minimal/server/src/test/.../TypedPropsSuite.scala` |
+| Hydration | Build `app/client.ts`, run it on jsdom, and check that clicking changes state and that mismatched islands stay as SSR | `examples/minimal/tests/hydration.test.js` |
+| Real browser | Check with `wrangler dev` and Playwright that no hydration errors occur | `examples/minimal/tests/e2e.test.js` |
 
-### Node 上で Scala.js のテストを動かす
+### Running Scala.js tests on Node
 
-server のテストは Node 上で、SSR（`ReactDOMServer.renderToStaticMarkup`）まで動かせる。そのまま動かすと、リンク成果物の `scalajs:client.js` と HonoX 内の `hono/jsx` を Node が解決できない。
-`hx4s-vite` が Node の module hooks の loader を提供する。
+Server tests can run on Node all the way through SSR (`ReactDOMServer.renderToStaticMarkup`). Run as-is, Node can't resolve `scalajs:client.js` in the link output or `hono/jsx` inside HonoX.
+`hx4s-vite` provides a loader using Node's module hooks.
 
-| 指定子 | 解決先 |
+| Specifier | Resolves to |
 | --- | --- |
-| `scalajs:client.js` | `$HX4S_CLIENT_JS_DIR/client.js`（client の `fastLinkJS` の出力ディレクトリ） |
-| HonoX 内の `hono/jsx`・`hono/jsx/jsx-runtime` | `react`・`react/jsx-runtime`（`hx4s()` が本番ビルドでしている置換と同じ） |
+| `scalajs:client.js` | `$HX4S_CLIENT_JS_DIR/client.js` (output directory of the client's `fastLinkJS`) |
+| `hono/jsx` and `hono/jsx/jsx-runtime` inside HonoX | `react` and `react/jsx-runtime` (the same replacement `hx4s()` does in production builds) |
 
 ```scala
-// build.sbt（server プロジェクト。examples/minimal と同じ）
+// build.sbt (server project; same as examples/minimal)
 import org.scalajs.jsenv.nodejs.NodeJSEnv
 
 Test / jsEnv := {
@@ -130,5 +130,5 @@ Test / jsEnv := {
 }
 ```
 
-実行基盤の指定子（`cloudflare:workers` など）をスタブにしたい場合は、`hx4s-vite/node-register` の代わりに自分の register ファイルから `hx4s-vite/node-loader` と自分の loader を並べて登録する。
-手順は [hx4s/build-integration.md](hx4s/build-integration.md) 2.3。
+To stub runtime specifiers (such as `cloudflare:workers`), register `hx4s-vite/node-loader` alongside your own loader from your own register file instead of `hx4s-vite/node-register`.
+See [hx4s/build-integration.md](hx4s/build-integration.md) 2.3 for the steps.

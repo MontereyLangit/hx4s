@@ -1,6 +1,6 @@
 package hx4s.codegen
 
-/** route ファイルに出せる HTTP メソッド（HonoX の createApp が登録するもの）。ファイル内の export はこの順に並べる */
+/** HTTP methods that can go in a route file (those HonoX createApp registers). Exports in a file follow this order */
 enum HttpMethod {
   case GET, POST, PUT, DELETE, PATCH, OPTIONS
 }
@@ -12,19 +12,19 @@ object HttpMethod {
 final case class RouteHandler(method: HttpMethod, exportName: String)
 
 /**
- * route ファイル 1 つ分
- * @param filePath route 出力ディレクトリからの `/` 区切りの相対パス（例: `"items/[id].ts"`）
+ * One route file
+ * @param filePath `/`-separated path relative to the route output directory (e.g. `"items/[id].ts"`)
  */
 final case class RouteEntry(filePath: String, handlers: List[RouteHandler]) {
   def sortedHandlers: List[RouteHandler] = handlers.sortBy(_.method.ordinal)
 }
 
 /**
- * island ファイル 1 つ分
- * @param filePath     island 出力ディレクトリからの相対パス（例: `"counter.tsx"`）
- * @param exportedName `@JSExportTopLevel` の名前
- * @param sourceModule import 元の仮想モジュール名（例: `"client.js"`）
- * @param propsType    props の型の完全修飾名（`_root_.` 付き）。型引数が無ければ None
+ * One island file
+ * @param filePath     path relative to the island output directory (e.g. `"counter.tsx"`)
+ * @param exportedName name of the `@JSExportTopLevel`
+ * @param sourceModule virtual module name imported from (e.g. `"client.js"`)
+ * @param propsType    fully qualified name of the props type (with `_root_.`). None if there is no type argument
  */
 final case class IslandEntry(filePath: String, exportedName: String, sourceModule: String, propsType: Option[String] = None)
 

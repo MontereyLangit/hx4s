@@ -1,185 +1,185 @@
-# 描画モデル
+# Rendering model
 
-## 1. 描画方式の位置づけ
+## 1. Where each rendering mode stands
 
-| 方式 | 位置づけ | 3ch での状態 | hx4s での状態 |
+| Mode | Position | State in 3ch | State in hx4s |
 | --- | --- | --- | --- |
-| SSR（静的） | hydration しない HTML。専ブラ互換・Shift_JIS 応答もここ | 実装済み。`publicHandler` 経由の既存画面、`RendererShell.legacyReact` / `createSjisResponse` | 特別な支援は不要（scalajs-react の `renderToStaticMarkup` と Hono の Response で書ける）。Shift_JIS は 3ch に残す |
-| SSR + Islands | 既定の方式。ページは SSR、対話部分だけを island として hydrate | 実装済み。板トップ（`site-header`・`board-details`・`thread-list`）、認証・アカウント画面 | P0 の中心。未実装 |
-| SSR + Full Hydration | ページ全体を 1 つの island にする | 未実装 | 構想（P2）。下記 1.2 |
-| SPA + API | 静的な HTML シェル + クライアント側ルーティング + JSON API | 未実装（管理画面の SPA 化は `docs/admin-spa-auth-plan.md` で計画中・未着手） | 構想（P1 の Client Router と合わせて検討） |
-| API-only | HTML を返さないハンドラ | 実装済み（`/auth/*` の API、dat / subject.txt） | `@route` の生成ルートで書ける。`hx4s({ client: false })` で client と React の無い構成にできる（`examples/api-only`、[api.md](../api.md)） |
-| Hybrid | 上記をルートごとに混在 | 実装済み（SSR 静的・Islands・API が同じ Worker に同居） | 既定で成立する（HonoX のファイルルートがルート単位で独立しているため） |
+| SSR (static) | HTML that is not hydrated. Dedicated-browser compatibility and Shift_JIS responses belong here | Implemented. Existing screens through `publicHandler`, `RendererShell.legacyReact` / `createSjisResponse` | No special support needed (can be written with scalajs-react's `renderToStaticMarkup` and Hono's Response). Shift_JIS stays in 3ch |
+| SSR + Islands | The default mode. Pages are SSR'd, and only the interactive parts are hydrated as islands | Implemented. The board top (`site-header`, `board-details`, `thread-list`), auth and account screens | The center of P0. Not implemented |
+| SSR + Full Hydration | The whole page is one island | Not implemented | Planned (P2). See 1.2 below |
+| SPA + API | A static HTML shell + client-side routing + a JSON API | Not implemented (turning the admin screen into an SPA is planned in `docs/admin-spa-auth-plan.md`, not started) | Planned (considered together with the P1 Client Router) |
+| API-only | Handlers that don't return HTML | Implemented (the `/auth/*` APIs, dat / subject.txt) | Can be written with generated `@route` routes. `hx4s({ client: false })` gives a setup without a client or React (`examples/api-only`, [api.md](../api.md)) |
+| Hybrid | A mix of the above per route | Implemented (static SSR, Islands and APIs live in the same Worker) | Works by default (HonoX's file routes are independent per route) |
 
-### 1.1 SSR + Islands のエントリポイントと境界
+### 1.1 Entry points and boundaries of SSR + Islands
 
-| 段階 | エントリポイント | 内容 |
+| Stage | Entry point | Content |
 | --- | --- | --- |
-| サーバー | `app/server.ts`（`createApp`） → 生成ルート `app/routes/**/*.ts` → Scala のハンドラ | ハンドラが scalajs-react の要素を作り `c.render` に渡す |
-| renderer | `app/routes/_renderer.tsx`（`@hono/react-renderer`） | HTML のシェルを組み、client script を置く |
-| island の SSR | 生成 `IslandComponents.Xxx(props)` → `hx4s.react.Island` → `React.createElement(HonoXIsland, …)` | `<honox-island component-name=… data-serialized-props=…>` で包む |
-| クライアント | `app/client.ts` → `createClient({ hydrate, createElement })` | `import.meta.glob('/app/islands/**/*.tsx')` のキーと `component-name` を突き合わせる |
-| island のクライアント | 生成 `app/islands/x.tsx`（`export default XxxJs`） → `scalajs:client.js` の chunk | `JSON.parse(data-serialized-props)` を props にして `hydrateRoot` |
+| Server | `app/server.ts` (`createApp`) → generated routes `app/routes/**/*.ts` → Scala handlers | The handler builds scalajs-react elements and passes them to `c.render` |
+| Renderer | `app/routes/_renderer.tsx` (`@hono/react-renderer`) | Builds the HTML shell and places the client script |
+| Island SSR | The generated `IslandComponents.Xxx(props)` → `hx4s.react.Island` → `React.createElement(HonoXIsland, …)` | Wraps in `<honox-island component-name=… data-serialized-props=…>` |
+| Client | `app/client.ts` → `createClient({ hydrate, createElement })` | Matches the keys of `import.meta.glob('/app/islands/**/*.tsx')` against `component-name` |
+| Island client | The generated `app/islands/x.tsx` (`export default XxxJs`) → the chunk of `scalajs:client.js` | `hydrateRoot` with `JSON.parse(data-serialized-props)` as props |
 
-Hydration 境界は `HonoXIsland` が決める（H10）。
+Hydration boundaries are decided by `HonoXIsland` (H10).
 
-- island の中で別の island を描画すると、内側は境界を作らず通常のコンポーネントとして描画される。hydration root は外側の 1 つだけになる。
-- props に React 要素（または要素の配列）が含まれると、その key は `data-serialized-props` から外れ、`<template data-hono-template="key">` に SSR される。
-  クライアントは template の DOM から要素を組み立て直し、中に island があればそれを import して差し込む（`client/runtime.js` の `buildCreateChildrenFn`）。
-- 3ch の `tests/islands-hydration.test.js` が「単純・入れ子・要素 props」の 3 通りについて、境界の数、SSR DOM の再利用、hydration エラーが無いこと、
-  クリックで状態が変わることを確認している。hx4s はこのテストを互換性テストとして引き継ぐ。
+- When an island renders another island inside it, the inner one doesn't create a boundary and renders as a normal component. There is only one hydration root, the outer one.
+- When props contain React elements (or arrays of elements), those keys are removed from `data-serialized-props` and SSR'd into `<template data-hono-template="key">`.
+  The client rebuilds the elements from the template DOM, and if there are islands inside, imports and inserts them (`buildCreateChildrenFn` in `client/runtime.js`).
+- 3ch's `tests/islands-hydration.test.js` checks three cases (simple, nested, element props) for the number of boundaries, reuse of the SSR DOM, absence of hydration errors,
+  and that clicks change state. hx4s inherits this test as a compatibility test.
 
-client script は常に読み込む前提とする。HonoX の `HasIslands` は、ルートファイルから island TSX への import を依存木で探して判定するが、
-hx4s の生成ルートは `scalajs:server.js` を import するだけなので、この判定は効かない見込み（未検証）。
-island を使わないページで script を省く最適化は P1 以降に回す（ルート単位で `IslandComponents` の利用を codegen が判定できるかは未調査）。
+The client script is assumed to always be loaded. HonoX's `HasIslands` decides by searching the dependency tree for imports from route files to island TSX,
+but hx4s's generated routes only import `scalajs:server.js`, so this detection is not expected to work (not verified).
+Omitting the script on pages without islands is deferred to P1 or later (whether codegen can decide per route whether `IslandComponents` is used has not been investigated).
 
-### 1.2 SSR + Full Hydration（構想）
+### 1.2 SSR + Full Hydration (planned)
 
-ページのルートコンポーネントを 1 つの island として宣言すれば、既存の仕組みのままで成立する。
-ただし次の問題があり、P0 では推奨しない。
+Declaring the page's root component as one island works with the existing mechanism.
+However, it has the following problems and is not recommended in P0.
 
-- ページの全データが `data-serialized-props` に入り、HTML 本体と二重に送られる。
-- 属性値の HTML エスケープで `"` が `&quot;` になり、JSON の文字列が多いほど膨らむ。
-- ページ単位のコード分割が client チャンクの分割に依存する。
+- All of the page's data goes into `data-serialized-props` and is sent twice along with the HTML body.
+- HTML escaping of attribute values turns `"` into `&quot;`, so the more strings the JSON has, the more it inflates.
+- Per-page code splitting depends on how the client chunks are split.
 
-Full Hydration を正式に扱う場合は、props を `<script type="application/json">` に置く方式を検討する。その場合は下記 2.2 の `</script>` 対策（`<` を `\u003c` に置換）と、
-その検証が必須になる。必須検証: `</script><script>…</script>` や `<!--`、U+2028 / U+2029 を含む文字列値を、SSR → HTML → クライアントの `JSON.parse` で往復させ、(1) 値が元どおりに戻ること、(2) 注入したスクリプトが実行されないことを jsdom で確かめる。
+To support Full Hydration officially, consider putting props in `<script type="application/json">`. In that case, the `</script>` countermeasure in 2.2 below (replacing `<` with `<`)
+and its verification become mandatory. Mandatory verification: round-trip string values containing `</script><script>…</script>`, `<!--` and U+2028 / U+2029 through SSR → HTML → the client's `JSON.parse`, and check with jsdom that (1) the values come back unchanged and (2) injected scripts don't run.
 
-### 1.3 SPA + API（構想）
+### 1.3 SPA + API (planned)
 
-静的 HTML シェルを返すルートと、JSON を返す `@route` を組み合わせれば現行の仕組みで書ける。
-クライアント側ルーティングとサーバールートの二重管理を避ける方法は [routing-design.md](routing-design.md) 4 章で扱う。
+Combining a route that returns a static HTML shell with `@route`s returning JSON can be written with the current mechanism.
+How to avoid double maintenance of client-side routing and server routes is covered in [routing-design.md](routing-design.md) chapter 4.
 
-### 1.4 island のファイル名規則（P0 の公開規則）
+### 1.4 Island file name rules (P0 public rules)
 
-HonoX の `createClient` は island の候補を `import.meta.glob('/app/islands/**/*.tsx')` で集め、さらに basename が `/\/[a-zA-Z0-9-]+\.tsx$/` に一致するものだけを hydrate 対象にする
-（`client/client.js`、0.1.62）。一致しないファイルは SSR で `<honox-island>` が出ても、クライアントが探索しないので hydrate されない。
+HonoX's `createClient` collects island candidates with `import.meta.glob('/app/islands/**/*.tsx')`, and hydrates only those whose basename matches `/\/[a-zA-Z0-9-]+\.tsx$/`
+(`client/client.js`, 0.1.62). A file that doesn't match gets a `<honox-island>` in SSR but is never hydrated, because the client doesn't discover it.
 
-hx4s は次を **P0 の公開規則** とする。`@islands` の `filePath` の basename は `[A-Za-z0-9-]+\.tsx` に一致すること。
-3ch の `AnnotationScanner` は `IslandBasename` としてすでに検査している（`875a47b`）。
+hx4s makes the following a **P0 public rule**: the basename of `filePath` in `@islands` must match `[A-Za-z0-9-]+\.tsx`.
+3ch's `AnnotationScanner` already checks this as `IslandBasename` (`875a47b`).
 
-| 例 | 結果 |
+| Example | Result |
 | --- | --- |
-| `thread-view.tsx`、`Foo2.tsx`、`a/b-c.tsx` | 許可 |
-| `foo_bar.tsx`、`foo.bar.tsx`、`foo bar.tsx`、`foo.island.tsx`、`$foo.tsx` | 生成時に拒否（HonoX が別規則で拾う `*.island.tsx` / `$*.tsx` も P0 では使わない） |
+| `thread-view.tsx`, `Foo2.tsx`, `a/b-c.tsx` | Allowed |
+| `foo_bar.tsx`, `foo.bar.tsx`, `foo bar.tsx`, `foo.island.tsx`, `$foo.tsx` | Rejected at generation time (`*.island.tsx` / `$*.tsx`, which HonoX picks up by other rules, are not used in P0 either) |
 
-検証条件（[compatibility.md](compatibility.md) 3 章に追加）: 許可名は SSR → 探索 → hydration まで通ること。拒否名は生成時にエラーになること。
+Verification conditions (added to [compatibility.md](compatibility.md) chapter 3): allowed names go all the way through SSR → discovery → hydration. Rejected names produce an error at generation time.
 
 
-## 2. Props のシリアライズ
+## 2. Props serialization
 
-### 2.1 HonoX の実装
+### 2.1 HonoX's implementation
 
-`honox/dist/vite/components/honox-island.js`（0.1.62）は次のように props を分ける。
+`honox/dist/vite/components/honox-island.js` (0.1.62) splits props as follows.
 
 ```js
 const isElementPropValue = (value) => Array.isArray(value) ? value.some(isElementPropValue)
   : typeof value === "object" && isValidElement(value);
-// 要素 → elementProps（<template> へ）、それ以外 → restProps
+// elements → elementProps (into <template>), everything else → restProps
 [DATA_SERIALIZED_PROPS]: JSON.stringify(restProps)
 ```
 
-つまり、要素以外の props は **`JSON.stringify` の結果をそのまま HTML 属性値として** React に渡している。
-クライアントは `JSON.parse(element.attributes.getNamedItem("data-serialized-props")?.value ?? "{}")` で戻す。
+In other words, non-element props are passed to React **with the result of `JSON.stringify` as the HTML attribute value as-is**.
+The client restores them with `JSON.parse(element.attributes.getNamedItem("data-serialized-props")?.value ?? "{}")`.
 
-### 2.2 XSS・`</script>`・Unicode
+### 2.2 XSS, `</script>` and Unicode
 
-| 項目 | 扱い | 根拠 |
+| Item | Handling | Basis |
 | --- | --- | --- |
-| HTML 属性への注入 | React の SSR が属性値をエスケープする（`"` は `&quot;` など）。3ch のテストで `日本語 "<&>` を含む文字列が往復することを確認済み | `tests/islands-hydration.test.js`、`tests/islands-bridge.test.js` の `&quot;` の期待値 |
-| `</script>` | 現行の方式（属性値）には当てはまらない。props は `<script>` 内ではなく属性値に入るので、`</script>` で文脈を抜けられる経路は無い。将来 props を `<script type="application/json">` に置く場合は、JSON 文字列中の `<` を **6 文字の文字列 `\u003c` に置換**して出力する（置換後は JSON として元の `<` に戻る。HTML の文脈では `<` が現れないので `</script>` を作れない）。`<` を別の文字に置き換える、`<` をそのまま出す、`</script` だけを対象にする、のいずれも不十分とする | `honox-island.js` |
-| JSON として無効な値 | `undefined`・関数・Symbol のプロパティは黙って落ちる。`NaN` / `Infinity` は `null` になる。`BigInt` は例外。`Date` は ISO 文字列になり、戻すと文字列のまま | `JSON.stringify` の仕様 |
-| Scala の値 | case class・`Option`・Scala コレクション・`Long`（Scala.js では JS の number ではない）は、JS から見えるプロパティ名やオブジェクト構造が Scala の型と一致しない。直接渡すと壊れた JSON になるか、情報が落ちる | Scala.js の表現。3ch の `docs/islands-ssr.md` も「case class やコレクションを直接渡さない」と明記 |
-| Unicode | 非 ASCII 文字はエスケープされずに UTF-8 のまま出る。サロゲートの片割れは `\udXXX` の形で出力され、`JSON.parse` で元に戻る（ES2019 以降の `JSON.stringify`）。U+2028 / U+2029 は属性値の中では問題にならない | `JSON.stringify` の仕様。ページの文字コードは UTF-8 前提（Shift_JIS のページで island を使わない） |
-| サイズ | props は属性値として HTML に入り、SSR の markup とは別に送られる。上限は設けられていない | — |
-| 関数（イベントハンドラ） | 送れない。クライアントのコンポーネント内で定義する | — |
+| Injection into HTML attributes | React's SSR escapes attribute values (`"` becomes `&quot;`, etc.). 3ch's tests confirm that a string containing Japanese text and `"<&>` round-trips | `tests/islands-hydration.test.js`, the expected `&quot;` in `tests/islands-bridge.test.js` |
+| `</script>` | Doesn't apply to the current method (attribute values). Props go into an attribute value, not inside `<script>`, so there is no path to break out of the context with `</script>`. If props are put in `<script type="application/json">` in the future, output `<` in the JSON string **replaced by the 6-character string `<`** (after replacement it is still the original `<` as JSON, and since `<` never appears in the HTML context, `</script>` can't be formed). Replacing `<` with some other character, outputting `<` as-is, or targeting only `</script` are all considered insufficient | `honox-island.js` |
+| Values invalid as JSON | Properties that are `undefined`, functions or Symbols are silently dropped. `NaN` / `Infinity` become `null`. `BigInt` throws. `Date` becomes an ISO string and stays a string when restored | The specification of `JSON.stringify` |
+| Scala values | For case classes, `Option`, Scala collections and `Long` (not a JS number in Scala.js), the property names and object structure visible from JS don't match the Scala type. Passing them directly produces broken JSON or loses information | Scala.js's representation. 3ch's `docs/islands-ssr.md` also states "don't pass case classes or collections directly" |
+| Unicode | Non-ASCII characters are output as UTF-8 without escaping. Lone surrogates are output in the form `\udXXX` and restored by `JSON.parse` (`JSON.stringify` from ES2019 on). U+2028 / U+2029 are not a problem inside attribute values | The specification of `JSON.stringify`. Pages are assumed to be UTF-8 (islands are not used on Shift_JIS pages) |
+| Size | Props go into the HTML as attribute values and are sent separately from the SSR markup. There is no limit | — |
+| Functions (event handlers) | Can't be sent. Define them inside the client component | — |
 
-hx4s の規約:
+hx4s's conventions:
 
-- island の Props に使える型は `String`・`Double`・`Int`・`Boolean`・`js.UndefOr[T]`・`js.Array[T]`・別の Props trait・React 要素（template 扱い）に限る。
-- `js.UndefOr` のフィールドは、値が無いときにキーごと落ちる。クライアントは「キーが無い」と「`undefined`」を区別しない前提で書く。
-- Props の検証（必須キーと型）はクライアントの入口の `validate` で行う。サーバー側は、呼び出し側の引数が `P` に合うことを型で保証する（保証の範囲は 2.3、[ADR 0003](adr/0003-typed-island-props.md)）。
-- `validate` が失敗したとき、クライアントは `console.error` を出して hydration せず、SSR の markup を残す。これを P0 の方針とする（U-12）。
-- codegen は P0 では Props trait の中身を検査しない（構文ベースで型を解決しないため。[ADR 0004](adr/0004-scalameta-codegen.md)）。
-  使える型の制限は文書と、可能なら P1 で Scala の型レベルの制約（`IslandProps` の上限境界など）で補う。
+- Types usable in island props are limited to `String`, `Double`, `Int`, `Boolean`, `js.UndefOr[T]`, `js.Array[T]`, other props traits, and React elements (treated as templates).
+- Fields of `js.UndefOr` drop their key when there is no value. Write the client assuming it doesn't distinguish "key missing" from "`undefined`".
+- Props validation (required keys and types) is done by `validate` at the client entry. On the server side, types guarantee that the caller's arguments fit `P` (scope of the guarantee in 2.3, [ADR 0003](adr/0003-typed-island-props.md)).
+- When `validate` fails, the client logs `console.error`, doesn't hydrate, and keeps the SSR markup. This is the P0 policy (U-12).
+- In P0, codegen doesn't check the contents of props traits (it's syntax-based and doesn't resolve types; [ADR 0004](adr/0004-scalameta-codegen.md)).
+  The restriction on usable types is covered by documentation and, if possible in P1, by type-level constraints in Scala (an upper bound on `IslandProps`, etc.).
 
-### 2.3 型付き Props の保証範囲と JSON 往復の制約
+### 2.3 Scope of typed props guarantees and constraints of the JSON round trip
 
-Scala の型が保証することと、JSON が保証することを分けて書く。
+This separates what Scala's types guarantee from what JSON guarantees.
 
-**Scala の型が保証すること（P0）**: `IslandComponents.Xxx(props: P)` の呼び出し側の引数が `P`（非ネイティブ JS trait）に合うこと。つまり **server のコードの引数型だけ**である。
-client の island コンポーネントが同じ `P` を読む保証は無い。`@islands[P]` の `P` は注釈の型引数として生成 API に写されるだけで、
-`@JSExportTopLevel` された client のコンポーネントの引数型とは結び付いていない。したがって client が別の型（`Q`）で `props` を読んでいても、コンパイルは通る。
-対策候補として、client の export を `P` に結び付ける **typed export 補助**（例: `def XxxJs: IslandExport[P]` のような型で、`P` と一致しない実装をコンパイルエラーにする）を Phase 3 の設計項目にする（[extraction-plan.md](extraction-plan.md) 3-1a、未決事項 U-24）。
-それまでは、shared の `validate` と、client 側の読み取りコードのレビューで補う。
+**What Scala's types guarantee (P0)**: that the caller's arguments to `IslandComponents.Xxx(props: P)` fit `P` (a non-native JS trait). That is, **only the argument types of the server's code**.
+There is no guarantee that the client's island component reads the same `P`. The `P` of `@islands[P]` is only copied into the generated API as the annotation's type argument,
+and is not tied to the argument type of the client component exported with `@JSExportTopLevel`. So even if the client reads `props` with a different type (`Q`), it compiles.
+As a countermeasure, a **typed export helper** tying the client export to `P` (e.g. a type like `def XxxJs: IslandExport[P]` that makes implementations not matching `P` a compile error) becomes a Phase 3 design item ([extraction-plan.md](extraction-plan.md) 3-1a, open question U-24).
+Until then, it is covered by `validate` in shared and by reviewing the client's reading code.
 
-**Phase 3 で実装した**: `hx4s.react.IslandExport[P]`（[ADR 0007](adr/0007-props-validation-and-typed-export.md)）。export の宣言型 `IslandExport[T]` と `@islands[P]` を codegen が構文で照合し、
-宣言型と描画関数の props の型はコンパイラが照合する。受信した JSON は `JsShape` で確かめ、hydrate の前にも同じ検証関数を呼んで不一致なら SSR の markup を残す（2.4 の P0 の方針）。
+**Implemented in Phase 3**: `hx4s.react.IslandExport[P]` ([ADR 0007](adr/0007-props-validation-and-typed-export.md)). Codegen syntactically compares the export's declared type `IslandExport[T]` with `@islands[P]`,
+and the compiler compares the declared type with the props type of the render function. Received JSON is checked with `JsShape`, and the same validation function is called before hydration; on mismatch the SSR markup is kept (the P0 policy of 2.4).
 
-**JSON 往復が保証しないこと**: `P` に適合する値でも、次は `JSON.stringify` を通すと失われる、または失敗する。
+**What the JSON round trip doesn't guarantee**: even values fitting `P` are lost or fail when passed through `JSON.stringify` in the following cases.
 
-| 項目 | 挙動 | 対応 |
+| Item | Behavior | Response |
 | --- | --- | --- |
-| 非有限の `Double`（`NaN`・`±Infinity`） | `null` になる。client の `validate` が数値を要求していれば不一致になる | server で渡さない。`validate` で検出する |
-| 循環参照 | `JSON.stringify` が例外を投げ、SSR が失敗する（500 になりうる） | Props に循環する構造を作らない。検証項目に入れる |
-| `undefined` | キーごと落ちる（配列の中では `null`）。`js.UndefOr` の「値なし」と一致する | 「キーが無い」と「`undefined`」を区別しない（2.2） |
-| 入れ子オブジェクトの中の React 要素 | HonoX の要素判定（`isElementPropValue`）は **props のトップレベルの値と、その配列** にしか効かない。入れ子のオブジェクト（別の Props trait のフィールド）に入れた要素は `<template>` にならず、`JSON.stringify` に渡って壊れる | 要素 props は `P` のトップレベルのフィールドか、その配列に限る |
-| `Long` | Scala.js の `Long` は JS の number ではなく、JSON に直接出せない | `Props` に `Long` を使わない（`Double` か文字列にする）。2.2 の「使える型」に含まれない |
-| 関数・Symbol・`BigInt` | 関数と Symbol は落ち、`BigInt` は例外（2.2） | 使わない |
+| Non-finite `Double` (`NaN`, `±Infinity`) | Becomes `null`. If the client's `validate` requires a number, it mismatches | Don't pass them from the server. Detect them with `validate` |
+| Cyclic references | `JSON.stringify` throws and SSR fails (can become a 500) | Don't create cyclic structures in props. Include in the verification items |
+| `undefined` | The key is dropped (`null` inside arrays). Matches "no value" of `js.UndefOr` | Don't distinguish "key missing" from "`undefined`" (2.2) |
+| React elements inside nested objects | HonoX's element detection (`isElementPropValue`) only works on **top-level props values and arrays of them**. Elements put in nested objects (fields of another props trait) don't become `<template>`s, are passed to `JSON.stringify` and break | Element props are limited to top-level fields of `P` or arrays of them |
+| `Long` | Scala.js's `Long` is not a JS number and can't be written to JSON directly | Don't use `Long` in props (use `Double` or a string). Not among the "usable types" in 2.2 |
+| Functions, Symbols, `BigInt` | Functions and Symbols are dropped; `BigInt` throws (2.2) | Don't use them |
 
-検証項目（[compatibility.md](compatibility.md) 3 章に追加）: 非有限の `Double`・循環参照・入れ子の要素を含む Props で、SSR が失敗する、または hydration が不一致になることを確かめ、
-その場合の挙動（`console.error` と SSR の markup の維持、2.2）が仕様どおりであること。
+Verification items (added to [compatibility.md](compatibility.md) chapter 3): with props containing non-finite `Double`s, cyclic references or nested elements, confirm that SSR fails or hydration mismatches,
+and that the behavior in that case (`console.error` and keeping the SSR markup, 2.2) is as specified.
 
-### 2.4 HTML と client asset の世代ずれ
+### 2.4 Version skew between HTML and client assets
 
-SSR の HTML（server が出す `data-serialized-props`）と、client の asset（`static/client.js` と island の chunk）は、別々に配信され、別々にキャッシュされる。
-**同じデプロイで作られるから一致する、とは言えない。** 次の組み合わせが起こりうる。
+The SSR HTML (the `data-serialized-props` output by the server) and the client assets (`static/client.js` and island chunks) are served and cached separately.
+**We can't say they match because they are built in the same deployment.** The following combinations can occur:
 
-- 古い HTML（キャッシュ済み、デプロイ前に取得）+ 新しい client asset
-- 新しい HTML + 古い client asset（asset のキャッシュが残っている、CDN の反映が遅れている）
-- 読み込み途中でのデプロイ（`static/client.js` は新しく、遅延 import される chunk は古い、またはその逆）
+- Old HTML (cached, fetched before the deployment) + new client assets
+- New HTML + old client assets (asset cache still alive, CDN propagation delayed)
+- A deployment in the middle of loading (`static/client.js` is new while lazily imported chunks are old, or vice versa)
 
-3ch の client の入口は固定名（`vite.config.ts` の `entryFileNames: "static/client.js"`）で、HTML から参照される名前に世代の情報が無い。
-この状況で Props のスキーマ（`P` のフィールド）を変えると、世代ずれの間は client が受け取る JSON が `P` に合わなくなる。
+3ch's client entry has a fixed name (`entryFileNames: "static/client.js"` in `vite.config.ts`), so the name referenced from the HTML carries no version information.
+Changing the props schema (fields of `P`) in this situation means that during the skew, the JSON the client receives doesn't fit `P`.
 
-P0 の方針: client の入口で `validate` を行い、不一致なら `console.error` を出し、hydration せずに SSR の markup を残す（見た目は静的 HTML のまま。2.2）。
-これは世代ずれが起きたときに画面を壊さないための最低限であり、ずれ自体を防ぐものではない。
+P0 policy: run `validate` at the client entry, and on mismatch log `console.error` and keep the SSR markup without hydrating (it stays as static HTML; 2.2).
+This is the minimum to keep the screen from breaking when skew happens; it doesn't prevent the skew itself.
 
-実装（Phase 3）: `app/client.ts` の `hydrate` が `hx4s-vite/client` の `islandPropsProblem(element)` を呼び、理由が返れば `hydrateRoot` を呼ばない。保証の範囲は次のとおり。
+Implementation (Phase 3): `hydrate` in `app/client.ts` calls `islandPropsProblem(element)` from `hx4s-vite/client`, and if a reason is returned, doesn't call `hydrateRoot`. The scope of the guarantee is as follows.
 
-| 区分 | 内容 |
+| Category | Content |
 | --- | --- |
-| 確かめる | hydrate する island（HonoX の境界 1 つ）の props。その要素 props（HonoX が `<template>` から復元する子。配列の中と、復元した要素のさらに要素 props も辿る）に含まれる island の props。対象は `IslandExport.apply` で作った export（検証関数 `hx4sValidate` を持つもの） |
-| 不一致のとき | その境界全体を hydrate しない。内側の island だけが不正でも、外側を含めて SSR の markup のまま残す（部分的には hydrate しない）。理由は `props.children[1]: props.start: missing` のように位置付きで返る |
-| 確かめない | `IslandExport.unchecked` や JS で書いた island。要素 props 以外（普通の値の中）に入った要素。hydrate の後に読み込まれる chunk の世代。HonoX の Suspense（`template[id^="H:"]`）で後から届く内容 |
+| Checked | The props of the island being hydrated (one HonoX boundary), and the props of islands contained in its element props (children HonoX restores from `<template>`, following arrays and the element props of restored elements too). Targets are exports built with `IslandExport.apply` (those with the validation function `hx4sValidate`) |
+| On mismatch | The whole boundary is not hydrated. Even if only an inner island is invalid, it stays as SSR markup including the outer one (no partial hydration). The reason is returned with its location, like `props.children[1]: props.start: missing` |
+| Not checked | `IslandExport.unchecked` and islands written in JS. Elements placed outside element props (inside ordinary values). The version of chunks loaded after hydration. Content that arrives later through HonoX's Suspense (`template[id^="H:"]`) |
 
-雛形に検証を直書きしていた Phase 3 の当初の実装は、最外側の `element.type` だけを見ていた。template 内の island が不正だと外側の hydrate が始まり、
-内側の `IslandExport` が空を描画して SSR の内容を失うことがあった（Phase 3 レビュー K6）。
+The initial Phase 3 implementation, with the validation written directly in the template, looked only at the outermost `element.type`. If an island inside a template was invalid, hydration of the outer one started,
+and the inner `IslandExport` rendered nothing, losing the SSR content (Phase 3 review K6).
 
-未決事項（[roadmap.md](roadmap.md) U-26）:
+Open questions ([roadmap.md](roadmap.md) U-26):
 
-- entry のハッシュ名化（`client.[hash].js`）と、HTML がハッシュ付きの名前を参照する方法（HonoX は manifest を使う方法を持つが、3ch の client ビルドは `honox()` を使っていない）。
-- キャッシュ制御（`static/client.js` を再検証させる `Cache-Control` など）。実行基盤側の設定。
-- 旧 asset の保持期間（デプロイ後も一定期間、旧世代の chunk を配信し続けるか）。
-- Props スキーマ変更の指針: フィールドの追加は `js.UndefOr` で受ける、削除は 2 段階にする、必須フィールドの追加は避ける、など。
-- 新旧の組み合わせの検証: 旧 HTML + 新 client、新 HTML + 旧 client の両方で、`validate` が不一致を検出して SSR の markup が残ること。
-  旧 HTML + 新 client は `tests/islands-hydration.test.js`（最外側と template 内）と examples の `tests/hydration.test.js` で確かめている。
-- client の出力名は `hx4s()` の `client.output` で変えられるようにした（既定は固定名のまま）。ハッシュ名を既定にするかと、HTML への受け渡しは未決のまま。
+- Hashed entry names (`client.[hash].js`), and how the HTML references the hashed name (HonoX has a way using a manifest, but 3ch's client build doesn't use `honox()`).
+- Cache control (`Cache-Control` that makes `static/client.js` revalidate, etc.). A runtime-side setting.
+- How long to keep old assets (whether to keep serving the old generation's chunks for a while after a deployment).
+- Guidelines for props schema changes: receive added fields as `js.UndefOr`, remove in two steps, avoid adding required fields, etc.
+- Verifying old/new combinations: with both old HTML + new client and new HTML + old client, `validate` detects the mismatch and the SSR markup remains.
+  Old HTML + new client is checked by `tests/islands-hydration.test.js` (outermost and inside templates) and the examples' `tests/hydration.test.js`.
+- The client's output names can now be changed with `client.output` of `hx4s()` (the default stays a fixed name). Whether to make hashed names the default, and how to pass them to the HTML, remain undecided.
 
-## 3. 型付き Props 方式の比較
+## 3. Comparison of typed props approaches
 
-3ch の現行は `js.Object` / `js.Dynamic.literal` で組み立て、クライアントで `selectDynamic` で読む。
-キー名の食い違いがコンパイルで検出されず、欠落が空文字や 0 に化ける（`docs/island-props型付け計画.md` 1 章）。
+3ch currently builds props with `js.Object` / `js.Dynamic.literal` and reads them on the client with `selectDynamic`.
+Mismatched key names aren't caught at compile time, and missing values turn into empty strings or 0 (chapter 1 of `docs/island-props型付け計画.md`).
 
-| 方式 | 実装の単純さ | バンドルサイズ | 実行時コスト | Scala.js 互換性 | エラー検出性 |
+| Approach | Simplicity of implementation | Bundle size | Runtime cost | Scala.js compatibility | Error detection |
 | --- | --- | --- | --- | --- | --- |
-| A. 非ネイティブ JS trait を shared に置き、`@islands[P]` の型引数を生成 API の引数型にする（**P0 採用**） | 高い。codegen は型引数の構文を文字列で写すだけ | 追加コード無し（trait は JS オブジェクトの形の宣言） | 変換なし。サーバーは JS オブジェクトを直接作り、クライアントは `asInstanceOf` | 標準機能。`js.UndefOr` / `js.Array` の扱いは Scala.js の規則どおり | サーバーの呼び出し側のフィールド過不足・型違いはコンパイルエラー（client のコンポーネントが同じ `P` を読む保証は無い。2.3）。クライアントの受信値は未検査なので手書き `validate` が要る |
-| B. case class + Scala 3 `Mirror` で codec を導出 | 中。codec の導出とエラー報告を書く必要がある。`Option`・enum・入れ子の規則も決める | codec の分だけ増える（量は未計測） | SSR とクライアントで変換が 1 回ずつ走る | Mirror はコンパイル時の機能で Scala.js でも動く。外部ライブラリ（upickle / circe 等）を使うとその分の依存とサイズが増える | 両側とも型付き。デコード時に欠落を `Either` で検出できる |
-| C. `js.Dynamic` 継続 | 最も単純（現状維持） | 追加なし | 変換なし | 問題なし | 検出できない。キーの typo・欠落が実行時に空表示になる |
-| D. Scala 3 マクロで case class から JS オブジェクトへの変換と検証を生成 | 低い。マクロの保守と、エラーメッセージの品質の確保が要る | 生成コードの分だけ増える（量は未計測。B より小さくできる可能性はある） | 変換が 1 回ずつ走る | マクロは Scala 3 の標準機能だが、`js.Object` 周りの扱いは Scala.js 固有の制約に注意がいる | B と同等。コンパイル時に使えない型を拒否できる |
+| A. Put non-native JS traits in shared and make the type argument of `@islands[P]` the argument type of the generated API (**adopted for P0**) | High. Codegen only copies the syntax of the type argument as a string | No added code (a trait is a declaration of the shape of a JS object) | No conversion. The server builds JS objects directly, and the client uses `asInstanceOf` | Standard features. `js.UndefOr` / `js.Array` follow Scala.js's rules | Missing or extra fields and type mismatches on the server's calling side are compile errors (no guarantee that the client component reads the same `P`; 2.3). Values received by the client are unchecked, so a hand-written `validate` is needed |
+| B. Derive a codec with case classes + Scala 3 `Mirror` | Medium. Codec derivation and error reporting need to be written. Rules for `Option`, enums and nesting need deciding too | Grows by the codec (not measured) | Conversion runs once each on SSR and the client | Mirror is a compile-time feature and works on Scala.js. Using external libraries (upickle / circe, etc.) adds their dependencies and size | Typed on both sides. Missing values can be detected with `Either` when decoding |
+| C. Keep `js.Dynamic` | Simplest (status quo) | Nothing added | No conversion | No problems | Not detected. Key typos and missing values show up as empty displays at run time |
+| D. Generate conversion from case classes to JS objects and validation with Scala 3 macros | Low. Requires maintaining macros and keeping error messages good | Grows by the generated code (not measured; possibly smaller than B) | Conversion runs once each | Macros are a standard Scala 3 feature, but handling around `js.Object` needs care with Scala.js-specific constraints | Same as B. Unusable types can be rejected at compile time |
 
-A を採る理由は、ランタイムの追加がゼロで codec 依存が要らず、3ch の既存計画（`docs/island-props型付け計画.md`）とそのまま一致するため。
-弱点の「クライアント側で受信値が検証されない」は、shared に置く `validate(raw): Either[String, P]` で補う。これは手書きになる。
+A is chosen because it adds nothing at run time, needs no codec dependency, and matches 3ch's existing plan (`docs/island-props型付け計画.md`) as-is.
+Its weakness, "received values aren't validated on the client", is covered by `validate(raw): Either[String, P]` in shared. This is hand-written.
 
-B（と D）は Props を Scala の値として扱いたい利用者向けの追加 API として P1 / P2 の候補にする。導入する場合も A を置き換えず、
-`@islands[P]` の `P` が case class なら codec を経由する、という形で共存させる案が有力（未決事項 U-22）。
+B (and D) are candidates for an additional API in P1 / P2 for users who want to treat props as Scala values. Even if introduced, they wouldn't replace A;
+the leading idea is to coexist, going through a codec when the `P` of `@islands[P]` is a case class (open question U-22).

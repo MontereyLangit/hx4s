@@ -3,12 +3,12 @@ package hx4s.codegen
 import java.nio.file.Path
 import java.util.Locale
 
-/** 生成ファイルの相対パスの規則。どの OS でも出力ルートの外や予約名に書かないようにする */
+/** Rules for relative paths of generated files, so that nothing is written outside the output root or to reserved names on any OS */
 object OutputPath {
   private val SegmentPattern = "[A-Za-z0-9_.$\\[\\]-]+"
   private val Reserved = Set("CON", "PRN", "AUX", "NUL") ++ (1 to 9).flatMap(n => List(s"COM$n", s"LPT$n"))
 
-  /** `/` 区切りの相対パスを区切りごとに確かめる。誤りなら理由を返す */
+  /** Checks a `/`-separated relative path segment by segment. Returns the reason on error */
   def segments(relative: String): Either[String, List[String]] = {
     val parts = relative.split("/", -1).toList
     parts.collectFirst(Function.unlift(problem)) match {
@@ -26,7 +26,7 @@ object OutputPath {
     else None
   }
 
-  /** root 配下へ解決する。正規化したパスが root の外に出るなら誤り */
+  /** Resolves under root. An error if the normalized path leaves root */
   def resolve(root: Path, relative: String): Either[String, Path] = {
     segments(relative).flatMap { parts =>
       val base = root.toAbsolutePath.normalize()

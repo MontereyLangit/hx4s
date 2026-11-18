@@ -1,11 +1,11 @@
-# client が server に（推移的に）依存していれば生成タスクが失敗する
+# The generation task fails if the client depends (transitively) on the server
 -> server/hx4sGenerate
 > checkClientToServer
 
-# server が client に依存していれば失敗する
+# It fails if the server depends on the client
 -> server3/hx4sGenerate
 > checkServerToClient
 
-# テストだけの依存は対象外
+# Test-only dependencies are excluded
 > server2/hx4sCheckDependencies
 > server2/hx4sGenerate

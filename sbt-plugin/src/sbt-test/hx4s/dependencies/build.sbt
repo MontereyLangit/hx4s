@@ -2,7 +2,7 @@ ThisBuild / scalaVersion := "3.3.8"
 
 lazy val shared = project
 
-// client が mid 経由で Hx4sPlugin を有効にした server に依存している（禁止）
+// The client depends via mid on a server with Hx4sPlugin enabled (forbidden)
 lazy val mid: Project = project.dependsOn(server)
 lazy val client: Project = project.dependsOn(shared, mid)
 
@@ -11,7 +11,7 @@ lazy val server: Project = project
   .dependsOn(shared)
   .settings(hx4sClientProject := client)
 
-// server が client に依存している（禁止）。テストだけの依存は対象外
+// The server depends on the client (forbidden). Test-only dependencies are excluded
 lazy val client2 = project.dependsOn(shared)
 lazy val testOnly = project.dependsOn(client2 % "test")
 lazy val server2 = project
@@ -29,7 +29,7 @@ def failureMessage(result: Result[_]): String = result match {
   case Value(_) => sys.error("the task should fail")
 }
 
-val checkClientToServer = taskKey[Unit]("client から server への推移的な依存で失敗し、経路を出すことを確かめる")
+val checkClientToServer = taskKey[Unit]("Checks that a transitive dependency from client to server fails and prints the path")
 
 checkClientToServer := {
   val message = failureMessage((server / hx4sGenerate).result.value)
@@ -38,7 +38,7 @@ checkClientToServer := {
   assert(!((ThisBuild / baseDirectory).value / "app").exists, "nothing is generated")
 }
 
-val checkServerToClient = taskKey[Unit]("server から client への依存で失敗することを確かめる")
+val checkServerToClient = taskKey[Unit]("Checks that a dependency from server to client fails")
 
 checkServerToClient := {
   val message = failureMessage((server3 / hx4sGenerate).result.value)

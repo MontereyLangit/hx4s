@@ -1,13 +1,13 @@
 ThisBuild / scalaVersion := "3.3.8"
 
-// 空白を含むディレクトリのソースも読めることを確かめる
+// Checks that sources in directories containing spaces can be read
 lazy val client = project.in(file("client app"))
 
 lazy val server = project
   .enablePlugins(Hx4sPlugin)
   .settings(hx4sClientProject := client)
 
-// hx4sClientProject を設定しない SSR だけの構成
+// An SSR-only setup without hx4sClientProject
 lazy val ssrOnly = project
   .in(file("ssr-only"))
   .enablePlugins(Hx4sPlugin)
@@ -20,7 +20,7 @@ def islandComponents(sources: Seq[File]): String =
 
 def relative(root: File, files: Seq[File]): Seq[String] = files.map(file => IO.relativize(root, file).get.replace('\\', '/')).sorted
 
-val check = taskKey[Unit]("生成物の内容を確かめる")
+val check = taskKey[Unit]("Checks the content of the generated files")
 
 check := {
   val root = (ThisBuild / baseDirectory).value
@@ -44,7 +44,7 @@ check := {
   assert(api.contains("_root_.hx4s.react.Island(_root_.hx4s.generated.IslandComponent0, props, \"/app/islands/counter.tsx\")"), api)
 }
 
-val checkNoIslands = taskKey[Unit]("最後の island を消した後の生成物を確かめる")
+val checkNoIslands = taskKey[Unit]("Checks the generated files after removing the last island")
 
 checkNoIslands := {
   val root = (ThisBuild / baseDirectory).value
@@ -54,7 +54,7 @@ checkNoIslands := {
   assert(api.contains("object IslandComponents {}") && !api.contains("@JSImport"), api)
 }
 
-val checkSsrOnly = taskKey[Unit]("client を持たない構成の生成物を確かめる")
+val checkSsrOnly = taskKey[Unit]("Checks the generated files of a setup without a client")
 
 checkSsrOnly := {
   val root = (ssrOnly / baseDirectory).value
@@ -63,7 +63,7 @@ checkSsrOnly := {
   assert(api.contains("object IslandComponents {}"), api)
 }
 
-val removeIslands = taskKey[Unit]("client のソースから island を消す（scripted の $ コマンドは空白を含むパスを扱えない）")
+val removeIslands = taskKey[Unit]("Removes the island from the client sources (scripted $ commands cannot handle paths with spaces)")
 
 removeIslands := {
   val sources = (client / baseDirectory).value / "src" / "main" / "scala" / "app"

@@ -21,7 +21,7 @@ class JsShapeSuite extends FunSuite {
   )
   private def parse(json: String): js.Any = js.JSON.parse(json)
 
-  test("すべてのキーがそろえば型付きの値として読める。optional のキーは省ける") {
+  test("with all keys present it reads as a typed value; optional keys can be omitted") {
     val probe = JsShape.validate[Probe](parse("""{"label":"a","count":2,"items":[{"name":"x"}]}"""), fields).toOption.get
     assertEquals(probe.label, "a")
     assertEquals(probe.count, 2.0)
@@ -29,7 +29,7 @@ class JsShapeSuite extends FunSuite {
     assertEquals(probe.items.map(_.name).toList, List("x"))
   }
 
-  test("欠けたキー・型違い・入れ子の誤りをまとめてパス付きで返す") {
+  test("missing keys, type mismatches and nested errors are returned together with paths") {
     val result = JsShape.validate[Probe](parse("""{"count":"2","enabled":1,"items":[{"name":3},{}]}"""), fields)
     assertEquals(result, Left(List(
       "props.label: missing", "props.count: expected number, got string", "props.enabled: expected boolean, got number",
@@ -37,19 +37,19 @@ class JsShapeSuite extends FunSuite {
     ).mkString("; ")))
   }
 
-  test("null・配列・プリミティブはオブジェクトとして扱わない") {
+  test("null, arrays and primitives are not treated as objects") {
     List("null", "[]", "1", "\"x\"").foreach { json =>
       assert(JsShape.validate[Probe](parse(json), fields).isLeft, json)
     }
     assert(JsShape.validate[Probe](parse("""{"label":"a","count":1,"items":{}}"""), fields).isLeft)
   }
 
-  test("Unicode の文字列はそのまま通る") {
-    val probe = JsShape.validate[Probe](parse("""{"label":"日本語😀 \"引用\"","count":0,"items":[]}"""), fields).toOption.get
-    assertEquals(probe.label, "日本語😀 \"引用\"")
+  test("Unicode strings pass through unchanged") {
+    val probe = JsShape.validate[Probe](parse("""{"label":"Ünïcödé😀 \"quoted\"","count":0,"items":[]}"""), fields).toOption.get
+    assertEquals(probe.label, "Ünïcödé😀 \"quoted\"")
   }
 
-  test("Num は NaN・無限大を拒否し、Int は小数と Int の範囲外も拒否する") {
+  test("Num rejects NaN and infinities, and Int also rejects fractions and values outside the Int range") {
     val numbers = List(required("n", JsKind.Num))
     val integers = List(required("n", JsKind.Int))
     def probe(value: Double): js.Any = js.Dynamic.literal(n = value)
@@ -67,7 +67,7 @@ class JsShapeSuite extends FunSuite {
     assertEquals(JsShape.validate[js.Object](parse("""{"n":"1"}"""), integers), Left("props.n: expected number, got string"))
   }
 
-  test("read は失敗を console.error に出して None を返し、例外にしない") {
+  test("read logs failures to console.error and returns None without throwing") {
     val console = js.Dynamic.global.console
     val original = console.error
     val messages = js.Array[String]()

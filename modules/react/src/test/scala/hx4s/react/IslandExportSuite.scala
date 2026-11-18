@@ -38,30 +38,30 @@ class IslandExportSuite extends FunSuite {
   private def validator(component: IslandExport[?]): js.Function1[js.Any, js.UndefOr[String]] =
     component.asInstanceOf[js.Dynamic].hx4sValidate.asInstanceOf[js.Function1[js.Any, js.UndefOr[String]]]
 
-  test("正しい props なら描画する") {
-    assertEquals(render(greeting, js.JSON.parse("""{"name":"世界","times":2}""")), "<p>世界 x2</p>")
+  test("renders with valid props") {
+    assertEquals(render(greeting, js.JSON.parse("""{"name":"Wörld","times":2}""")), "<p>Wörld x2</p>")
   }
 
-  test("不正な props では console.error を出して何も描画しない") {
+  test("with invalid props it logs console.error and renders nothing") {
     withConsoleErrors { messages =>
       assertEquals(render(greeting, js.JSON.parse("""{"name":1}""")), "")
       assertEquals(messages.toList, List("[GreetingJs] invalid props: props.name: expected string, got number; props.times: missing"))
     }
   }
 
-  test("hydrate の前に使う検証関数を export に付ける") {
+  test("attaches the validation function used before hydration to the export") {
     val validate = validator(greeting)
     assert(js.isUndefined(validate(js.JSON.parse("""{"name":"a","times":1}"""))))
     assertEquals(validate(js.JSON.parse("""{"name":"a","times":1.5}""")).toOption, Some("props.times: expected integer in Int range, got 1.5"))
   }
 
-  test("unchecked は検証関数を付けない") {
+  test("unchecked attaches no validation function") {
     val raw = IslandExport.unchecked[GreetingProps]("RawJs")(props => <.span(props.name))
     assertEquals(render(raw, js.JSON.parse("""{"name":"x","times":0}""")), "<span>x</span>")
     assert(js.isUndefined(raw.asInstanceOf[js.Dynamic].hx4sValidate))
   }
 
-  test("宣言した props の型と描画関数の props の型が違えばコンパイルできない") {
+  test("does not compile when the declared props type differs from the props type of the render function") {
     assertEquals(compileErrors("val x: IslandExport[GreetingProps] = IslandExport(\"X\", fields)(p => <.p(p.name))"), "")
     assert(compileErrors("val x: IslandExport[OtherProps] = IslandExport[GreetingProps](\"X\", fields)(p => <.p(p.name))").nonEmpty)
     assert(compileErrors("val x: IslandExport[OtherProps] = greeting").nonEmpty)

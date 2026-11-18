@@ -1,9 +1,9 @@
-# 誤ったアノテーションでは生成タスクが失敗する
+# The generation task fails with wrong annotations
 -> server/hx4sGenerate
 -> server/hx4sIslandComponents
 $ absent app/routes/index.ts
-# 失敗のメッセージに「パス:行: 理由」が出る
+# The failure message shows "path:line: reason"
 > checkGenerateFailure
-# 誤りの行はログに 1 回だけ出る（fork した JVM の出力・例外のメッセージ・最後の要約で繰り返さない）
+# Error lines appear only once in the log (not repeated by the forked JVM's output, the exception message or the final summary)
 > checkGenerateLog
 > checkIslandComponentsFailure

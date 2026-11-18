@@ -1,44 +1,44 @@
 # Changelog
 
-このファイルは [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) の形式で、版ごとの変更を記録する。
-版の付け方は [SemVer](https://semver.org/lang/ja/)（`0.x` の間は、マイナー版で互換性が変わりうる）。公開の状態は [docs/release.md](docs/release.md)。
+This file records changes per version in the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+Versions follow [SemVer](https://semver.org/) (during `0.x`, a minor version may change compatibility). See [docs/release.md](docs/release.md) for the publishing status.
 
 ## [Unreleased]
 
-0.1.0 の開発中。Maven Central・npm には未公開で、ローカル公開（`scripts/publish-local.mjs`）だけで使える。
+0.1.0 is in development. It is not published to Maven Central or npm and can be used only through a local publish (`scripts/publish-local.mjs`).
 
 ### Added
 
-- **hx4s-core**: アノテーション `@route(filePath, method)`・`@islands[P](filePath)`（JVM と Scala.js）。JS 側に props の検証 `JsShape`（`JsKind`・`JsField`、`validate` / `read`）
+- **hx4s-core**: annotations `@route(filePath, method)` and `@islands[P](filePath)` (JVM and Scala.js). On the JS side, props validation `JsShape` (`JsKind`, `JsField`, `validate` / `read`)
 - **hx4s-react**:
-  - HonoX の island 境界を付ける `hx4s.react.Island`
-  - client の export を props の型 `P` に結び付ける `IslandExport[P]`（`apply` は props を検証して描画、`unchecked` は検証しない）
-  - Hono の Context の facade `hx4s.hono.Context[Env, R]`・`HonoRequest`（Request / Response は scalajs-dom の型）
-  - `executionCtx`（`ExecutionContext`）と拡張メソッド `executionCtxOption`、`html`、`set` / `get` と型付きの `ContextVariable[A]`（`setVariable` / `getVariable`）、
-    `HonoRequest.queries`・`text()`・`json()`・`formData()`
-  - 本文をそのまま返す `body(data, status, headers)`（`null` 本文で 204 / 304 を返せる）と `notFound()`
+  - `hx4s.react.Island`, which marks a HonoX island boundary
+  - `IslandExport[P]`, which binds a client export to the props type `P` (`apply` validates props and renders; `unchecked` does not validate)
+  - A facade for Hono's Context, `hx4s.hono.Context[Env, R]` and `HonoRequest` (Request / Response are scalajs-dom types)
+  - `executionCtx` (`ExecutionContext`) and the extension method `executionCtxOption`, `html`, `set` / `get` and typed `ContextVariable[A]` (`setVariable` / `getVariable`),
+    `HonoRequest.queries`, `text()`, `json()`, `formData()`
+  - `body(data, status, headers)`, which returns the body as-is (a `null` body can return 204 / 304), and `notFound()`
 - **hx4s-codegen**:
-  - scalameta で `@route` / `@islands` を読み、`app/routes/**/*.ts`・`app/islands/**/*.tsx` と SSR 用の `IslandComponents.scala` を生成する
-  - 設定を `--key value` で受ける `CodegenMain`（`app` / `island-components`）
-  - 検査: `HEAD` と HonoX が拾わないファイル名の拒否、別のファイルが同じ URL・同じメソッドになる route の拒否、island のファイル名の規則、`@islands[P]` と export の型 `IslandExport[T]` の照合。server と client の誤りはまとめて報告し、宣言ごとの誤りがあっても残りの宣言で重複・URL の衝突を同じ実行で確かめる
-  - 出力の安全策: 手書きファイルを上書き・削除しない、全検査のあとに書く、同じ内容は書かない、一時ファイル経由の置き換え、リンクを辿らない、大文字小文字だけ違うパスを拒否する
-  - 生成コードの識別子の衝突回避（import の別名）と、生成ソースへ埋め込む設定値の検証
-- **sbt-hx4s**: `Hx4sPlugin`。設定キー（`hx4sClientProject` ほか）、`hx4sGenerate`、`Compile / sourceGenerators` による `IslandComponents` の生成（入力が変わらなければ再生成しない）、
-  `hx4sCheckDependencies`（client と server の依存の向きの検査）、client なし（SSR だけ）の構成。codegen は専用 configuration で解決して fork した JVM で動かし、失敗時は誤りの行を 1 回だけ出して要約で失敗する
-- **hx4s-vite**: `hx4s()` Vite プラグイン（server / client の Scala.js プロジェクトの登録と `buildStart` の直列化、`scalajs:client.js` の別名、honox の React 設定、client ビルドの出力名）、
-  `client: false` で client の無い構成（API だけ・island の無い SSR）を扱う、
-  hydrate 前の props の検証 `hx4s-vite/client` の `islandPropsProblem`（template 内の island を含む）、Node 用 loader `hx4s-vite/node-loader`・`node-register`
-- **scripts**: `publish-local.mjs`（ローカル公開、公開記録、`--verify`）、`setup-example.mjs`、`check-independence.mjs`
-- 版の定義を `version.txt` の 1 か所にする（sbt の既定・ローカル公開の版はそこから作り、`vite/package.json` との食い違いはテストが検出する）
-- **examples/minimal**: SSR + Islands の最小アプリ（動的ルート、POST、JSON の API、island 2 種）。Cloudflare Workers で動く
-- **examples/api-only**: JSON の API だけの最小アプリ（`hx4s({ client: false })`。React に依存しない）
-- CI（Ubuntu と Windows。sbt・npm・examples の検証）
-- 文書: 設計と経緯（`docs/hx4s/`）と、利用者向けのガイド（`docs/`）、貢献ガイド
-- ライセンス: Apache-2.0
+  - Reads `@route` / `@islands` with scalameta and generates `app/routes/**/*.ts`, `app/islands/**/*.tsx` and `IslandComponents.scala` for SSR
+  - `CodegenMain`, which takes settings as `--key value` (`app` / `island-components`)
+  - Checks: rejects `HEAD` and file names HonoX does not pick up, rejects routes in different files that map to the same URL and method, island file name rules, matching `@islands[P]` against the export type `IslandExport[T]`. Server and client errors are reported together, and even when some declarations have errors, the remaining declarations are checked for duplicates and URL conflicts in the same run
+  - Output safeguards: never overwrites or deletes hand-written files, writes after all checks, skips writes with identical content, replaces via temporary files, does not follow links, rejects paths that differ only in case
+  - Avoids identifier collisions in generated code (import aliases) and validates settings embedded in generated sources
+- **sbt-hx4s**: `Hx4sPlugin`. Setting keys (`hx4sClientProject` and others), `hx4sGenerate`, generation of `IslandComponents` through `Compile / sourceGenerators` (not regenerated when inputs are unchanged),
+  `hx4sCheckDependencies` (checks the dependency direction between client and server), client-less (SSR-only) setups. Codegen is resolved through a dedicated configuration and runs in a forked JVM; on failure, the error lines are printed once and the task fails with a summary
+- **hx4s-vite**: the `hx4s()` Vite plugin (registers the server / client Scala.js projects and serializes `buildStart`, the `scalajs:client.js` alias, honox's React settings, output names of the client build),
+  `client: false` for setups without a client (API only, SSR without islands),
+  props validation before hydration, `islandPropsProblem` in `hx4s-vite/client` (including islands inside templates), Node loader `hx4s-vite/node-loader` and `node-register`
+- **scripts**: `publish-local.mjs` (local publish, publish record, `--verify`), `setup-example.mjs`, `check-independence.mjs`
+- The version is defined in one place, `version.txt` (the sbt default and the local publish version derive from it, and a test detects mismatches with `vite/package.json`)
+- **examples/minimal**: a minimal SSR + Islands app (dynamic routes, POST, a JSON API, two kinds of islands). Runs on Cloudflare Workers
+- **examples/api-only**: a minimal JSON-API-only app (`hx4s({ client: false })`; does not depend on React)
+- CI (Ubuntu and Windows; verifies sbt, npm and the examples)
+- Documentation: design and plans (`docs/hx4s/`), user guides (`docs/`; Japanese translation in `ja/`) and a contributing guide
+- License: Apache-2.0
 
 ### Fixed
 
-- **scripts**: ローカル公開の記録に、ルートの `package.json` / `package-lock.json`（作業ツリーの状態）と、ivy の `ivy.xml`・JAR・sources・javadoc・pom の SHA-256 を含める。
-  `--verify` は成果物の実体の存在と内容、完了の記録の項目と成果物の集合、部分の記録との一致を確かめる（[docs/hx4s/reviews/final-review.md](docs/hx4s/reviews/final-review.md)）
-- 文書: 変数ミドルウェアの例に Hono の `ContextVariableMap` の宣言を足し、型検査の対象にする（`tests/docs-typecheck`）。`body` / `notFound` / `client: false` が無いとする古い説明、
-  本文の読み直しの説明、貢献ガイドの examples の手順を直す
+- **scripts**: the local publish record includes the root `package.json` / `package-lock.json` (working tree state) and the SHA-256 of ivy's `ivy.xml`, JARs, sources, javadoc and pom.
+  `--verify` checks that the artifacts exist and match, that the entries of the completed record match the set of artifacts, and that it agrees with the partial records
+- Documentation: added a declaration for Hono's `ContextVariableMap` to the variable middleware example and made it a type-check target (`tests/docs-typecheck`). Fixed outdated statements that `body` / `notFound` / `client: false` don't exist,
+  the explanation of re-reading the request body, and the examples steps in the contributing guide

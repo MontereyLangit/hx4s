@@ -6,7 +6,7 @@ import hx4s.react.IslandExport
 
 import scala.scalajs.js.annotation.JSExportTopLevel
 
-/** ブラウザへ配る island の export。宣言型の IslandExport[P] と @islands[P] の P は codegen が照合する */
+/** Island exports shipped to the browser. Codegen matches the declared type IslandExport[P] against the P of @islands[P] */
 object Main {
 
   @islands[example.shared.CounterProps]("counter.tsx")

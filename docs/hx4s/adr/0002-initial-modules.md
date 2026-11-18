@@ -1,41 +1,41 @@
-# ADR 0002: 初期モジュール構成
+# ADR 0002: Initial module structure
 
-- 状態: 承認（2026-11-16、Phase 0）
-- 更新（2026-11-16、Phase 3）: `hx4s-core` は Pure ではなく Full の crossProject にした。JS 側に props の検証 `hx4s.props.JsShape` を置くため（[ADR 0007](0007-props-validation-and-typed-export.md)）。
-  JVM 側はアノテーションだけを持つ
-- 関連: [architecture.md](../architecture.md) 3.2、[module-boundaries.md](../module-boundaries.md)
+- Status: Accepted (2026-11-16, Phase 0)
+- Updated (2026-11-16, Phase 3): `hx4s-core` became a Full crossProject instead of Pure, to put props validation `hx4s.props.JsShape` on the JS side ([ADR 0007](0007-props-validation-and-typed-export.md)).
+  The JVM side has only the annotations
+- Related: [architecture.md](../architecture.md) 3.2, [module-boundaries.md](../module-boundaries.md)
 
-## 背景
+## Context
 
-3ch の連携基盤は `common`（アノテーションとテンプレート）、`codegen`（生成器）、`bbs`（Island ブリッジと Hono facade）、`vite.config.ts`（ビルド設定）に散らばっている。
-切り出す単位を決める必要がある。細かく分けると、P0 の段階で版の組み合わせと公開物が増え、利用者の設定も増える。
+3ch's integration layer is scattered across `common` (annotations and templates), `codegen` (generators), `bbs` (the island bridge and Hono facade) and `vite.config.ts` (build settings).
+The units to extract need to be decided. Splitting finely increases version combinations and published artifacts at the P0 stage, and also increases user settings.
 
-## 決定
+## Decision
 
-| モジュール | 種別 | 内容 |
+| Module | Kind | Content |
 | --- | --- | --- |
-| `hx4s-core` | crossProject（Pure, JVM + JS） | `@route` / `@islands[P]` など Renderer に依存しない宣言 |
-| `hx4s-react` | Scala.js | HonoX Island ブリッジ（`React.createElement(HonoXIsland, …)`）、汎用 Hono Context facade（Env は型引数）、型付き Props の補助 |
-| `hx4s-codegen` | JVM（Scala 3、scalameta） | アノテーション解析、route / island の TS(X) と Scala の `IslandComponents` 生成、安全な書き出し。設定は case class、CLI main も持つ |
-| `sbt-hx4s` | sbt plugin（Scala 2.12） | 設定キーと `hx4sGenerate`。codegen は専用 configuration で解決し、別クラスローダか fork で実行する |
-| `hx4s-vite` | npm | `@scala-js/vite-plugin-scalajs` を包み、server / client の登録・`scalajs:client.js` alias・honox の React 設定・client ビルド設定をまとめる |
-| `examples/minimal` | 例 | 3ch に依存しない SSR + Islands の最小アプリ。独立性の必須テスト |
+| `hx4s-core` | crossProject (Pure, JVM + JS) | Renderer-independent declarations such as `@route` / `@islands[P]` |
+| `hx4s-react` | Scala.js | The HonoX island bridge (`React.createElement(HonoXIsland, …)`), a generic Hono Context facade (Env as a type parameter), helpers for typed props |
+| `hx4s-codegen` | JVM (Scala 3, scalameta) | Annotation analysis, generating route / island TS(X) and the Scala `IslandComponents`, safe output. Settings are a case class; it also has a CLI main |
+| `sbt-hx4s` | sbt plugin (Scala 2.12) | Setting keys and `hx4sGenerate`. Codegen is resolved through a dedicated configuration and run in a separate class loader or a fork |
+| `hx4s-vite` | npm | Wraps `@scala-js/vite-plugin-scalajs` and bundles the server / client registration, the `scalajs:client.js` alias, honox's React settings and the client build settings |
+| `examples/minimal` | Example | A minimal SSR + Islands app that doesn't depend on 3ch. A required independence test |
 
-honox 連携と react 連携は当面 `hx4s-react` 1 つにまとめる。Renderer を追加する（例: hono/jsx を Scala から使う）ときに `hx4s-honox` と `hx4s-react` に分ける。
-`hx4s-routing`（型付き URL・Client Router）、CLI、templates は P1 とする。
+The honox and react integrations stay in a single `hx4s-react` for now. When another renderer is added (e.g. using hono/jsx from Scala), split into `hx4s-honox` and `hx4s-react`.
+`hx4s-routing` (typed URLs, Client Router), a CLI and templates are P1.
 
-## 却下案
+## Rejected alternatives
 
-| 案 | 理由 |
+| Alternative | Reason |
 | --- | --- |
-| 1 つの成果物にまとめる | JVM の codegen と Scala.js の実行時コードは同じ成果物にできない。sbt plugin も別にせざるを得ない |
-| `hx4s-honox`（ブリッジ）と `hx4s-react`（React 補助）を最初から分ける | 現時点で Renderer は React だけで、両者は常に一緒に使う。分けても利用者の依存行が増えるだけ |
-| アノテーションを `hx4s-react` に入れ、`hx4s-core` を作らない | アノテーションは JVM（codegen のテスト、将来の JVM サーバー）からも参照しうる。Scala.js 専用モジュールに入れると JVM から使えない |
-| codegen を sbt plugin の中に入れる | sbt 1.x は Scala 2.12。Scala 3 の scalameta 利用コードと、利用側の Scala 3 構文の解析を 2.12 で書き直すことになる。CLI として単独でも使えなくなる |
-| `hx4s-cloudflare` を P0 に含める | Core を実行基盤から独立させる方針（[ADR 0005](0005-core-independent-of-cloudflare.md)）と、検証に Cloudflare 環境が要ることから P2 に回す |
+| Put everything into one artifact | JVM codegen and Scala.js runtime code can't be in the same artifact. The sbt plugin must also be separate |
+| Split `hx4s-honox` (bridge) and `hx4s-react` (React helpers) from the start | Right now React is the only renderer, and the two are always used together. Splitting only adds dependency lines for users |
+| Put the annotations in `hx4s-react` and skip `hx4s-core` | The annotations may be referenced from the JVM (codegen tests, a future JVM server). In a Scala.js-only module they can't be used from the JVM |
+| Put codegen inside the sbt plugin | sbt 1.x is Scala 2.12. The code using scalameta in Scala 3 and the parsing of users' Scala 3 syntax would have to be rewritten for 2.12. It also could no longer be used standalone as a CLI |
+| Include `hx4s-cloudflare` in P0 | Deferred to P2, given the policy of keeping Core independent of the runtime ([ADR 0005](0005-core-independent-of-cloudflare.md)) and that verifying it requires a Cloudflare environment |
 
-## 影響
+## Consequences
 
-- 利用側の Scala.js プロジェクトは `hx4s-react`（推移的に `hx4s-core`）に依存し、ビルドに `sbt-hx4s` と `hx4s-vite` を入れる。
-- `hx4s-react` は scalajs-react の `core` に依存する。scalajs-react を使わない利用者は想定しない（P0）。
-- モジュールの追加・分割は、利用者の依存行を変えるのでマイナー版で行う。
+- The user's Scala.js projects depend on `hx4s-react` (and transitively `hx4s-core`), and the build includes `sbt-hx4s` and `hx4s-vite`.
+- `hx4s-react` depends on scalajs-react's `core`. Users who don't use scalajs-react are not considered (P0).
+- Adding or splitting modules changes users' dependency lines, so it is done in a minor version.

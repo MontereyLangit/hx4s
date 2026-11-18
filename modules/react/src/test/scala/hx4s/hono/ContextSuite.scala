@@ -24,7 +24,7 @@ private class Hono extends js.Object {
   def fetch(request: Request, env: js.UndefOr[js.Object], executionCtx: js.UndefOr[ExecutionContext]): Response | js.Promise[Response] = js.native
 }
 
-/** waitUntil と passThroughOnException の呼び出しを数える実行コンテキスト */
+/** An execution context that counts calls to waitUntil and passThroughOnException */
 private class RecordingContext extends js.Object {
   var waited: Int = 0
   var passedThrough: Boolean = false
@@ -48,7 +48,7 @@ class ContextSuite extends FunSuite {
     }
   }
 
-  test("executionCtx は実行基盤が渡したものを返し、渡していなければ executionCtxOption が None になる") {
+  test("executionCtx returns what the runtime provided, and executionCtxOption is None when it provided none") {
     val app = new Hono().get("/", handler { c =>
       c.executionCtxOption match {
         case Some(executionCtx) =>
@@ -72,14 +72,14 @@ class ContextSuite extends FunSuite {
     }
   }
 
-  test("text / json / html / redirect と status・header で応答を作る") {
+  test("text / json / html / redirect and status / header build responses") {
     val app = new Hono()
-      .get("/text", handler(c => c.text("作成", 201)))
+      .get("/text", handler(c => c.text("created", 201)))
       .get("/json", handler(c => c.json(js.Dictionary[js.Any]("ok" -> true, "tags" -> js.Array("a", "b")))))
       .get("/html", handler { c =>
         c.status(404)
         c.header("x-hx4s", "yes")
-        c.html("<p>なし</p>")
+        c.html("<p>none</p>")
       })
       .get("/redirect", handler(c => c.redirect("/to")))
       .get("/moved", handler(c => c.redirect("/to", 301)))
@@ -92,7 +92,7 @@ class ContextSuite extends FunSuite {
       redirect <- call(app, "/redirect")
       moved <- call(app, "/moved")
     } yield {
-      assertEquals((text.status, textBody), (201, "作成"))
+      assertEquals((text.status, textBody), (201, "created"))
       assert(text.headers.get("content-type").startsWith("text/plain"))
       assertEquals(jsonBody, """{"ok":true,"tags":["a","b"]}""")
       assert(json.headers.get("content-type").startsWith("application/json"))
@@ -104,7 +104,7 @@ class ContextSuite extends FunSuite {
     }
   }
 
-  test("body は null 本文で 204 / 304 を返し、本文とヘッダも渡せる。text の空文字列では 204 を作れない") {
+  test("body returns 204 / 304 with a null body and accepts a body and headers; text with an empty string cannot make a 204") {
     val app = new Hono()
       .get("/no-content", handler(c => c.body(null, 204)))
       .get("/not-modified", handler { c =>
@@ -136,19 +136,19 @@ class ContextSuite extends FunSuite {
     }
   }
 
-  test("setVariable で置いた値を後のハンドラが getVariable で同じ型で読む") {
+  test("a value set with setVariable is read with the same type by a later handler with getVariable") {
     val user = ContextVariable[String]("user")
     val missing = ContextVariable[Int]("missing")
     val app = new Hono()
       .use("*", (c: Ctx, next: js.Function0[js.Promise[Unit]]) => {
-        c.setVariable(user, "山田")
+        c.setVariable(user, "Zoë")
         next()
       })
       .get("/", handler(c => c.text(s"${c.getVariable(user)} ${c.getVariable(missing)}")))
-    call(app, "/").flatMap(_.text().toFuture).map(body => assertEquals(body, "Some(山田) None"))
+    call(app, "/").flatMap(_.text().toFuture).map(body => assertEquals(body, "Some(Zoë) None"))
   }
 
-  test("HonoRequest は method・path・url・queries と、本文を text / json / formData で読める") {
+  test("HonoRequest reads method, path, url, queries, and the body as text / json / formData") {
     val app = new Hono()
       .get("/info", handler { c =>
         val tags = c.req.queries("tag").fold("none")(_.mkString(","))
@@ -166,16 +166,16 @@ class ContextSuite extends FunSuite {
       info <- call(app, "/info?tag=a&tag=b").flatMap(_.text().toFuture)
       text <- call(app, "/text", post("text/plain", "abc")).flatMap(_.text().toFuture)
       json <- call(app, "/json", post("application/json", """{"n":1}""")).flatMap(_.text().toFuture)
-      form <- call(app, "/form", post("application/x-www-form-urlencoded", "name=%E5%B1%B1%E7%94%B0")).flatMap(_.text().toFuture)
+      form <- call(app, "/form", post("application/x-www-form-urlencoded", "name=Zo%C3%AB")).flatMap(_.text().toFuture)
     } yield {
       assertEquals(info, "GET /info http://localhost/info?tag=a&tag=b a,b false")
       assertEquals(text, "cba")
       assertEquals(json, """[{"n":1}]""")
-      assertEquals(form, "山田")
+      assertEquals(form, "Zoë")
     }
   }
 
-  test("本文は最初に読んだ形を Hono がキャッシュし、別の形でも読み直せる。raw を直接読むと HonoRequest では読めない") {
+  test("Hono caches the body in the form first read so it can be reread in another form; after reading raw directly HonoRequest cannot read it") {
     def outcome(c: Ctx, read: Future[String]): js.Promise[Response] =
       read.map(body => c.text(s"read $body")).recover { case error => c.text(s"failed ${error.getClass.getSimpleName}") }.toJSPromise
     val app = new Hono()
@@ -199,7 +199,7 @@ class ContextSuite extends FunSuite {
       .post("/raw-then-req", handler(c => outcome(c, c.req.raw.text().toFuture.flatMap(_ => c.req.text().toFuture))))
       .post("/req-then-raw", handler(c => outcome(c, c.req.text().toFuture.flatMap(_ => c.req.raw.text().toFuture))))
     val json = post("application/json", """{"n":1}""")
-    val form = post("application/x-www-form-urlencoded", "name=%E5%B1%B1%E7%94%B0")
+    val form = post("application/x-www-form-urlencoded", "name=Zo%C3%AB")
     for {
       textJson <- call(app, "/text-json", json).flatMap(_.text().toFuture)
       jsonText <- call(app, "/json-text", json).flatMap(_.text().toFuture)
@@ -210,8 +210,8 @@ class ContextSuite extends FunSuite {
     } yield {
       assertEquals(textJson, """{"n":1} {"n":1}""")
       assertEquals(jsonText, """{"n":1} {"n":1} {"n":1}""")
-      assertEquals(textForm, "name=%E5%B1%B1%E7%94%B0 山田")
-      assertNotEquals(formText, "name=%E5%B1%B1%E7%94%B0")
+      assertEquals(textForm, "name=Zo%C3%AB Zoë")
+      assertNotEquals(formText, "name=Zo%C3%AB")
       assert(formText.contains("Content-Disposition: form-data; name=\"name\""), formText)
       assertEquals(rawThenReq, "failed JavaScriptException")
       assertEquals(reqThenRaw, "failed JavaScriptException")

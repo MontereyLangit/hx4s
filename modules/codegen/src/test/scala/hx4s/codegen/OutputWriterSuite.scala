@@ -18,7 +18,7 @@ class OutputWriterSuite extends FunSuite {
   private def write(root: Path, files: (String, String)*) =
     OutputWriter.write(files.toList.map { case (path, content) => GeneratedFile(root, path, content) }, List(root), marker, root)
 
-  test("再生成は古い生成ファイルを削除し、手書きファイルは残し、件数を返す") {
+  test("regeneration deletes stale generated files, keeps hand-written files and returns counts") {
     withTempDir { root =>
       Files.writeString(root.resolve("stale.ts"), generated)
       Files.writeString(root.resolve("index.ts"), "export default manual;\n")
@@ -26,13 +26,13 @@ class OutputWriterSuite extends FunSuite {
       val summary = write(root, "fresh.ts" -> generated).toOption.get
       assert(!Files.exists(root.resolve("stale.ts")))
       assertEquals(Files.readString(root.resolve("index.ts")), "export default manual;\n")
-      assert(Files.exists(root.resolve("notes.md")), "生成対象の拡張子でないファイルは消さない")
+      assert(Files.exists(root.resolve("notes.md")), "files without a generated extension are not deleted")
       assertEquals(Files.readString(root.resolve("fresh.ts")), generated)
       assertEquals((summary.written.size, summary.unchanged.size, summary.deleted.size), (1, 0, 1))
     }
   }
 
-  test("内容が同じなら書き直さず更新時刻も変えない。改行コードの違いは同じ内容とみなす") {
+  test("identical content is not rewritten and the modification time stays; different line endings count as identical") {
     withTempDir { root =>
       val path = root.resolve("same.ts")
       val crlf = root.resolve("crlf.ts")
@@ -49,7 +49,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("手書きファイルとの衝突は削除・書き込みの前に失敗する") {
+  test("conflicts with hand-written files fail before deleting or writing") {
     withTempDir { root =>
       Files.writeString(root.resolve("stale.ts"), generated)
       Files.writeString(root.resolve("index.ts"), "handwritten")
@@ -59,7 +59,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("大文字小文字だけ違うパスは、出力どうしでも既存の手書きファイル・ディレクトリとの間でも拒否する") {
+  test("paths differing only in case are rejected among outputs and against existing hand-written files and directories") {
     withTempDir { root =>
       assert(write(root, "a.ts" -> generated, "A.ts" -> generated).isLeft)
       Files.writeString(root.resolve("index.ts"), "handwritten")
@@ -71,7 +71,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("大文字小文字だけ違う古い生成ファイルは消して新しい名前で書く") {
+  test("a stale generated file differing only in case is deleted and written under the new name") {
     withTempDir { root =>
       Files.writeString(root.resolve("page.ts"), generated)
       write(root, "Page.ts" -> generated).toOption.get
@@ -79,7 +79,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("出力ルートの外や予約名へのパスは書く前に拒否する") {
+  test("paths outside the output root or to reserved names are rejected before writing") {
     withTempDir { root =>
       List("../x.ts", "a/../../x.ts", "/x.ts", "C:/x.ts", "a\\x.ts", "NUL.ts", "aux/x.ts", "x.ts.", "x .ts", "").foreach { path =>
         assert(write(root, path -> generated).isLeft, path)
@@ -88,7 +88,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("生成マーカーの無い既存の出力先は上書きしない。以前のバナーでもマーカーが同じなら置き換える") {
+  test("existing targets without the generated marker are not overwritten; an older banner with the same marker is replaced") {
     withTempDir { root =>
       Files.writeString(root.resolve("legacy.ts"), s"$marker (old tool)\nold\n")
       write(root, "legacy.ts" -> generated).toOption.get
@@ -96,7 +96,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("空・空白・コメント記号だけの生成マーカーは拒否し、手書きファイルを消さない") {
+  test("a generated marker that is empty, blank or only comment symbols is rejected, and hand-written files are not deleted") {
     withTempDir { root =>
       Files.writeString(root.resolve("manual.ts"), "export default manual;\n")
       List("", "   ", "//", " // ", "// generated\nsecond").foreach { blank =>
@@ -107,7 +107,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("ファイルとディレクトリの衝突は書き込みの前に拒否し、古い生成ファイルも消さない") {
+  test("file/directory conflicts are rejected before writing, and stale generated files are not deleted") {
     withTempDir { root =>
       Files.writeString(root.resolve("stale.ts"), generated)
       Files.writeString(root.resolve("plain"), "not a directory")
@@ -125,18 +125,18 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("書き込みに失敗しても既存の生成ファイルは元の内容とマーカーのまま残り、直してから再実行すると収束する") {
+  test("after a write failure existing generated files keep their content and marker, and rerunning after the fix converges") {
     withTempDir { root =>
       Files.writeString(root.resolve("stale.ts"), generated)
       val target = root.resolve("target.ts")
       Files.writeString(target, s"$marker\nold\n")
-      // 一時ファイルの名前に空でないディレクトリを置き、一時ファイルを作れないようにする
+      // Put a non-empty directory at the temporary file name so that the temporary file cannot be created
       val obstacle = Files.createDirectories(root.resolve(".target.ts.hx4s-tmp"))
       Files.writeString(obstacle.resolve("keep"), "x")
       val failed = write(root, "target.ts" -> generated)
       assert(failed.left.exists(_.exists(_.message.startsWith("cannot write file"))), failed)
       assertEquals(Files.readString(target), s"$marker\nold\n")
-      assert(Files.exists(root.resolve("stale.ts")), "書き込みが済むまで古い生成ファイルは消さない")
+      assert(Files.exists(root.resolve("stale.ts")), "stale generated files are not deleted until writing is done")
       Files.delete(obstacle.resolve("keep"))
       Files.delete(obstacle)
       assertEquals(write(root, "target.ts" -> generated).map(_.render), Right("wrote 1, unchanged 0, deleted 1"))
@@ -145,7 +145,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("前回の失敗で残った一時ファイルは手書きとみなさず、次の実行で消す") {
+  test("temporary files left by a previous failure are not treated as hand-written and are deleted on the next run") {
     withTempDir { root =>
       Files.createDirectories(root.resolve("nested"))
       Files.writeString(root.resolve(".page.ts.hx4s-tmp"), "partial")
@@ -171,7 +171,7 @@ class OutputWriterSuite extends FunSuite {
     assertEquals(process.waitFor(), 0, "mklink /J failed")
   }
 
-  /** root と、その外のディレクトリ outside（生成マーカー付きのファイルを 1 つ置く）を用意する */
+  /** Prepares root and a directory outside it (holding one file with the generated marker) */
   private def withOutside(test: (Path, Path) => Unit): Unit =
     withTempDir { tmp =>
       val root = Files.createDirectories(tmp.resolve("root"))
@@ -183,7 +183,7 @@ class OutputWriterSuite extends FunSuite {
   private def assertRefusesLink(result: CodegenError.Result[WriteSummary]): Unit =
     assert(result.left.exists(_.exists(_.message.contains("symbolic link or junction"))), result)
 
-  test("親ディレクトリ・出力先・出力ルートがシンボリックリンクなら辿らずに拒否する") {
+  test("a symbolic link as a parent directory, output target or output root is rejected without following it") {
     withOutside { (root, outside) =>
       symlink(root.resolve("parent"), outside)
       assertRefusesLink(write(root, "parent/new.ts" -> generated))
@@ -201,7 +201,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("出力ディレクトリの中にシンボリックリンクがあれば、古い生成ファイルを探すときも辿らずに拒否する") {
+  test("a symbolic link inside an output directory is rejected without following it when searching for stale files") {
     withOutside { (root, outside) =>
       symlink(root.resolve("linked"), outside)
       assertRefusesLink(write(root, "fresh.ts" -> generated))
@@ -210,7 +210,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  test("Windows のジャンクションも親ディレクトリ・出力ルート・古い生成ファイルの探索で拒否する") {
+  test("Windows junctions are rejected too as parent directories, output roots and when searching for stale files") {
     withOutside { (root, outside) =>
       junction(root.resolve("joined"), outside)
       assertRefusesLink(write(root, "joined/new.ts" -> generated))
@@ -223,7 +223,7 @@ class OutputWriterSuite extends FunSuite {
     }
   }
 
-  /** project/app がリンクで、出力ルート project/app/routes はその先の通常ディレクトリという配置で書く */
+  /** Writes with project/app being a link and the output root project/app/routes a regular directory behind it */
   private def writeThroughLinkedAncestor(link: (Path, Path) => Unit): Unit =
     withOutside { (project, outside) =>
       val routes = Files.createDirectories(outside.resolve("routes"))
@@ -237,15 +237,15 @@ class OutputWriterSuite extends FunSuite {
       assertEquals(names(routes), List("old.ts"))
     }
 
-  test("出力ルートの祖先（基準ディレクトリより下）がシンボリックリンクなら拒否する") {
+  test("a symbolic link as an ancestor of the output root (below the base directory) is rejected") {
     writeThroughLinkedAncestor(symlink)
   }
 
-  test("出力ルートの祖先（基準ディレクトリより下）がジャンクションなら拒否する") {
+  test("a junction as an ancestor of the output root (below the base directory) is rejected") {
     writeThroughLinkedAncestor(junction)
   }
 
-  test("基準ディレクトリ自体とその外の祖先は確かめない") {
+  test("the base directory itself and ancestors outside it are not checked") {
     withOutside { (project, _) =>
       val result = OutputWriter.write(List(GeneratedFile(project.resolve("a/b"), "x.ts", generated)), Nil, marker, project.resolve("a"))
       assertEquals(result.map(_.render), Right("wrote 1, unchanged 0, deleted 0"))

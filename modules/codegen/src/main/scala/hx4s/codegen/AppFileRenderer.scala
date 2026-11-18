@@ -1,15 +1,15 @@
 package hx4s.codegen
 
-/** route / island の TS ファイルと、SSR 用 Scala API を描画する */
+/** Renders route / island TS files and the Scala API for SSR */
 object AppFileRenderer {
-  /** import した名前に付ける別名。export 名が生成コードの識別子（createRoute、POST など）と衝突しないようにする */
+  /** Aliases for imported names, so that export names do not collide with identifiers in generated code (createRoute, POST, etc.) */
   private val CreateRoute = "__hx4s_createRoute"
   private val HandlerPrefix = "__hx4s_handler_"
   private val IslandLocal = "__hx4s_island"
 
   private def lines(values: List[String]): String = values.mkString("", "\n", "\n")
 
-  /** TS と Scala のどちらでも同じ値になる二重引用符の文字列リテラル */
+  /** A double-quoted string literal with the same value in both TS and Scala */
   private[codegen] def quote(text: String): String = {
     val escaped = text.flatMap {
       case '"' => "\\\""
@@ -20,7 +20,7 @@ object AppFileRenderer {
     s"\"$escaped\""
   }
 
-  /** GET は `export default`、それ以外は `export const <METHOD>` にする */
+  /** GET becomes `export default`, others `export const <METHOD>` */
   def route(entry: RouteEntry, config: CodegenConfig): String = {
     val module = config.virtualModule(config.serverModule)
     val handlers = entry.sortedHandlers
@@ -32,23 +32,23 @@ object AppFileRenderer {
     val imports = handlers.map(_.exportName).distinct.map(name => s"$name as $HandlerPrefix$name").mkString(", ")
     lines(config.banner ++ List(
       s"""import { createRoute as $CreateRoute } from "honox/factory";""",
-      s"// @ts-expect-error $module は仮想モジュール（vite.config.ts参照）。",
+      s"// @ts-expect-error $module is a virtual module (see vite.config.ts).",
       s"import { $imports } from ${quote(module)};",
       ""
     ) ++ exportLines)
   }
 
-  /** client の export を HonoX が見つけられる default export として再公開する */
+  /** Re-exports the client export as a default export HonoX can discover */
   def island(entry: IslandEntry, config: CodegenConfig): String = {
     val module = s"${config.virtualModulePrefix}${entry.sourceModule}"
     lines(config.banner ++ List(
-      s"// @ts-expect-error $module は @scala-js/vite-plugin-scalajs が解決する仮想モジュール（.d.ts無し）。",
+      s"// @ts-expect-error $module is a virtual module resolved by @scala-js/vite-plugin-scalajs (no .d.ts).",
       s"import { ${entry.exportedName} as $IslandLocal } from ${quote(module)};",
       s"export default $IslandLocal;"
     ))
   }
 
-  /** island ごとに、client の export と HonoX の識別子を結んだ SSR 用メソッドを持つ object を出す。並びはファイルパス順 */
+  /** Outputs an object with one SSR method per island that ties the client export to the HonoX identifier. Ordered by file path */
   def islandComponents(entries: List[IslandEntry], config: CodegenConfig): String = {
     val sorted = entries.sortBy(_.filePath)
     val header = lines(config.banner :+ s"package ${config.scalaPackage}")

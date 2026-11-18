@@ -1,6 +1,6 @@
-// ローカル公開の記録（docs/hx4s/local-dependency.md）の組み立てと照合。publish-local.mjs が使い、tests/publish-record.test.js が一時ディレクトリで確かめる。
-//   完了の記録 hx4s-publish.json: { format: 1, version, commit, dirty, dirtyHash, maven, npm }
-//   maven の各要素: { organization, name, version, path, files: [{ path, sha256 }] }。files は ivy.xml と、ivy.xml の publications が指す実体
+// Builds and verifies local publish records (docs/hx4s/local-dependency.md). Used by publish-local.mjs, and checked in a temporary directory by tests/publish-record.test.js.
+//   Completed record hx4s-publish.json: { format: 1, version, commit, dirty, dirtyHash, maven, npm }
+//   Each maven entry: { organization, name, version, path, files: [{ path, sha256 }] }. files are ivy.xml and the files its publications point to
 //   npm: { name, file, sha256 }
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -9,10 +9,10 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 export const recordFormat = 1;
-// publishLocal が出す成果物（build.sbt の root が aggregate するモジュール）。照合は記録をこの集合と比べる
+// Artifacts publishLocal produces (the modules aggregated by build.sbt's root). Verification compares the record with this set
 export const mavenNames = ["hx4s-codegen_3", "hx4s-core_3", "hx4s-core_sjs1_3", "hx4s-react_sjs1_3", "sbt-hx4s"];
 export const npmArtifact = { name: "hx4s-vite", file: "hx4s-vite.tgz" };
-// 公開物に入るソースと、npm のビルドの入力（ルートの package.json と lockfile）。テストは除く
+// Sources that go into the published artifacts, and inputs of the npm build (the root package.json and lockfile). Tests are excluded
 export const publishedSources = [
   "version.txt", "build.sbt", "project", "modules", "sbt-plugin/src/main", "vite", "package.json", "package-lock.json", "LICENSE", "NOTICE",
   ":(exclude,glob)**/src/test/**",
@@ -42,7 +42,7 @@ export function readJson(file) {
   }
 }
 
-/** 追跡中・未追跡の公開対象ソースのうち HEAD と違うものの、パスと内容のハッシュ 8 桁（変更が無ければ null） */
+/** An 8-character hash of the paths and contents of tracked and untracked published sources that differ from HEAD (null if unchanged) */
 export function dirtyHash(root, sources = publishedSources) {
   const status = execFileSync("git", ["status", "--porcelain", "--untracked-files=all", "--no-renames", "-z", "--", ...sources], { cwd: root, encoding: "utf8" });
   const changed = status.split("\0").filter(Boolean).map((entry) => entry.slice(3)).sort();
@@ -57,7 +57,7 @@ export function dirtyHash(root, sources = publishedSources) {
   return hash.digest("hex").slice(0, 8);
 }
 
-/** 今の checkout の commit と、公開対象のソースの状態 */
+/** The commit of the current checkout and the state of the published sources */
 export function sourceState(root) {
   return { commit: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(), dirtyHash: dirtyHash(root) };
 }
@@ -68,7 +68,7 @@ function subdirs(dir) {
   return existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort() : [];
 }
 
-/** ivy.xml の publications が指すファイル（ivy のローカルリポジトリの [type]s/[artifact](-[classifier]).[ext]） */
+/** Files the publications of ivy.xml point to ([type]s/[artifact](-[classifier]).[ext] in ivy's local repository) */
 export function ivyPublications(ivyXml) {
   const publications = /<publications>([\s\S]*?)<\/publications>/.exec(ivyXml)?.[1] ?? "";
   return [...publications.matchAll(/<artifact\s([^>]*?)\/?>/g)].map((match) => {
@@ -78,7 +78,7 @@ export function ivyPublications(ivyXml) {
   });
 }
 
-/** ivyLocal にある name のこの版の成果物と、ivy.xml と publications の実体の SHA-256。sbt プラグインは <name>/scala_<v>/sbt_<v>/<version> に置かれる */
+/** Artifacts of this version of name in ivyLocal, with SHA-256 of ivy.xml and the publication files. sbt plugins are under <name>/scala_<v>/sbt_<v>/<version> */
 export function publishedMavenArtifact(ivyLocal, organization, name, version) {
   const moduleDir = path.join(ivyLocal, organization, name);
   const nested = subdirs(moduleDir).filter((dir) => dir.startsWith("scala_"))
@@ -144,7 +144,7 @@ function mavenEntryProblems(entry, organization, version) {
   return problems;
 }
 
-/** 完了の記録の形と、sbt・npm の部分の記録との一致を確かめ、食い違いを返す */
+/** Checks the shape of the completed record and its agreement with the sbt and npm partial records, and returns mismatches */
 export function recordProblems(record, parts, organization) {
   const shape = keyProblems("the complete record", record, completeKeys);
   if (!isObject(record)) return shape;
@@ -179,7 +179,7 @@ export function recordProblems(record, parts, organization) {
   return problems;
 }
 
-/** 記録にある成果物が手元にあり、内容が記録と同じかを確かめ、食い違いを返す。形の正しい要素だけを見る */
+/** Checks that the recorded artifacts exist locally with the recorded content, and returns mismatches. Only well-formed entries are checked */
 export function artifactProblems(record, { ivyLocal, output }) {
   const problems = [];
   for (const entry of Array.isArray(record.maven) ? record.maven : []) {
@@ -199,7 +199,7 @@ export function artifactProblems(record, { ivyLocal, output }) {
   return problems;
 }
 
-/** output の完了の記録を今の checkout（root）と成果物に照らし、食い違いと照合した記録を返す */
+/** Checks the completed record in output against the current checkout (root) and the artifacts, and returns the mismatches and the verified record */
 export function verifyPublish({ root, ivyLocal, output, organization, version, commit }) {
   const complete = path.join(output, recordFiles.complete);
   const record = readJson(complete);

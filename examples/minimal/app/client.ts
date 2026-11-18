@@ -5,7 +5,7 @@ import { hydrateRoot } from "react-dom/client";
 
 void createClient<ReactElement>({
   hydrate: (element, root) => {
-    // HTML と client の世代がずれて props が合わないときは hydrate せず、SSR の markup を残す（template 内の island も確かめる）
+    // When the HTML and the client are from different builds and the props don't match, skip hydration and keep the SSR markup (islands inside templates are checked too)
     const problem = islandPropsProblem(element);
     if (problem !== undefined) {
       console.error(`[hx4s] skipped hydration of ${root.getAttribute("component-name")}: ${problem}`);

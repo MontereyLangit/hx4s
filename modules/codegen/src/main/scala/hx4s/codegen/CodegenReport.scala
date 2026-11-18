@@ -1,9 +1,9 @@
 package hx4s.codegen
 
-/** 生成の失敗。sbt の run は同じ JVM で動くことがあるので System.exit せず、この例外で非ゼロ終了にする */
+/** Generation failure. sbt run may use the same JVM, so instead of System.exit, this exception causes a non-zero exit */
 final class CodegenFailure(message: String) extends RuntimeException(message, null, false, false)
 
-/** main 向けに結果をログへ出し、誤りなら CodegenFailure を投げる */
+/** Logs the result for main, and throws CodegenFailure on errors */
 object CodegenReport {
   val Prefix = "[hx4s-codegen]"
 

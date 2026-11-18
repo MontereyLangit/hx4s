@@ -4,10 +4,10 @@ import sbt.{ClasspathDep, ProjectRef}
 
 import scala.annotation.tailrec
 
-/** client と server の間の禁止された依存を、プロジェクトの classpath 依存（Compile に効くもの）の推移で探す */
+/** Finds forbidden dependencies between client and server by following the projects' classpath dependencies (those affecting Compile) transitively */
 private[sbt] object DependencyCheck {
 
-  /** 禁止された依存ごとに、経路を含むメッセージを返す。問題が無ければ空 */
+  /** Returns a message including the path for each forbidden dependency. Empty if there are no problems */
   def problems(server: ProjectRef, client: Option[ProjectRef], servers: Set[ProjectRef],
                graph: Map[ProjectRef, Seq[ClasspathDep[ProjectRef]]]): List[String] = {
     client.toList.flatMap { clientRef =>
@@ -23,7 +23,7 @@ private[sbt] object DependencyCheck {
 
   private def render(route: List[ProjectRef]): String = route.map(_.project).mkString(" -> ")
 
-  /** from から to への最短の経路（両端を含む）。from と to が同じなら探さない */
+  /** The shortest path from from to to (including both ends). Not searched if from and to are the same */
   def path(from: ProjectRef, to: ProjectRef, graph: Map[ProjectRef, Seq[ClasspathDep[ProjectRef]]]): Option[List[ProjectRef]] = {
     @tailrec
     def search(queue: List[List[ProjectRef]], seen: Set[ProjectRef]): Option[List[ProjectRef]] = queue match {
@@ -38,7 +38,7 @@ private[sbt] object DependencyCheck {
     if (from == to) None else search(List(List(from)), Set(from))
   }
 
-  /** dependsOn の設定（例: "compile->compile;test->test"）が Compile か Runtime から依存するなら true。設定が無ければ Compile */
+  /** True if the dependsOn configuration (e.g. "compile->compile;test->test") depends from Compile or Runtime. Compile if no configuration is given */
   def compileScoped(configuration: Option[String]): Boolean =
     configuration.forall(_.split(";").exists { mapping =>
       Set("compile", "runtime", "")(mapping.split("->").headOption.getOrElse("").trim)

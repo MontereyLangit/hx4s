@@ -17,7 +17,7 @@ private object HonoXIsland extends js.Function1[IslandProps[?], React.Node] with
   def apply(props: IslandProps[?]): React.Node = js.native
 }
 
-/** HonoX の hydration 境界を付ける。componentName は生成された client island の識別子（例: /app/islands/counter.tsx） */
+/** Marks a HonoX hydration boundary. componentName is the identifier of the generated client island (e.g. /app/islands/counter.tsx) */
 object Island {
   def apply[P <: js.Object](component: React.ComponentType[P], props: P, componentName: String): VdomElement = {
     VdomElement(React.createElement(HonoXIsland, new IslandProps[P](component, props, componentName)))

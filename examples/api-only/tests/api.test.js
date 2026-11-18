@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const workerFile = path.join(root, 'dist/server/index.js');
 
-/** ビルドした Worker を Node で読み込み、fetch を呼ぶ */
+/** Loads the built Worker on Node and calls fetch */
 async function workerFetch(pathname, init) {
   const worker = (await import(pathToFileURL(workerFile).href)).default;
   return worker.fetch(new Request(`http://localhost${pathname}`, init), {}, { waitUntil() {}, passThroughOnException() {} });
@@ -15,31 +15,31 @@ async function workerFetch(pathname, init) {
 
 const postJson = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body });
 
-test('GET は一覧と 1 件を JSON で返し、無い ID は c.notFound() の 404 になる', async () => {
+test('GET returns the list and single notes as JSON, and an unknown ID gets the 404 of c.notFound()', async () => {
   const list = await workerFetch('/api/notes');
   assert.equal(list.status, 200);
   assert.match(list.headers.get('content-type'), /application\/json/);
-  assert.deepEqual(await list.json(), [{ id: '1', text: '牛乳を買う' }, { id: '2', text: '本を返す' }]);
+  assert.deepEqual(await list.json(), [{ id: '1', text: 'Buy milk 🥛' }, { id: '2', text: 'Return the book' }]);
   const one = await workerFetch('/api/notes/2');
-  assert.deepEqual(await one.json(), { id: '2', text: '本を返す' });
+  assert.deepEqual(await one.json(), { id: '2', text: 'Return the book' });
   const missing = await workerFetch('/api/notes/999');
   assert.deepEqual([missing.status, await missing.text()], [404, '404 Not Found']);
 });
 
-test('POST は本文の形と値を確かめ、201 か 400 を返す', async () => {
-  const created = await workerFetch('/api/notes', postJson(JSON.stringify({ text: '  傘を持つ ' })));
+test('POST validates the shape and values of the body and returns 201 or 400', async () => {
+  const created = await workerFetch('/api/notes', postJson(JSON.stringify({ text: '  Take an umbrella ☂ ' })));
   assert.equal(created.status, 201);
-  assert.deepEqual(await created.json(), { id: '3', text: '傘を持つ' });
+  assert.deepEqual(await created.json(), { id: '3', text: 'Take an umbrella ☂' });
   const blank = await workerFetch('/api/notes', postJson(JSON.stringify({ text: ' ' })));
-  assert.deepEqual([blank.status, await blank.json()], [400, { error: '本文を入力してください' }]);
+  assert.deepEqual([blank.status, await blank.json()], [400, { error: 'Enter the note text' }]);
   const wrongShape = await workerFetch('/api/notes', postJson(JSON.stringify({ text: 1 })));
   assert.equal(wrongShape.status, 400);
   assert.match((await wrongShape.json()).error, /props\.text: expected string, got number/);
   const notJson = await workerFetch('/api/notes', postJson('{'));
-  assert.deepEqual([notJson.status, await notJson.json()], [400, { error: '本文が JSON ではありません' }]);
+  assert.deepEqual([notJson.status, await notJson.json()], [400, { error: 'The body is not JSON' }]);
 });
 
-test('DELETE は c.body(null, 204) で本文なしの 204 を返し、無い ID は 404 になる', async () => {
+test('DELETE returns 204 without a body via c.body(null, 204), and an unknown ID gets 404', async () => {
   const deleted = await workerFetch('/api/notes/1', { method: 'DELETE' });
   assert.equal(deleted.status, 204);
   assert.equal(deleted.body, null);
@@ -48,7 +48,7 @@ test('DELETE は c.body(null, 204) で本文なしの 204 を返し、無い ID 
   assert.equal(missing.status, 404);
 });
 
-test('Worker のバンドルは React を含まない', () => {
+test('the Worker bundle does not contain React', () => {
   const bundle = readFileSync(workerFile, 'utf8');
   for (const marker of ['react-dom', 'renderToReadableStream', 'react.transitional.element']) {
     assert.ok(!bundle.includes(marker), `the worker bundle contains ${marker}`);

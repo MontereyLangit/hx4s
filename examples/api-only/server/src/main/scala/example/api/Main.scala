@@ -11,12 +11,12 @@ import scala.scalajs.js.JSConverters.*
 import scala.scalajs.js.annotation.JSExportTopLevel
 import scala.scalajs.js.|
 
-/** POST /api/notes の本文 */
+/** Body of POST /api/notes */
 trait NoteInput extends js.Object {
   val text: String
 }
 
-/** JSON の API。@route を付けたものは hx4sGenerate が app/routes に配線する */
+/** A JSON API. hx4sGenerate wires members with @route into app/routes */
 object Main {
   type ApiContext = Context[js.Object, js.Object]
 
@@ -30,7 +30,7 @@ object Main {
   @JSExportTopLevel("notesList", "server")
   def notesList(c: ApiContext): Response = c.json(Notes.all.map(toJs).toJSArray)
 
-  /** 本文を確かめ、作ったメモを 201 で返す（保存はしない） */
+  /** Validates the body and returns the created note with 201 (nothing is saved) */
   @route("api/notes.ts", "POST")
   @JSExportTopLevel("notesCreate", "server")
   def notesCreate(c: ApiContext): js.Promise[Response] =
@@ -39,14 +39,14 @@ object Main {
         reason => error(c, reason, 400),
         text => c.json(toJs(Note((Notes.all.size + 1).toString, text)), 201)
       )
-    }.recover { case _: js.JavaScriptException => error(c, "本文が JSON ではありません", 400) }.toJSPromise
+    }.recover { case _: js.JavaScriptException => error(c, "The body is not JSON", 400) }.toJSPromise
 
   @route("api/notes/[id].ts")
   @JSExportTopLevel("noteGet", "server")
   def noteGet(c: ApiContext): Response | js.Promise[Response] =
     Notes.find(c.req.param("id").getOrElse("")).fold(c.notFound())(note => c.json(toJs(note)))
 
-  /** 本文なしの 204 を返す（保存はしないので、在るかだけを確かめる） */
+  /** Returns 204 without a body (nothing is saved, so it only checks that the note exists) */
   @route("api/notes/[id].ts", "DELETE")
   @JSExportTopLevel("noteDelete", "server")
   def noteDelete(c: ApiContext): Response = {

@@ -1,9 +1,9 @@
 # API
 
-HTML を返さないハンドラも `@route` で書く。特別な API は無く、`Context` の応答メソッドで JSON やステータスを返す。
-型付き API クライアントと OpenAPI の出力は**未実装**（[hx4s/roadmap.md](hx4s/roadmap.md)）。
+Handlers that don't return HTML are also written with `@route`. There is no special API; return JSON and statuses with the response methods of `Context`.
+A typed API client and OpenAPI output are **not implemented** ([hx4s/roadmap.md](hx4s/roadmap.md)).
 
-以降のハンドラは `examples/minimal` に足すか `examples/api-only` にあるもので、ビルドした Worker の `fetch` を呼んで応答を確かめた。
+The handlers below were either added to `examples/minimal` or exist in `examples/api-only`, and their responses were checked by calling the built Worker's `fetch`.
 
 ```scala
 object Api {
@@ -12,7 +12,7 @@ object Api {
 }
 ```
 
-## JSON を返す
+## Returning JSON
 
 ```scala
 @route("api/items/[id].ts")
@@ -26,27 +26,27 @@ def itemGet(c: ApiContext): Response = {
 }
 ```
 
-`c.json(body, status)` の `body` は `js.Any`。`js.Dynamic.literal(...)`、JS の trait、`js.Array` を渡せる。Scala の case class や `List` は、先に JS の値に変換する。
-応答は `content-type: application/json` になる。
+The `body` of `c.json(body, status)` is `js.Any`. You can pass `js.Dynamic.literal(...)`, JS traits and `js.Array`. Convert Scala case classes and `List`s to JS values first.
+The response has `content-type: application/json`.
 
-`examples/minimal` の `api/items.ts` は `?tag=果物&tag=赤` のように繰り返したクエリを `c.req.queries("tag")` で読み、JSON の配列を返す。
+`api/items.ts` in `examples/minimal` reads a repeated query such as `?tag=fruit&tag=red` with `c.req.queries("tag")` and returns a JSON array.
 
-## リクエストを読む
+## Reading the request
 
-| 読むもの | 書き方 | 結果 |
+| What | How | Result |
 | --- | --- | --- |
-| パスのパラメータ | `c.req.param("id")` | `js.UndefOr[String]` |
-| クエリ | `c.req.query("q")` / `c.req.queries("tag")` | `js.UndefOr[String]` / `js.UndefOr[js.Array[String]]` |
-| ヘッダ | `c.req.header("user-agent")` | `js.UndefOr[String]` |
-| JSON の本文 | `c.req.json()` | `js.Promise[js.Any]` |
-| フォームの本文 | `c.req.formData()` | `js.Promise[FormData]`（scalajs-dom） |
-| テキストの本文 | `c.req.text()` | `js.Promise[String]` |
+| Path parameter | `c.req.param("id")` | `js.UndefOr[String]` |
+| Query | `c.req.query("q")` / `c.req.queries("tag")` | `js.UndefOr[String]` / `js.UndefOr[js.Array[String]]` |
+| Header | `c.req.header("user-agent")` | `js.UndefOr[String]` |
+| JSON body | `c.req.json()` | `js.Promise[js.Any]` |
+| Form body | `c.req.formData()` | `js.Promise[FormData]` (scalajs-dom) |
+| Text body | `c.req.text()` | `js.Promise[String]` |
 
-本文は、最初に読んだ形（`text()`・`json()`・`formData()` のどれか）を Hono がキャッシュするので、同じリクエストで何度でも、別の形でも読める。
-`text()` と `json()` は同じ本文の文字列から作られる。`formData()` を先に読むと、後の `text()` は multipart に組み直した文字列になり、元の本文とは違う。
-`c.req.raw` の本文を直接読むと、`c.req` からは読めなくなる（逆に `c.req` で読んだ後の `raw` も読めない）。
+Hono caches the body in the form first read (one of `text()`, `json()`, `formData()`), so it can be read any number of times in the same request, and in other forms too.
+`text()` and `json()` are built from the same body string. If `formData()` is read first, a later `text()` returns a string re-encoded as multipart, which differs from the original body.
+If you read the body of `c.req.raw` directly, it can no longer be read through `c.req` (and conversely, `raw` can't be read after reading through `c.req`).
 
-Promise は `toFuture` で Future にして、`toJSPromise` で戻す。
+Convert a Promise to a Future with `toFuture`, and back with `toJSPromise`.
 
 ```scala
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
@@ -55,7 +55,7 @@ import scala.scalajs.js.JSConverters.*
 @route("api/echo.ts", "POST")
 @JSExportTopLevel("echoPost", "server")
 def echoPost(c: ApiContext): js.Promise[Response] =
-  c.req.json().toFuture.map(body => c.json(body, 201)).toJSPromise     // 本文をそのまま 201 で返す
+  c.req.json().toFuture.map(body => c.json(body, 201)).toJSPromise     // returns the body as-is with 201
 
 @route("api/items/[id].ts", "PUT")
 @JSExportTopLevel("itemPut", "server")
@@ -69,19 +69,19 @@ def itemPut(c: ApiContext): js.Promise[Response] =
   }.toJSPromise
 ```
 
-本文の型は検証されない。受け取る JSON の形を確かめるなら、`JsShape.validate[P](raw, fields)`（[islands.md](islands.md)）が使える。
+The body's type is not validated. To check the shape of the received JSON, use `JsShape.validate[P](raw, fields)` ([islands.md](islands.md)).
 
-## ステータスとヘッダ
+## Status and headers
 
 ```scala
-c.json(body, 404)                    // ステータスを指定して返す
-c.status(404); c.renderPromise(…)    // 先にステータスを設定して描画する
+c.json(body, 404)                    // return with a status
+c.status(404); c.renderPromise(…)    // set the status first, then render
 c.header("cache-control", "no-store")
 c.redirect("/", 302)
 ```
 
-本文を持たない応答（`204`・`304`）は `c.body(null, status)` で返す。`c.text("", 204)` は使えない。Hono の `c.text` は空文字列でも本文ありの
-`Response` を作り、Fetch API の `Response` は 204 / 304 に本文を許さないので、例外になって `500` が返る。
+Return responses without a body (`204`, `304`) with `c.body(null, status)`. `c.text("", 204)` doesn't work: Hono's `c.text` creates a `Response` with a body even for an empty string,
+and the Fetch API's `Response` doesn't allow a body for 204 / 304, so it throws and `500` is returned.
 
 ```scala
 @route("api/notes/[id].ts", "DELETE")
@@ -92,10 +92,10 @@ def noteDelete(c: ApiContext): Response = {
 }
 ```
 
-`c.body(data, status, headers)` の `data` は scalajs-dom の `BodyInit`（文字列・`Blob`・`FormData` など）か `null`、`headers` は `js.Dictionary[String]`。
-`content-type` は付かないので、本文を返すときはヘッダで指定する。
+The `data` of `c.body(data, status, headers)` is a scalajs-dom `BodyInit` (string, `Blob`, `FormData`, etc.) or `null`, and `headers` is a `js.Dictionary[String]`.
+No `content-type` is added, so set it in the headers when returning a body.
 
-`c.notFound()` はアプリの Not Found の応答（Hono の既定では `404` と本文 `404 Not Found`）を返す。戻り値は `Response | js.Promise[Response]` なので、ハンドラの戻り値の型もそれに合わせる。
+`c.notFound()` returns the app's Not Found response (with Hono's default, `404` and the body `404 Not Found`). Its return type is `Response | js.Promise[Response]`, so match the handler's return type to it.
 
 ```scala
 @route("api/notes/[id].ts")
@@ -104,16 +104,16 @@ def noteGet(c: ApiContext): Response | js.Promise[Response] =
   Notes.find(c.req.param("id").getOrElse("")).fold(c.notFound())(note => c.json(toJs(note)))
 ```
 
-この 2 つは `examples/api-only` にある。
+These two are in `examples/api-only`.
 
-## エラー応答
+## Error responses
 
-hx4s は API のエラー形式を決めない。業務上の拒否（検証の失敗・未検出）は、上の `404`・`400` のように自分で組み立てて返す。
-ハンドラが例外を投げると、応答は `500 Internal Server Error`（プレーンテキスト）になる（`c.text("", 204)` の失敗で確かめた。`hx4s-react` の `ContextSuite`）。例外の形をそろえたい場合の仕組みは、hx4s では用意していない。
+hx4s doesn't define an error format for APIs. Build and return business rejections (validation failures, not found) yourself, like the `404` and `400` above.
+If a handler throws, the response is `500 Internal Server Error` (plain text) (checked with the failure of `c.text("", 204)` in `ContextSuite` of `hx4s-react`). hx4s provides no mechanism for shaping exceptions uniformly.
 
-## React を使わない構成
+## Setups without React
 
-API だけなら、client も React も要らない。`examples/api-only` がこの構成で、`react`・`react-dom`・`@hono/react-renderer` に依存しない。
+For APIs only, you need neither a client nor React. `examples/api-only` uses this setup and does not depend on `react`, `react-dom` or `@hono/react-renderer`.
 
 ```scala
 // build.sbt
@@ -127,7 +127,7 @@ lazy val server = project
   )
 ```
 
-`Context` は `hx4s-react` にあるので、依存は残す。island を使わなければ、React に関するコードはリンクされない。`hx4sClientProject` は設定しない（`IslandComponents` は空になる）。
+`Context` lives in `hx4s-react`, so keep that dependency. If you don't use islands, no React code is linked. Don't set `hx4sClientProject` (`IslandComponents` is empty).
 
 ```ts
 // vite.config.ts
@@ -140,13 +140,13 @@ export default defineConfig(({ mode }) => ({
 }));
 ```
 
-`client: false` にすると、`hx4s()` は client の Scala.js プロジェクトのリンク・`scalajs:client.js` の別名・client ビルドを行わず、`honox()` に React の設定も足さない。
-ビルドは `vite build` の 1 回だけで、`vite build --mode client` はエラーになる。
+With `client: false`, `hx4s()` doesn't link the client Scala.js project, doesn't add the `scalajs:client.js` alias or the client build, and doesn't add React settings to `honox()`.
+The build is a single `vite build`, and `vite build --mode client` is an error.
 
-`app/server.ts` は `createApp()` だけ（[getting-started.md](getting-started.md)）。`package.json` の依存は `hono`・`honox`・`@hono/vite-build`・`@scala-js/vite-plugin-scalajs`・`vite`（`hx4s-vite` は tgz）。
+`app/server.ts` is just `createApp()` ([getting-started.md](getting-started.md)). The `package.json` dependencies are `hono`, `honox`, `@hono/vite-build`, `@scala-js/vite-plugin-scalajs` and `vite` (`hx4s-vite` comes from the tgz).
 
-## 未実装
+## Not implemented
 
-- 型付き API クライアント（server の `@route` から client の呼び出しを型付きで作る）
-- OpenAPI の出力
-- API のエラー形式・ミドルウェアの補助（認証・CORS などは HonoX / Hono の手書きのミドルウェアで行う）
+- A typed API client (typed client calls built from the server's `@route`)
+- OpenAPI output
+- API error formats and middleware helpers (authentication, CORS, etc. are done with hand-written HonoX / Hono middleware)

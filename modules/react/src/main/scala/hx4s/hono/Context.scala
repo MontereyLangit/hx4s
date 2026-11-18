@@ -6,7 +6,7 @@ import org.scalajs.dom.{BodyInit, FormData, Request, Response}
 import scala.scalajs.js
 import scala.scalajs.js.|
 
-/** Hono の `c.req` の facade。本文は最初に読んだ形を Hono がキャッシュし、text / json / formData のどれでも何度でも読める。raw を直接読むと読めなくなる */
+/** Facade for Hono's `c.req`. Hono caches the body in the form first read, so it can be read any number of times as text / json / formData. Reading raw directly makes it unreadable */
 @js.native
 trait HonoRequest extends js.Object {
   val raw: Request = js.native
@@ -22,34 +22,34 @@ trait HonoRequest extends js.Object {
   def formData(): js.Promise[FormData] = js.native
 }
 
-/** 実行基盤がリクエストごとに渡す実行コンテキスト。Hono の ExecutionContext のうち基盤に依らない部分 */
+/** Execution context the runtime passes per request. The runtime-independent part of Hono's ExecutionContext */
 @js.native
 trait ExecutionContext extends js.Object {
   def waitUntil(promise: js.Promise[?]): Unit = js.native
   def passThroughOnException(): Unit = js.native
 }
 
-/** c.set / c.get で受け渡す値の名前と型。読む側と書く側で同じ値を共有する */
+/** Name and type of a value passed through c.set / c.get. Share the same value between the reader and the writer */
 final case class ContextVariable[A](name: String)
 
-/** Hono の Context。Env は `c.env`、R は `c.render` に渡すレンダラの props */
+/** Hono's Context. Env is `c.env`, and R is the renderer props passed to `c.render` */
 @js.native
 trait Context[Env, R <: js.Object] extends js.Object {
   val req: HonoRequest = js.native
   val env: Env = js.native
   val res: Response = js.native
-  /** 実行基盤が渡していなければ例外を投げる。渡さない基盤でも動かすなら executionCtxOption を使う */
+  /** Throws if the runtime did not provide one. Use executionCtxOption to also run on runtimes that do not */
   val executionCtx: ExecutionContext = js.native
   def header(name: String, value: String): Unit = js.native
   def status(code: Int): Unit = js.native
-  /** 本文をそのまま返す。204 / 304 など本文を持てないステータスでは data に null を渡す */
+  /** Returns the body as-is. Pass null as data for statuses that cannot have a body, such as 204 / 304 */
   def body(data: BodyInit | Null, status: js.UndefOr[Int] = js.native, headers: js.UndefOr[js.Dictionary[String]] = js.native): Response = js.native
-  /** 本文が空文字列でも本文ありになるので、204 / 304 には使えない（body(null, 204) を使う） */
+  /** Even an empty string counts as a body, so it cannot be used for 204 / 304 (use body(null, 204)) */
   def text(body: String, status: js.UndefOr[Int] = js.native): Response = js.native
   def json(body: js.Any, status: js.UndefOr[Int] = js.native): Response = js.native
   def html(body: String, status: js.UndefOr[Int] = js.native): Response = js.native
   def redirect(location: String, status: js.UndefOr[Int] = js.native): Response = js.native
-  /** アプリの Not Found ハンドラの応答（Hono の既定は 404 と本文 404 Not Found） */
+  /** The response of the app's Not Found handler (Hono's default is 404 with the body 404 Not Found) */
   def notFound(): Response | js.Promise[Response] = js.native
   def render(children: React.Element, props: js.UndefOr[R] = js.native): Response | js.Promise[Response] = js.native
   def set(key: String, value: js.Any): Unit = js.native
@@ -58,12 +58,12 @@ trait Context[Env, R <: js.Object] extends js.Object {
 
 object Context {
   extension [Env, R <: js.Object](context: Context[Env, R]) {
-    /** c.render の戻り値を Promise にそろえる */
+    /** Normalizes the return value of c.render to a Promise */
     def renderPromise(children: React.Element, props: js.UndefOr[R] = js.undefined): js.Promise[Response] = {
       js.Promise.resolve[Response](context.render(children, props))
     }
 
-    /** c.executionCtx を読む。実行基盤が渡していない（Hono が例外を投げる）ときは None */
+    /** Reads c.executionCtx. None when the runtime did not provide one (Hono throws) */
     def executionCtxOption: Option[ExecutionContext] = {
       try {
         Some(context.executionCtx)
@@ -72,12 +72,12 @@ object Context {
       }
     }
 
-    /** variable の名前で c.set する */
+    /** Calls c.set with the name of variable */
     def setVariable[A](variable: ContextVariable[A], value: A): Unit = {
       context.set(variable.name, value.asInstanceOf[js.Any])
     }
 
-    /** variable の名前で c.get する。未設定なら None */
+    /** Calls c.get with the name of variable. None if not set */
     def getVariable[A](variable: ContextVariable[A]): Option[A] = {
       context.get(variable.name).toOption.map(_.asInstanceOf[A])
     }

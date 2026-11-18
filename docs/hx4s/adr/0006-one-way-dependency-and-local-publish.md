@@ -1,67 +1,67 @@
-# ADR 0006: 3ch → hx4s の一方向依存と、分離直後のローカル依存
+# ADR 0006: One-way dependency 3ch → hx4s, and local dependencies right after the split
 
-- 状態: 承認（2026-11-16、Phase 0）。CI での解決方式は未決（U-3）
-- 更新（2026-11-16、Phase 3 レビュー K10・K13）: ローカル公開の既定の版は、公開対象のソースに未コミットの変更か未追跡のファイルがあれば `.dirty-<内容のハッシュ 8 桁>` を付ける
-  （以前は追跡中のファイルだけを見て `.dirty` を付けていたので、内容を変えても版が同じだった）。examples の npm 依存は lockfile で固定し、
-  hx4s-vite の tgz だけを `scripts/setup-example.mjs` が `npm install --no-save` で入れる
-- 更新（2026-11-16、Phase 4 の利用側の移行と Codex の指摘）: 公開記録を sbt・npm で分け、両方が同じ版・commit・作業ツリーの状態のときだけ
-  完了の記録 `target/local/hx4s-publish.json` を書く。`--verify` で記録を HEAD と成果物に照らせるようにし、利用側の固定は lock ファイル（commit の完全な SHA と版）と
-  セットアップスクリプトで行う（[local-dependency.md](../local-dependency.md)、[reviews/phase4-feedback.md](../reviews/phase4-feedback.md)）
-- 関連: [extraction-plan.md](../extraction-plan.md) Phase 3〜5、[module-boundaries.md](../module-boundaries.md) 2 章
+- Status: Accepted (2026-11-16, Phase 0). The resolution method in CI is undecided (U-3)
+- Updated (2026-11-16, Phase 3 review K10 and K13): the default local publish version gets `.dirty-<8-character content hash>` if the published sources have uncommitted changes or untracked files
+  (previously only tracked files were checked and `.dirty` was appended, so the version stayed the same even when the content changed). The examples' npm dependencies are pinned with the lockfile,
+  and only the hx4s-vite tgz is installed by `scripts/setup-example.mjs` with `npm install --no-save`
+- Updated (2026-11-16, Phase 4 user migration and Codex's findings): publish records are split between sbt and npm, and the completed record `target/local/hx4s-publish.json` is written only when
+  both have the same version, commit and working tree state. `--verify` checks the records against HEAD and the artifacts, and users pin with a lock file (the full commit SHA and the version) and
+  a setup script ([local-dependency.md](../local-dependency.md), [reviews/phase4-feedback.md](../reviews/phase4-feedback.md))
+- Related: [extraction-plan.md](../extraction-plan.md) Phases 3–5, [module-boundaries.md](../module-boundaries.md) chapter 2
 
-## 背景
+## Context
 
-hx4s を 3ch から分離したあと、3ch は hx4s を使う側になる。hx4s がまだ公開されていない期間、3ch がどうやって hx4s を解決するかを決める必要がある。
-また、hx4s 側に 3ch の都合が逆流しないようにする必要がある。
+After hx4s is split out of 3ch, 3ch becomes a user of hx4s. We need to decide how 3ch resolves hx4s while hx4s is not yet published.
+We also need to keep 3ch's concerns from flowing back into hx4s.
 
-## 決定
+## Decision
 
-- 依存は 3ch → hx4s の一方向。hx4s は 3ch のコード・名前・ファイルパス・文言を参照しない。3ch だけが必要とする機能は 3ch に置く。
-- 分離後しばらくは、ローカルの依存を許す。
-  - sbt: hx4s で `sbt publishLocal` し、3ch は通常の `libraryDependencies` / `addSbtPlugin` で `~/.ivy2/local` から解決する。版は `-SNAPSHOT` を使わず、`0.1.0-local.N` のように明示する案（同じ版の上書きでキャッシュが古いまま残る事故を避けるため）。
-  - npm: 3ch の `package.json` で `"hx4s-vite": "file:../hx4s/vite"` のように参照する。
-  - Phase 3 の実装（`scripts/publish-local.mjs`）: 既定の版は `0.1.0-local.g<commit>`（公開対象のソースに未コミットの変更か未追跡のファイルがあれば `.dirty-<内容のハッシュ>` を付ける）、`--version` で明示もできる。
-    npm は `vite/` をそのまま参照せず、ビルドして `npm pack` した `target/local/hx4s-vite.tgz` を `file:` で参照する（`node_modules` を持つ作業ディレクトリへのリンクにならないため）。
-    公開した版は `target/local/hx4s-version.txt` に書く。ビルドの既定の版（`0.1.0-SNAPSHOT`）はローカル公開には使わない。
-  - Phase 4 で足したこと:
-    - 公開の前に hx4s の npm 依存を `npm ci` で lockfile どおりに入れる（clone 直後に `node_modules` が無くても公開できる）。
-    - sbt と npm の公開記録を `hx4s-publish-sbt.json` / `hx4s-publish-npm.json` に分ける。両方が同じ版・commit・作業ツリーの状態で成果物がそろったときだけ、
-      完了の記録 `hx4s-publish.json`（Maven の成果物の一覧と tgz の SHA-256。時刻なし）と `hx4s-version.txt` を書く。部分公開や失敗の後に完了の印が残らない。
-    - `hx4s-version.txt` は残す。JSON を読めない `project/plugins.sbt` が版を読むため。意味は「完了したときだけ書く」に変えた。
-    - `--verify` で、完了の記録を今の HEAD・作業ツリー・`~/.ivy2/local`・tgz のハッシュと照らす。利用側はこれで再公開を省けるかを判断する。
-    - 利用側は lock ファイル（commit の完全な SHA と版）を持ち、セットアップスクリプトで hx4s の HEAD とクリーンさを確かめてから `--verify`、通らなければ `--version` で公開する。
-      手順とスクリプトの例は [local-dependency.md](../local-dependency.md)。
-    - npm・sbt はシェルを介さずに起動する（Windows の sbt.bat だけは cmd.exe に引用済みの 1 行で渡す）。パスの空白・`&` で壊れないようにするため。
-    - 最終レビューで足したこと: 作業ツリーの状態にルートの `package.json` / `package-lock.json` を含める。Maven の成果物は `ivy.xml` の存在だけでなく、
-      `ivy.xml` と publications の実体の SHA-256 を記録して照らす。完了の記録は項目・成果物の集合・部分の記録との一致を厳密に確かめる（[reviews/final-review.md](../reviews/final-review.md)）。
-- CI での **公開を伴う** 解決方式は Phase 5 で決める。
-- ただし、公開が無くても再現できる検証経路は Phase 4 の前提にする。
-  - commit を固定した hx4s の checkout から、`publishLocal` と npm パッケージの準備（`npm pack` など）を行う手順をスクリプトにする。
-  - **空の依存キャッシュ**（空の coursier / ivy キャッシュと `node_modules`）から、3ch がビルドとテストを通せることを完了条件に含める。
-  - 手元の `~/.ivy2/local` と `node_modules` にたまたま残っているものに頼って成功する、という状態を移行完了と見なさない。
+- Dependencies go one way, 3ch → hx4s. hx4s doesn't reference 3ch's code, names, file paths or wording. Features only 3ch needs stay in 3ch.
+- For a while after the split, local dependencies are allowed.
+  - sbt: run `sbt publishLocal` in hx4s, and 3ch resolves it from `~/.ivy2/local` with ordinary `libraryDependencies` / `addSbtPlugin`. The proposal is to avoid `-SNAPSHOT` and use explicit versions like `0.1.0-local.N` (to avoid accidents where overwriting the same version leaves stale caches).
+  - npm: 3ch's `package.json` references it like `"hx4s-vite": "file:../hx4s/vite"`.
+  - The Phase 3 implementation (`scripts/publish-local.mjs`): the default version is `0.1.0-local.g<commit>` (with `.dirty-<content hash>` if the published sources have uncommitted changes or untracked files), and it can be given explicitly with `--version`.
+    npm doesn't reference `vite/` directly; it references `target/local/hx4s-vite.tgz`, built and created with `npm pack`, via `file:` (so it isn't a link to a working directory with its own `node_modules`).
+    The published version is written to `target/local/hx4s-version.txt`. The build's default version (`0.1.0-SNAPSHOT`) is not used for local publishing.
+  - Added in Phase 4:
+    - Before publishing, install hx4s's npm dependencies from the lockfile with `npm ci` (so it can be published even without `node_modules` right after a clone).
+    - Split the sbt and npm publish records into `hx4s-publish-sbt.json` / `hx4s-publish-npm.json`. Only when both have the same version, commit and working tree state and all artifacts are present,
+      write the completed record `hx4s-publish.json` (the list of Maven artifacts and the SHA-256 of the tgz; no timestamps) and `hx4s-version.txt`. No completion marker remains after a partial publish or a failure.
+    - Keep `hx4s-version.txt`, because `project/plugins.sbt`, which can't read JSON, reads the version from it. Its meaning changed to "written only on completion".
+    - `--verify` checks the completed record against the current HEAD, working tree, `~/.ivy2/local` and the tgz hash. Users use it to decide whether republishing can be skipped.
+    - Users keep a lock file (the full commit SHA and the version); a setup script checks hx4s's HEAD and cleanliness, then runs `--verify`, and publishes with `--version` if it fails.
+      Steps and an example script are in [local-dependency.md](../local-dependency.md).
+    - npm and sbt are started without a shell (only Windows' sbt.bat is passed to cmd.exe as a single pre-quoted line), so that spaces and `&` in paths don't break them.
+    - Added in the final review: the working tree state includes the root `package.json` / `package-lock.json`. For Maven artifacts, not just the existence of `ivy.xml`,
+      but the SHA-256 of `ivy.xml` and the actual publications are recorded and checked. The completed record is strictly checked for its entries, the set of artifacts, and agreement with the partial records.
+- The resolution method in CI **that involves publishing** is decided in Phase 5.
+- However, a verification path that is reproducible without publishing is a prerequisite for Phase 4.
+  - Script the steps to run `publishLocal` and prepare the npm package (`npm pack`, etc.) from an hx4s checkout pinned to a commit.
+  - Include in the completion criteria that 3ch passes its build and tests starting from **empty dependency caches** (empty coursier / ivy caches and `node_modules`).
+  - Don't consider the migration complete if it succeeds only by relying on whatever happens to remain in the local `~/.ivy2/local` and `node_modules`.
 
-### CI での解決方式の比較
+### Comparison of resolution methods in CI
 
-| 方式 | 長所 | 短所 |
+| Method | Pros | Cons |
 | --- | --- | --- |
-| sbt の source dependency（`RootProject(uri("https://…#<commit>"))`） | 公開不要。commit で固定できる | sbt plugin（`sbt-hx4s`）には使えない（`project/` の中で別途 `dependsOn` が要る）。npm 側は別の手段が要る。sbt のキャッシュ（`~/.sbt/1.0/staging`）の扱いが分かりにくい |
-| git submodule + CI で `publishLocal` と npm `file:` | sbt plugin・ライブラリ・npm を同じ手順で扱える。commit で固定できる | CI が毎回 hx4s をビルドする。submodule の更新を忘れやすい |
-| Maven Central / npm に公開 | 利用側の設定が最も普通になる | 公開の手続き（署名、名前空間の確認）が要る。アルファの段階で公開版が増える |
-| GitHub Packages（Maven / npm） | 公開範囲を限定できる | 読み取りにも認証が要り、CI と開発者の設定が増える |
+| sbt source dependency (`RootProject(uri("https://…#<commit>"))`) | No publishing needed. Can be pinned to a commit | Can't be used for the sbt plugin (`sbt-hx4s`) (a separate `dependsOn` inside `project/` is needed). npm needs another method. The handling of sbt's cache (`~/.sbt/1.0/staging`) is hard to follow |
+| git submodule + `publishLocal` in CI and npm `file:` | The sbt plugin, the libraries and npm are handled with the same steps. Can be pinned to a commit | CI builds hx4s every time. Easy to forget to update the submodule |
+| Publish to Maven Central / npm | The users' settings are the most ordinary | Requires publishing procedures (signing, namespace verification). Published versions pile up during the alpha |
+| GitHub Packages (Maven / npm) | Can limit who can access it | Reading requires authentication too, adding settings for CI and developers |
 
-提案: 公開までは submodule + `publishLocal`、公開後は Maven Central / npm。
+Proposal: submodule + `publishLocal` until publishing, Maven Central / npm after.
 
-## 却下案
+## Rejected alternatives
 
-| 案 | 理由 |
+| Alternative | Reason |
 | --- | --- |
-| hx4s から 3ch のテストを呼んで回帰を見る | 依存が逆向きになる。3ch 固有の回帰は 3ch の CI で見る。hx4s の回帰は `examples/minimal` と互換性テストで見る |
-| 最初から公開版だけに依存する | 分離直後は hx4s と 3ch を同時に直すことが多い。公開の往復が開発を遅くする |
-| `-SNAPSHOT` でローカル公開 | 同じ版の上書きで、依存解決のキャッシュが古い成果物を返すことがある。明示的な版の方が追いやすい |
+| Call 3ch's tests from hx4s to catch regressions | The dependency would point the wrong way. 3ch-specific regressions are caught by 3ch's CI. hx4s's regressions are caught by `examples/minimal` and the compatibility tests |
+| Depend only on published versions from the start | Right after the split, hx4s and 3ch are often fixed at the same time. Round trips through publishing would slow development |
+| Local publish with `-SNAPSHOT` | Overwriting the same version can make the dependency resolution cache return stale artifacts. Explicit versions are easier to track |
 
-## 影響
+## Consequences
 
-- Phase 4 の 3ch は、hx4s のチェックアウトが隣にあることを前提にする（`../hx4s`）。手順を 3ch の docs に書く。
-- 3ch の本番デプロイ（`npm run deploy`）は、ローカル依存の期間はローカル環境からだけ行える。CI からのデプロイは Phase 5 以降。
-- Phase 4 の移行は、上の前提（commit 固定の checkout からの手順、空の依存キャッシュからのビルド）が通ってから完了とする（[extraction-plan.md](../extraction-plan.md) Phase 4）。
-- hx4s に変更を入れるときに 3ch が壊れていないかは、Phase 4 以降、3ch 側で確認する。hx4s の CI では確認できない。
+- From Phase 4, 3ch assumes an hx4s checkout next to it (`../hx4s`). The steps are written in 3ch's docs.
+- While dependencies are local, 3ch's production deployment (`npm run deploy`) can only be done from a local environment. Deployment from CI comes in Phase 5 or later.
+- The Phase 4 migration is complete only after the prerequisites above pass (steps from a commit-pinned checkout, a build from empty dependency caches) ([extraction-plan.md](../extraction-plan.md) Phase 4).
+- From Phase 4 on, whether changes to hx4s break 3ch is checked on the 3ch side. hx4s's CI can't check it.

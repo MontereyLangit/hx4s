@@ -4,7 +4,7 @@ import japgolly.scalajs.react.facade.React
 import japgolly.scalajs.react.vdom.VdomNode
 import japgolly.scalajs.react.vdom.html_<^.*
 
-/** HTML 全体。client の script は island の有無にかかわらず読み込む */
+/** The whole HTML. The client script is loaded whether or not there are islands */
 object Shell {
   def apply(children: React.Node, title: String, clientScriptSrc: String): VdomElement =
     <.html(^.lang := "ja",

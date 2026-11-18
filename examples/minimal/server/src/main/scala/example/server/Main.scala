@@ -11,12 +11,12 @@ import scala.scalajs.js
 import scala.scalajs.js.JSConverters.*
 import scala.scalajs.js.annotation.JSExportTopLevel
 
-/** app/routes/_renderer.tsx が受け取る props */
+/** Props received by app/routes/_renderer.tsx */
 trait RenderProps extends js.Object {
   val title: js.UndefOr[String]
 }
 
-/** HonoX から呼ばれる export。@route を付けたものは hx4sGenerate が app/routes に配線する */
+/** Exports called from HonoX. hx4sGenerate wires members with @route into app/routes */
 object Main {
   type AppContext = Context[js.Object, RenderProps]
 
@@ -25,7 +25,7 @@ object Main {
   @route("index.ts")
   @JSExportTopLevel("indexPage", "server")
   def indexPage(c: AppContext): js.Promise[Response] =
-    c.renderPromise(Pages.index().rawElement, titled("トップ"))
+    c.renderPromise(Pages.index().rawElement, titled("Home"))
 
   @route("items/[id].ts")
   @JSExportTopLevel("itemPage", "server")
@@ -35,7 +35,7 @@ object Main {
       case Some(item) => c.renderPromise(Pages.item(item, saved = None).rawElement, titled(item.name))
       case None =>
         c.status(404)
-        c.renderPromise(Pages.notFound(id).rawElement, titled("見つかりません"))
+        c.renderPromise(Pages.notFound(id).rawElement, titled("No such item"))
     }
   }
 
@@ -53,15 +53,15 @@ object Main {
           .left.map(reason => Pages.item(item, saved = None, error = Some(reason)))
       }
       result match {
-        case Right(page) => c.renderPromise(page.rawElement, titled("保存しました")).toFuture
+        case Right(page) => c.renderPromise(page.rawElement, titled("Saved")).toFuture
         case Left(page) =>
           c.status(400)
-          c.renderPromise(page.rawElement, titled("保存できません")).toFuture
+          c.renderPromise(page.rawElement, titled("Could not save")).toFuture
       }
     }.toJSPromise
   }
 
-  /** 品目の JSON。?tag= を繰り返すと、そのタグをすべて持つ品目に絞る */
+  /** JSON of the items. Repeating ?tag= narrows to items that have all those tags */
   @route("api/items.ts")
   @JSExportTopLevel("itemsApi", "server")
   def itemsApi(c: AppContext): Response = {
@@ -71,7 +71,7 @@ object Main {
     }.toJSArray)
   }
 
-  /** HTML のシェル。app/routes/_renderer.tsx が呼ぶ */
+  /** The HTML shell. Called by app/routes/_renderer.tsx */
   @JSExportTopLevel("renderShell", "server")
   def renderShell(children: React.Node, title: js.UndefOr[String], clientScriptSrc: String): React.Element =
     Shell(children, title.getOrElse("hx4s minimal"), clientScriptSrc).rawElement

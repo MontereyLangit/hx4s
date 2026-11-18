@@ -7,7 +7,7 @@ import { root } from './support.js';
 const port = Number(process.env.HX4S_E2E_PORT ?? 8791);
 const origin = `http://127.0.0.1:${port}`;
 
-/** wrangler dev（ローカルの workerd）でビルド成果物を配信する */
+/** Serves the build output with wrangler dev (local workerd) */
 function startWrangler() {
   const wrangler = path.join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
   const child = spawn(process.execPath, [wrangler, 'dev', '--ip', '127.0.0.1', '--port', String(port), '--show-interactive-dev-session=false'], {
@@ -23,7 +23,7 @@ function startWrangler() {
 
 function stop(child) {
   if (child.exitCode !== null) return;
-  // wrangler は workerd を子プロセスとして起動するので、プロセスツリーごと止める
+  // wrangler starts workerd as a child process, so stop the whole process tree
   if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F']);
   else child.kill('SIGTERM');
 }
@@ -35,14 +35,14 @@ async function waitForServer(server) {
       const response = await fetch(`${origin}/`);
       if (response.ok) return;
     } catch {
-      // まだ起動していない
+      // Not started yet
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   assert.fail(`wrangler dev did not start:\n${server.log()}`);
 }
 
-test('実ブラウザで SSR のページを開き、island をクリックすると状態が変わり、hydration の誤りが出ない', async (t) => {
+test('opening the SSR page in a real browser and clicking islands changes state without hydration errors', async (t) => {
   if (process.env.HX4S_SKIP_E2E === '1') {
     t.skip('HX4S_SKIP_E2E=1');
     return;
@@ -52,9 +52,9 @@ test('実ブラウザで SSR のページを開き、island をクリックす�
   let browser;
   try {
     await waitForServer(server);
-    // workerd 上で静的ファイルと Worker の両方が返ること
+    // Both static files and the Worker respond on workerd
     assert.equal((await fetch(`${origin}/static/client.js`)).status, 200);
-    assert.equal((await fetch(`${origin}/index.js`)).status, 404, 'Worker のコードは静的配信しない');
+    assert.equal((await fetch(`${origin}/index.js`)).status, 404, 'the Worker code is not served statically');
 
     browser = await chromium.launch();
     const page = await browser.newPage();
@@ -71,14 +71,14 @@ test('実ブラウザで SSR のページを開き、island をクリックす�
     await assert.doesNotReject(page.waitForFunction(() =>
       [...document.querySelectorAll('button.counter')].map((b) => b.textContent).join('|') === 'A: 2|B: 11'));
     await page.locator('.item-list li button').nth(2).click();
-    await page.waitForFunction(() => document.querySelector('.selected-name')?.textContent === '選択中: ぶどう😀');
+    await page.waitForFunction(() => document.querySelector('.selected-name')?.textContent === 'Selected: grape😀');
 
     await page.goto(`${origin}/items/2`);
-    assert.equal(await page.locator('.item-name').textContent(), '</script><b>タグ</b> "引用" \'single\'');
-    await page.fill('input[name="name"]', 'ブラウザから保存');
+    assert.equal(await page.locator('.item-name').textContent(), '</script><b>tag</b> "quoted" \'single\'');
+    await page.fill('input[name="name"]', 'Saved from the browser 🌐');
     await page.click('button[type="submit"]');
     await page.waitForSelector('.saved');
-    assert.equal(await page.locator('.saved').textContent(), '保存しました: ブラウザから保存');
+    assert.equal(await page.locator('.saved').textContent(), 'Saved: Saved from the browser 🌐');
 
     assert.deepEqual(problems, [], 'no console errors or warnings (hydration mismatches are reported there)');
   } finally {

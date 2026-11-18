@@ -12,7 +12,7 @@ class AnnotationScannerSuite extends FunSuite {
   private def errors[A](result: CodegenError.Result[A]): List[CodegenError] =
     result.left.getOrElse(fail(s"expected errors, got $result"))
 
-  test("export がハンドラ名を決め、同じファイルのメソッドは GET を先頭に 1 件へまとまる") {
+  test("the export decides the handler name, and methods of the same file are combined into one with GET first") {
     val entries = routes("""
       @route(filePath = "probe.ts", method = "POST")
       @JSExportTopLevel(name = "writeProbe", moduleID = "server") def write(c: Any) = c
@@ -22,7 +22,7 @@ class AnnotationScannerSuite extends FunSuite {
     assertEquals(entries, List(RouteEntry("probe.ts", List(RouteHandler(HttpMethod.GET, "readProbe"), RouteHandler(HttpMethod.POST, "writeProbe")))))
   }
 
-  test("1 つのメンバに複数の @route を付けられる") {
+  test("a member can have several @route annotations") {
     val entries = routes("""
       @route("form.ts") @route("form.ts", "POST") @route("other.ts", "PUT")
       @JSExportTopLevel("formHandler", "server") def form(c: Any) = c
@@ -33,7 +33,7 @@ class AnnotationScannerSuite extends FunSuite {
     ))
   }
 
-  test("出力は宣言の並びに依存しない") {
+  test("output does not depend on the order of declarations") {
     val a = """@route("b.ts") @JSExportTopLevel("b", "server") def b(c: Any) = c"""
     val b = """@route("a.ts", "DELETE") @JSExportTopLevel("a2", "server") def a2(c: Any) = c"""
     val c = """@route("a.ts") @JSExportTopLevel("a1", "server") def a1(c: Any) = c"""
@@ -45,7 +45,7 @@ class AnnotationScannerSuite extends FunSuite {
     assertEquals(islands(s"$i2\n$i1"), islands(s"$i1\n$i2"))
   }
 
-  test("Main 以外の名前やパッケージ内のトップレベル object も対象にし、入れ子の object は読まない") {
+  test("top-level objects with names other than Main and inside packages are targets, but nested objects are not read") {
     val source = """package example
       |object Handlers {
       |  @route("a.ts") @JSExportTopLevel("a", "server") def a(c: Any) = c
@@ -57,17 +57,17 @@ class AnnotationScannerSuite extends FunSuite {
     assertEquals(entries.map(_.filePath), List("a.ts", "b.ts"))
   }
 
-  test("完全修飾名のアノテーションも読む") {
+  test("fully qualified annotations are read too") {
     val entries = routes("""@example.annotations.route("x.ts") @scala.scalajs.js.annotation.JSExportTopLevel("x", "server") def x() = 1""")
     assertEquals(entries.map(_.map(_.filePath)), Right(List("x.ts")))
   }
 
-  test("island は export とソースモジュールを導出する") {
+  test("islands derive the export and the source module") {
     assertEquals(islands("""@islands("widgets/view.tsx") @JSExportTopLevel("ItemView", "client") val view = 1"""),
       Right(List(IslandEntry("widgets/view.tsx", "ItemView", "client.js"))))
   }
 
-  test("island の props 型引数は完全修飾名だけを受け付ける") {
+  test("the props type argument of an island accepts only fully qualified names") {
     assertEquals(islands("""@islands[pkg.props.ViewProps]("view.tsx") @JSExportTopLevel("View", "client") val view = 1""").map(_.head.propsType),
       Right(Some("_root_.pkg.props.ViewProps")))
     assertEquals(islands("""@islands[_root_.pkg.ViewProps]("view.tsx") @JSExportTopLevel("View", "client") val view = 1""").map(_.head.propsType),
@@ -82,7 +82,7 @@ class AnnotationScannerSuite extends FunSuite {
     assert(routes("@route[pkg.A](\"x.ts\") @JSExportTopLevel(\"x\", \"server\") def x() = 1").isLeft)
   }
 
-  test("誤りは例外にせず、行番号付きで全部まとめて返す") {
+  test("errors are not thrown but returned all together with line numbers") {
     val found = errors(routes("""
       @route(path) @JSExportTopLevel("a", "server") def a() = 1
       @route("b.ts") def b() = 1
@@ -94,7 +94,7 @@ class AnnotationScannerSuite extends FunSuite {
     assert(found.head.render.startsWith("Server.scala:3: "), found.head.render)
   }
 
-  test("メタデータはリテラル、モジュールは正しいものが必須") {
+  test("metadata must be literals and the module must be correct") {
     List(
       """@route(path) @JSExportTopLevel("x", "server") def x() = 1""",
       """@route("x.ts") def x() = 1""",
@@ -109,13 +109,13 @@ class AnnotationScannerSuite extends FunSuite {
     assert(islands("""@route("x.ts") @JSExportTopLevel("x", "client") val x = 1""").isLeft)
   }
 
-  test("構文エラーはソースの位置付きで返す") {
+  test("syntax errors are returned with the source position") {
     val found = errors(AnnotationScanner.routes(List("Broken.scala" -> "object Main {\n  def x( = 1\n}"), config))
     assertEquals(found.map(_.source), List("Broken.scala"))
     assert(found.head.line.isDefined)
   }
 
-  test("危険なパスは生成ディレクトリの外へ出られない") {
+  test("dangerous paths cannot escape the generated directory") {
     List("../x.ts", "/x.ts", "C:/x.ts", "a//x.ts", "a/./x.ts", "x.tsx", "a\\x.ts", "x\".ts", "CON.ts", "nul/x.ts", "a./x.ts", "a /x.ts", "com1.d.ts")
       .foreach { path =>
         val literal = "\"" + path.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
@@ -123,7 +123,7 @@ class AnnotationScannerSuite extends FunSuite {
       }
   }
 
-  test("route と island のファイル名は HonoX の規則に従う") {
+  test("route and island file names follow HonoX's rules") {
     List("_renderer.ts", "a/_middleware.ts").foreach { path =>
       assert(routes(s"@route(\"$path\") @JSExportTopLevel(\"x\", \"server\") def x() = 1").isLeft, path)
     }
@@ -132,12 +132,12 @@ class AnnotationScannerSuite extends FunSuite {
     }
   }
 
-  test("HonoX の createApp が登録しない HEAD は理由付きで拒否する") {
+  test("HEAD, which HonoX createApp does not register, is rejected with a reason") {
     val found = errors(routes("""@route("x.ts", "HEAD") @JSExportTopLevel("x", "server") def x() = 1"""))
     assertEquals(found.map(_.message), List("HEAD is not registered by HonoX createApp (GET handlers also answer HEAD)"))
   }
 
-  test("HonoX の route の glob と import.meta.glob が拾わないファイル名は拒否し、先頭の .well-known は許す") {
+  test("file names HonoX's route glob and import.meta.glob skip are rejected, and a leading .well-known is allowed") {
     def route(path: String) = routes(s"@route(\"$path\") @JSExportTopLevel(\"x\", \"server\") def x() = 1")
     List("-draft.ts", "$param.ts", "a/-x.ts", "page.test.ts", "a/page.spec.ts", "-private/page.ts", "a/-private/page.ts",
       ".hidden/page.ts", "a/.hidden/page.ts", ".page.ts", "node_modules/page.ts", "a/.well-known/x.ts", ".well-known.ts").foreach { path =>
@@ -150,7 +150,7 @@ class AnnotationScannerSuite extends FunSuite {
     }
   }
 
-  test("1 つのメンバに @islands を複数付けると、生成する前に拒否する") {
+  test("several @islands on one member are rejected before generating") {
     val found = errors(islands("""
       @islands("first.tsx") @islands("second.tsx") @JSExportTopLevel("Widget", "client") val widget = 1
     """))
@@ -158,7 +158,7 @@ class AnnotationScannerSuite extends FunSuite {
     assertEquals(found.map(_.line), List(Some(3)))
   }
 
-  test("export の宣言型が IslandExport[T] なら、T は @islands[P] の P と同じ型名でなければならない") {
+  test("if the declared type of the export is IslandExport[T], T must have the same type name as the P of @islands[P]") {
     def island(annotation: String, declared: String) =
       islands(s"""@$annotation @JSExportTopLevel("View", "client") val view: $declared = ???""")
     List(
@@ -182,7 +182,7 @@ class AnnotationScannerSuite extends FunSuite {
     assert(islands("""@islands[pkg.ViewProps]("v.tsx") @JSExportTopLevel("View", "client") def view: IslandExport[pkg.OtherProps] = ???""").isLeft)
   }
 
-  test("ルートメソッド・island パス・export 名の重複は拒否される") {
+  test("duplicate route methods, island paths and export names are rejected") {
     assert(routes("""
       @route("x.ts") @JSExportTopLevel("x", "server") def x() = 1
       @route("X.ts", "POST") @JSExportTopLevel("y", "server") def y() = 1
@@ -206,7 +206,7 @@ class AnnotationScannerSuite extends FunSuite {
     ), config).isLeft)
   }
 
-  test("HonoX で同じ URL になる別々の route ファイルは、同じメソッドなら拒否する（パラメータ名は区別しない）") {
+  test("separate route files with the same URL in HonoX are rejected for the same method (parameter names are not distinguished)") {
     def pair(first: String, second: String, method: String = "GET") = routes(
       s"""@route("$first") @JSExportTopLevel("first", "server") def first() = 1
          |@route("$second", "$method") @JSExportTopLevel("second", "server") def second() = 1""".stripMargin)
@@ -217,12 +217,12 @@ class AnnotationScannerSuite extends FunSuite {
       assertEquals(found.map(_.line), List(Some(2), Some(3)))
     }
     assert(errors(pair("foo.ts", "foo/index.ts")).head.message.contains("foo.ts (/foo), foo/index.ts (/foo)"))
-    assert(pair("foo.ts", "foo/index.ts", "POST").isRight, "メソッドが違えば同じ URL でもよい")
-    assert(pair("docs/[a].ts", "docs/[...b].ts").isRight, "catch-all と 1 区切りのパラメータは別のパターン")
-    assert(pair("items/[id].ts", "items/new.ts").isRight, "固定の区切りとパラメータは HonoX の並び順で両立する")
+    assert(pair("foo.ts", "foo/index.ts", "POST").isRight, "different methods may share a URL")
+    assert(pair("docs/[a].ts", "docs/[...b].ts").isRight, "a catch-all and a single-segment parameter are different patterns")
+    assert(pair("items/[id].ts", "items/new.ts").isRight, "a static segment and a parameter coexist thanks to HonoX's ordering")
   }
 
-  test("宣言の誤りがあっても、残りの宣言で URL の衝突・重複・export 名の重複を同じ実行で報告する") {
+  test("even with declaration errors, URL conflicts, duplicates and duplicate export names among the remaining declarations are reported in the same run") {
     val found = errors(AnnotationScanner.routes(List(
       "A.scala" -> """object A {
         |  @route("index.ts", "HEAD") @JSExportTopLevel("head", "server") def head() = 1
@@ -245,7 +245,7 @@ class AnnotationScannerSuite extends FunSuite {
     assertEquals(rendered.distinct, rendered)
   }
 
-  test("誤った宣言は衝突の検査から外し、それに起因する誤りは出さない") {
+  test("erroneous declarations are excluded from conflict checks, and errors caused by them are not reported") {
     val found = errors(routes("""
       @route("foo.ts", "HEAD") @JSExportTopLevel("foo", "server") def foo() = 1
       @route("foo/index.ts", "HEAD") @JSExportTopLevel("fooIndex", "server") def fooIndex() = 1

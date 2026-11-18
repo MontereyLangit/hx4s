@@ -1,12 +1,12 @@
-// hx4s をローカルに公開し、公開記録を書く・照合する（docs/hx4s/local-dependency.md、ADR 0006）。
-//   公開: node scripts/publish-local.mjs [--version <版>-local.N] [--skip-sbt] [--skip-npm] [--reuse-node-modules]
-//     sbt: publishLocal で全モジュールを ~/.ivy2/local へ。記録は target/local/hx4s-publish-sbt.json
-//     npm: lockfile どおりに npm ci し、hx4s-vite をビルドして target/local/hx4s-vite.tgz に pack。記録は target/local/hx4s-publish-npm.json
-//     2 つの記録が同じ版・commit・作業ツリーの状態なら、完了の記録 target/local/hx4s-publish.json と hx4s-version.txt を書く
-//   照合: node scripts/publish-local.mjs --verify [--version V] [--commit <40 桁の SHA>]
-//     完了の記録が今の HEAD・作業ツリー・成果物と一致すれば 0、しなければ理由を出して 1 で終わる
-// 版を省くと <version.txt の版>-local.g<commit>（公開対象のソースに未コミットの変更か未追跡のファイルがあれば .dirty-<内容のハッシュ 8 桁>）。
-// 記録の形と照合の中身は lib/publish-record.mjs。
+// Publishes hx4s locally, and writes and verifies publish records (docs/hx4s/local-dependency.md, ADR 0006).
+//   Publish: node scripts/publish-local.mjs [--version <version>-local.N] [--skip-sbt] [--skip-npm] [--reuse-node-modules]
+//     sbt: publishLocal of all modules to ~/.ivy2/local. Record in target/local/hx4s-publish-sbt.json
+//     npm: npm ci from the lockfile, build hx4s-vite and pack it into target/local/hx4s-vite.tgz. Record in target/local/hx4s-publish-npm.json
+//     If both records have the same version, commit and working tree state, write the completed record target/local/hx4s-publish.json and hx4s-version.txt
+//   Verify: node scripts/publish-local.mjs --verify [--version V] [--commit <40-character SHA>]
+//     Exits 0 if the completed record matches the current HEAD, working tree and artifacts; otherwise prints the reason and exits 1
+// Without a version: <version in version.txt>-local.g<commit> (with .dirty-<8-character content hash> if the published sources have uncommitted changes or untracked files).
+// The shape of the records and the verification are in lib/publish-record.mjs.
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -103,7 +103,7 @@ function publishNpm(version, state, reuseNodeModules) {
   writeJson(files.npm, { ...source(version, state), npm: { ...npmArtifact, sha256: sha256(readFileSync(files.tgz)) } });
 }
 
-/** sbt と npm の記録が同じ公開のもので成果物もそろっていれば、完了の記録を書く。書かなかったときは理由を返す */
+/** Writes the completed record if the sbt and npm records belong to the same publish and all artifacts are present. Returns the reason when it does not */
 function writeCompleteRecord() {
   const sbt = readJson(files.sbt);
   const npm = readJson(files.npm);
@@ -120,7 +120,7 @@ function publish(options) {
   const state = sourceState(root);
   const version = options.version ?? localVersion(baseVersion(), state.commit, state.dirtyHash);
   mkdirSync(output, { recursive: true });
-  // 途中で失敗したときに前の完了の記録が残らないよう、先に消す
+  // Delete first so that the previous completed record does not survive a failure midway
   rmSync(files.complete, { force: true });
   rmSync(files.version, { force: true });
   if (options.sbt) publishSbt(version, state);

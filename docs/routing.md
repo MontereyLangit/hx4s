@@ -1,7 +1,7 @@
-# ルーティング
+# Routing
 
-hx4s は独自のルート表を持たない。`@route` は「どのファイルを生成するか」の宣言で、URL への対応・パラメータの解析・ルートの優先順位・`_renderer` や `_middleware` の適用は
-HonoX のファイルルート（`app/routes`）に任せる。生成物は普通の HonoX のルートなので、読めば挙動が分かり、手書きのルートとも併用できる。
+hx4s has no route table of its own. `@route` declares "which file to generate"; mapping to URLs, parsing parameters, route priority and applying `_renderer` and `_middleware`
+are left to HonoX's file routes (`app/routes`). The generated files are ordinary HonoX routes, so reading them tells you how they behave, and they can be mixed with hand-written routes.
 
 ## `@route`
 
@@ -20,76 +20,76 @@ object Main {
 }
 ```
 
-| 項目 | 規則 |
+| Item | Rule |
 | --- | --- |
-| 対象 | 設定したソースのトップレベル object（パッケージの中を含む。入れ子の object は対象外）の `def` / `val`。object の名前は問わない |
-| `filePath` | `app/routes` からの相対パス。`.ts` で終わる文字列リテラル |
-| `method` | `GET`（既定）・`POST`・`PUT`・`DELETE`・`PATCH`・`OPTIONS`。文字列リテラル |
-| `@JSExportTopLevel` | ちょうど 1 つ。名前と moduleID はリテラルで、moduleID は `"server"` |
-| 複数の `@route` | 1 つのメンバに複数付けられる（同じ関数を複数のパス・メソッドに割り当てる） |
-| 引数 | すべて文字列リテラル。名前付きで書くときは宣言の順（`filePath`、`method`） |
+| Target | A `def` / `val` in a top-level object of the configured sources (including inside packages; nested objects are not targets). The object's name doesn't matter |
+| `filePath` | Path relative to `app/routes`. A string literal ending in `.ts` |
+| `method` | `GET` (default), `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`. A string literal |
+| `@JSExportTopLevel` | Exactly one. The name and moduleID are literals, and the moduleID is `"server"` |
+| Multiple `@route` | A member can have several (assigning the same function to several paths and methods) |
+| Arguments | All string literals. When named, write them in declaration order (`filePath`, `method`) |
 
-`@route` は型ではなく名前（`hx4s.annotation.route`）で見分けるので、import の別名は使えない。完全修飾名（`@hx4s.annotation.route(...)`）は書ける。
+`@route` is recognized by name (`hx4s.annotation.route`), not by type, so import aliases can't be used. The fully qualified name (`@hx4s.annotation.route(...)`) works.
 
-同じ `filePath` の複数のメソッドは 1 つの TS ファイルにまとまる。GET は `export default`、それ以外は `export const POST = ...` になる（`examples/minimal/app/routes/items/[id].ts` を参照）。
+Several methods for the same `filePath` are combined into one TS file. GET becomes `export default` and the others become `export const POST = ...` (see `examples/minimal/app/routes/items/[id].ts`).
 
-## ファイルパスと URL
+## File paths and URLs
 
-URL は HonoX の `createApp` の規則で決まる。hx4s の codegen は衝突の検査のために同じ変換を Scala で持つ（`RoutePath`。HonoX の実装との一致は `tests/route-paths.test.js` が確かめる）。
+URLs are determined by the rules of HonoX's `createApp`. hx4s's codegen has the same conversion in Scala for conflict checks (`RoutePath`; `tests/route-paths.test.js` checks that it matches HonoX's implementation).
 
-| `filePath` | URL | 備考 |
+| `filePath` | URL | Notes |
 | --- | --- | --- |
 | `index.ts` | `/` | |
 | `about.ts` | `/about` | |
-| `blog/index.ts` | `/blog` | `blog.ts` と同じ URL になる |
-| `items/[id].ts` | `/items/:id` | 動的パラメータ。`c.req.param("id")` で読む |
-| `docs/[...slug].ts` | `/docs/:slug{.+}` | 残りのパス全体。`/docs/a/b/c` なら `slug` は `a/b/c` |
+| `blog/index.ts` | `/blog` | Same URL as `blog.ts` |
+| `items/[id].ts` | `/items/:id` | Dynamic parameter. Read it with `c.req.param("id")` |
+| `docs/[...slug].ts` | `/docs/:slug{.+}` | The whole rest of the path. For `/docs/a/b/c`, `slug` is `a/b/c` |
 | `api/items.ts` | `/api/items` | |
 
-末尾スラッシュの扱いは `createApp({ trailingSlash })`（HonoX）に従う。
+Trailing slashes follow `createApp({ trailingSlash })` (HonoX).
 
-使える `filePath` の文字は `A-Za-z0-9_.$[]-` と `/` だけ。`(group)` のようなディレクトリは書けない。
+The only characters allowed in `filePath` are `A-Za-z0-9_.$[]-` and `/`. Directories like `(group)` can't be used.
 
-## HTTP メソッド
+## HTTP methods
 
-`GET`・`POST`・`PUT`・`DELETE`・`PATCH`・`OPTIONS` を書ける。HonoX の `createApp` がこの 6 つしか登録しないためで、`HEAD` は GET のハンドラが答える
-（`examples/minimal` の `tests/build-output.test.js` が確かめている）。`ALL` は未実装。
+`GET`, `POST`, `PUT`, `DELETE`, `PATCH` and `OPTIONS` can be used, because HonoX's `createApp` registers only these six. `HEAD` is answered by the GET handler
+(`tests/build-output.test.js` in `examples/minimal` checks this). `ALL` is not implemented.
 
-同じ URL に複数のメソッドを置けるのは、**同じ `filePath`** にまとめたときだけ。別のファイルが同じ URL に同じメソッドを割り当てることは拒否される（次節）。
+Several methods can share a URL only when they are combined in the **same `filePath`**. Different files assigning the same method to the same URL are rejected (next section).
 
-## codegen が拒否するもの
+## What codegen rejects
 
-誤りは書き込みの前にまとめて検出され、1 件でもあれば何も書かない。`sbt server/hx4sGenerate` の失敗メッセージには次の形で出る。
+Errors are detected all together before writing, and if there is even one, nothing is written. They appear in the failure message of `sbt server/hx4sGenerate` like this:
 
 ```
 [error] [hx4s-codegen] error: server/src/main/scala/example/server/Bad.scala:8: HEAD is not registered by HonoX createApp (GET handlers also answer HEAD)
 [error] (server / hx4sGenerate) hx4s-codegen app failed: 1 error(s)
 ```
 
-`<ソースのパス>:<行>: <理由>` の形で、パスは `hx4sProjectRoot` からの相対。
+The format is `<source path>:<line>: <reason>`, with the path relative to `hx4sProjectRoot`.
 
-| 誤り | メッセージの例 |
+| Error | Example message |
 | --- | --- |
 | `HEAD` | `HEAD is not registered by HonoX createApp (GET handlers also answer HEAD)` |
-| 未対応のメソッド | `unsupported HTTP method ALL` |
-| `_` で始まるファイル名 | `route basename _hidden.ts is reserved by HonoX (leading _)` |
-| 使えない文字（空白など） | `unsafe output path a b.ts: unsupported characters in a b.ts` |
-| `@JSExportTopLevel` が無い | `annotated member needs exactly one @JSExportTopLevel` |
-| 別のファイルが同じ URL・同じメソッド | `route files map GET to the same URL: items/[id].ts (/items/:id), items/[slug].ts (/items/:slug)` |
+| Unsupported method | `unsupported HTTP method ALL` |
+| File name starting with `_` | `route basename _hidden.ts is reserved by HonoX (leading _)` |
+| Disallowed characters (spaces, etc.) | `unsafe output path a b.ts: unsupported characters in a b.ts` |
+| No `@JSExportTopLevel` | `annotated member needs exactly one @JSExportTopLevel` |
+| Different files with the same URL and method | `route files map GET to the same URL: items/[id].ts (/items/:id), items/[slug].ts (/items/:slug)` |
 
-ほかに次も拒否する。
+The following are also rejected:
 
-- HonoX が経路として拾わないファイル名: basename が `-` / `$` で始まる、`*.test.ts` / `*.spec.ts`、`-` で始まるディレクトリ、`.` で始まる名前や `node_modules`（先頭の `.well-known/` は許す）
-- パスの誤り: 空の区切り、`.` / `..`、絶対パス、バックスラッシュ、末尾のドット、Windows の予約名（`CON` など）
-- 重複: 同じ export 名を複数のメンバに付ける、同じ route のメソッドを 2 回、大文字小文字だけ違うパス
-- moduleID が `server` でない、引数が文字列リテラルでない
+- File names HonoX does not pick up as routes: a basename starting with `-` / `$`, `*.test.ts` / `*.spec.ts`, directories starting with `-`, names starting with `.` and `node_modules` (a leading `.well-known/` is allowed)
+- Path errors: empty segments, `.` / `..`, absolute paths, backslashes, trailing dots, Windows reserved names (`CON`, etc.)
+- Duplicates: the same export name on several members, the same route method twice, paths that differ only in case
+- A moduleID other than `server`, arguments that are not string literals
 
-パラメータ名だけ違う `items/[id].ts` と `items/[slug].ts` も、HonoX では同じ URL パターンになるので衝突として拒否される。
-固定の区切りと動的パラメータ（`items/new.ts` と `items/[id].ts`）は HonoX の並び順で両立するので、拒否しない。
+`items/[id].ts` and `items/[slug].ts`, which differ only in the parameter name, become the same URL pattern in HonoX, so they are rejected as a conflict.
+A static segment and a dynamic parameter (`items/new.ts` and `items/[id].ts`) coexist thanks to HonoX's ordering, so they are not rejected.
 
 ## `Context`
 
-ハンドラの引数は、Hono の Context の facade `hx4s.hono.Context[Env, R]`。`Env` は `c.env` の型、`R` は `c.render` に渡す renderer の props の型（`js.Object` の派生）。
+The handler's argument is `hx4s.hono.Context[Env, R]`, a facade for Hono's Context. `Env` is the type of `c.env`, and `R` is the type of the renderer props passed to `c.render` (a subtype of `js.Object`).
 
 ```scala
 type AppContext = Context[js.Object, RenderProps]
@@ -104,35 +104,35 @@ def helloPage(c: Context[Bindings, js.Object]): Response =
   c.html(s"<p>${c.env.GREETING.getOrElse("hello")}</p>")
 ```
 
-戻り値は `org.scalajs.dom.Response` か `js.Promise[Response]`。`Request` / `Response` / `FormData` は scalajs-dom の型。
+The return type is `org.scalajs.dom.Response` or `js.Promise[Response]`. `Request` / `Response` / `FormData` are scalajs-dom types.
 
-| 対象 | メンバ |
+| Target | Members |
 | --- | --- |
-| `c.req`（`HonoRequest`） | `raw`（scalajs-dom の `Request`）、`method`、`url`、`path`、`param(name)`、`query(name)`、`queries(name)`、`header(name)`、`text()`、`json()`、`formData()` |
-| 応答 | `c.text(body, status)`、`c.json(body, status)`、`c.html(body, status)`、`c.body(data, status, headers)`、`c.redirect(location, status)`、`c.notFound()`、`c.status(code)`、`c.header(name, value)`、`c.res` |
-| 描画 | `c.render(children, props)`、拡張メソッド `c.renderPromise(children, props)`（戻り値を `Promise` にそろえる） |
-| 変数 | `c.set(key, value)`、`c.get(key)`、拡張メソッド `setVariable` / `getVariable`（`ContextVariable[A]`） |
-| 実行コンテキスト | `c.executionCtx`、拡張メソッド `executionCtxOption`（`waitUntil`、`passThroughOnException`） |
-| 環境 | `c.env`（型は `Env`） |
+| `c.req` (`HonoRequest`) | `raw` (scalajs-dom `Request`), `method`, `url`, `path`, `param(name)`, `query(name)`, `queries(name)`, `header(name)`, `text()`, `json()`, `formData()` |
+| Responses | `c.text(body, status)`, `c.json(body, status)`, `c.html(body, status)`, `c.body(data, status, headers)`, `c.redirect(location, status)`, `c.notFound()`, `c.status(code)`, `c.header(name, value)`, `c.res` |
+| Rendering | `c.render(children, props)`, extension method `c.renderPromise(children, props)` (always returns a `Promise`) |
+| Variables | `c.set(key, value)`, `c.get(key)`, extension methods `setVariable` / `getVariable` (`ContextVariable[A]`) |
+| Execution context | `c.executionCtx`, extension method `executionCtxOption` (`waitUntil`, `passThroughOnException`) |
+| Environment | `c.env` (type `Env`) |
 
-`param`・`query`・`header` は `js.UndefOr[String]` を返す。拡張メソッドを使うには `import hx4s.hono.Context.*` が要る。
+`param`, `query` and `header` return `js.UndefOr[String]`. The extension methods require `import hx4s.hono.Context.*`.
 
-- **本文の読み直し**: `text()` / `json()` / `formData()` は最初に読んだ形を Hono がキャッシュし、別の形でも読み直せる（`formData()` の後の `text()` は multipart に組み直した文字列）。
-  `c.req.raw` の本文を直接読むと `c.req` からは読めなくなり、`c.req` で読んだ後の `raw` も読めない（[api.md](api.md)）
-- **`executionCtx`**: 実行基盤が渡していないと Hono が例外を投げる。Node 上の検証など渡さない呼び出しでも動かすなら `executionCtxOption` を使う
-- **本文の無い応答**（`204`・`304`）: `c.body(null, 204)` で返す。`c.text("", 204)` は空文字列でも本文ありになり、Response の規則で失敗する
-- **Not Found**: `c.notFound()` はアプリの Not Found ハンドラの応答を返す。戻り値は `Response | js.Promise[Response]`（[api.md](api.md)）
-- **Hono の Context にあるが facade に無いもの**: 自分で `@js.native` の facade を書くか、手書きの TS のルートで扱う
+- **Re-reading the body**: Hono caches the body in the form first read by `text()` / `json()` / `formData()`, and it can be read again in a different form (`text()` after `formData()` returns a string re-encoded as multipart).
+  If you read the body of `c.req.raw` directly, it can no longer be read through `c.req`, and `raw` can't be read after reading through `c.req` ([api.md](api.md))
+- **`executionCtx`**: Hono throws if the runtime didn't provide it. To run in calls that don't provide one, such as tests on Node, use `executionCtxOption`
+- **Responses without a body** (`204`, `304`): return them with `c.body(null, 204)`. `c.text("", 204)` has a body even with an empty string and fails due to Response's rules
+- **Not Found**: `c.notFound()` returns the response of the app's Not Found handler. The return type is `Response | js.Promise[Response]` ([api.md](api.md))
+- **Things in Hono's Context but not in the facade**: write your own `@js.native` facade, or handle them in a hand-written TS route
 
-### 変数（`ContextVariable`）
+### Variables (`ContextVariable`)
 
-手書きのミドルウェアが `c.set` した値を Scala から型付きで読む例。名前を 1 か所に定義して、書く側と読む側で共有する。
+An example of reading, typed from Scala, a value set with `c.set` by hand-written middleware. Define the name in one place and share it between the writer and the reader.
 
-TypeScript の `c.set` は、Hono の `ContextVariableMap` に宣言したキーしか受け付けない。Scala の `ContextVariable` は TypeScript の宣言にはならないので、
-`tsconfig.json` の `include` に入る宣言ファイルで足す。
+TypeScript's `c.set` only accepts keys declared in Hono's `ContextVariableMap`. Scala's `ContextVariable` does not produce a TypeScript declaration,
+so add one in a declaration file included by `include` in `tsconfig.json`.
 
 ```ts
-// app/env.d.ts（手書き）
+// app/env.d.ts (hand-written)
 import "hono";
 
 declare module "hono" {
@@ -143,7 +143,7 @@ declare module "hono" {
 ```
 
 ```ts
-// app/routes/api/_middleware.ts（手書き）
+// app/routes/api/_middleware.ts (hand-written)
 import { createRoute } from "honox/factory";
 
 export default createRoute(async (c, next) => {
@@ -161,22 +161,22 @@ def whoami(c: ApiContext): Response =
   c.json(js.Dynamic.literal(requestId = c.getVariable(RequestId).orUndefined))
 ```
 
-`getVariable` は未設定なら `None`。型の保証は呼び出し側の約束で、実行時には検査しない（TypeScript の宣言と Scala の `ContextVariable` の型は、自分でそろえる）。
-この TypeScript の 2 つのファイルは、hx4s の `npm run typecheck` が `tests/docs-typecheck` で型検査している。
+`getVariable` returns `None` if the value is not set. The type guarantee is a promise made by the caller and is not checked at run time (keep the TypeScript declaration and the type of the Scala `ContextVariable` in sync yourself).
+These two TypeScript files are type-checked by hx4s's `npm run typecheck` in `tests/docs-typecheck`.
 
-## 手書きのルートとの併用
+## Mixing with hand-written routes
 
-`app/routes` には手書きの TS のファイルを置ける（`createRoute` を使う普通の HonoX のルート、`_renderer.tsx`、`_middleware.ts`）。
+You can put hand-written TS files in `app/routes` (ordinary HonoX routes using `createRoute`, `_renderer.tsx`, `_middleware.ts`).
 
-- 生成ファイルを見分けるのは先頭の生成マーカー行。マーカーが無いファイルは、上書きも削除もしない
-- 手書きファイルが生成するパスと同じ場所にあると、生成は `refusing to overwrite a file without the generated marker` で失敗する
-- **手書きのルートと生成ルートの URL の衝突は検査しない**（警告も出さない。未実装）。同じ URL に両方を置いたときの挙動は検証していないので、置かない
+- Generated files are recognized by the generated-marker line at the top. Files without the marker are never overwritten or deleted
+- If a hand-written file sits at a path that would be generated, generation fails with `refusing to overwrite a file without the generated marker`
+- **URL conflicts between hand-written and generated routes are not checked** (no warning either; not implemented). The behavior when both are placed at the same URL is not verified, so don't do it
 
-## 未実装
+## Not implemented
 
-- 型付きルート（shared に URL を宣言して、パラメータの取得と URL の組み立てを型で行う）
-- Client Router（クライアント側のルーティング）
-- `ALL` メソッド
-- 手書きルートとの衝突の警告
+- Typed routes (declare URLs in shared, and get parameters and build URLs with types)
+- Client Router (client-side routing)
+- The `ALL` method
+- Warnings for conflicts with hand-written routes
 
-見込みは [hx4s/routing-design.md](hx4s/routing-design.md) 4 章と [hx4s/roadmap.md](hx4s/roadmap.md)。
+See chapter 4 of [hx4s/routing-design.md](hx4s/routing-design.md) and [hx4s/roadmap.md](hx4s/roadmap.md) for plans.

@@ -1,70 +1,70 @@
-# examples
+# Examples
 
 ## minimal
 
-`examples/minimal` は SSR + Islands の最小のアプリ。Cloudflare Workers（wrangler）で動かし、hx4s はローカル公開した成果物だけで解決する（ソースツリーを参照しない）。
-動かし方は [getting-started.md](getting-started.md)。
+`examples/minimal` is a minimal SSR + Islands app. It runs on Cloudflare Workers (wrangler), and resolves hx4s only from locally published artifacts (it doesn't reference the source tree).
+See [getting-started.md](getting-started.md) for how to run it.
 
-### 画面と API
+### Pages and APIs
 
-| URL | 内容 | 使っている機能 |
+| URL | Content | Features used |
 | --- | --- | --- |
-| `/` | 静的な SSR のページに、カウンターの island 2 つ（別々の props）と、配列・入れ子・省略できるキーを持つ一覧の island 1 つ | `IslandComponents`、`IslandExport`、`JsShape` |
-| `/items/:id` | 動的ルート。無い ID は 404。名前を変更するフォームを持つ | `@route("items/[id].ts")`、`c.req.param`、`c.status` |
-| `POST /items/:id` | フォームの値を検証し、保存した名前またはエラーを描画する（保存はしない） | `@route("items/[id].ts", "POST")`、`c.req.formData()` |
-| `/api/items` | 品目の JSON。`?tag=` を繰り返すと、そのタグをすべて持つ品目に絞る | `c.json`、`c.req.queries` |
+| `/` | A static SSR page with two counter islands (with different props) and one list island with arrays, nesting and optional keys | `IslandComponents`, `IslandExport`, `JsShape` |
+| `/items/:id` | A dynamic route. Unknown IDs return 404. Has a form for renaming | `@route("items/[id].ts")`, `c.req.param`, `c.status` |
+| `POST /items/:id` | Validates the form values and renders the saved name or an error (nothing is saved) | `@route("items/[id].ts", "POST")`, `c.req.formData()` |
+| `/api/items` | JSON of the items. Repeating `?tag=` narrows to items that have all those tags | `c.json`, `c.req.queries` |
 
-### ファイルの役割
+### Role of each file
 
-| パス | 役割 |
+| Path | Role |
 | --- | --- |
-| `build.sbt` / `project/plugins.sbt` | `shared`・`server`・`client` の 3 プロジェクト。`hx4sClientProject` と、server の `Test / jsEnv`（Node の loader と client の先行リンク）。プラグインの版は環境変数 `HX4S_VERSION` か `target/local/hx4s-version.txt` から読む |
-| `shared/.../Props.scala` | island の props の trait と `JsField` の検証規則（`CounterProps`、`ItemListProps` ほか） |
-| `server/.../Main.scala` | `@route` のハンドラと `renderShell`（HTML のシェル） |
-| `server/.../Pages.scala` | ページの SSR。island は生成された `IslandComponents` で置く |
-| `server/.../Catalog.scala` | サンプルのデータと検証（保存はしない）。記号を含む名前で、エスケープの確認に使う |
-| `server/.../Shell.scala` | HTML 全体 |
-| `client/.../Main.scala` | `@islands[P]` を付けた `IslandExport` の export |
-| `client/.../Counter.scala`・`ItemList.scala` | island のコンポーネント（`ScalaFnComponent` と hooks） |
-| `app/server.ts`・`app/client.ts` | HonoX の入口。`client.ts` は `islandPropsProblem` を呼ぶ |
-| `app/routes/_renderer.tsx` | `renderShell` を呼ぶ renderer（手書き） |
-| `app/routes/**/*.ts`・`app/islands/*.tsx` | 生成物（先頭に生成マーカー。コミットしてある） |
-| `app/renderer.d.ts`・`app/scalajs-server.d.ts` | 型の宣言（手書き） |
-| `vite.config.ts` | `hx4s()` と Cloudflare Workers のアダプタ |
-| `wrangler.jsonc` | Worker と静的配信の設定（`nodejs_compat`） |
-| `package.json` / `package-lock.json` | 依存。`hx4s-vite` は載せず、tgz を `--no-save` で入れる |
+| `build.sbt` / `project/plugins.sbt` | Three projects: `shared`, `server` and `client`. `hx4sClientProject`, and the server's `Test / jsEnv` (the Node loader and linking the client first). The plugin version is read from the environment variable `HX4S_VERSION` or `target/local/hx4s-version.txt` |
+| `shared/.../Props.scala` | Island props traits and `JsField` validation rules (`CounterProps`, `ItemListProps`, etc.) |
+| `server/.../Main.scala` | `@route` handlers and `renderShell` (the HTML shell) |
+| `server/.../Pages.scala` | Page SSR. Islands are placed with the generated `IslandComponents` |
+| `server/.../Catalog.scala` | Sample data and validation (nothing is saved). Names with symbols are used to check escaping |
+| `server/.../Shell.scala` | The whole HTML |
+| `client/.../Main.scala` | `IslandExport` exports annotated with `@islands[P]` |
+| `client/.../Counter.scala`, `ItemList.scala` | Island components (`ScalaFnComponent` and hooks) |
+| `app/server.ts`, `app/client.ts` | HonoX entry points. `client.ts` calls `islandPropsProblem` |
+| `app/routes/_renderer.tsx` | The renderer that calls `renderShell` (hand-written) |
+| `app/routes/**/*.ts`, `app/islands/*.tsx` | Generated files (with the generated marker at the top; committed) |
+| `app/renderer.d.ts`, `app/scalajs-server.d.ts` | Type declarations (hand-written) |
+| `vite.config.ts` | `hx4s()` and the Cloudflare Workers adapter |
+| `wrangler.jsonc` | Worker and static serving settings (`nodejs_compat`) |
+| `package.json` / `package-lock.json` | Dependencies. `hx4s-vite` is not listed; the tgz is installed with `--no-save` |
 
-### 確かめられること
+### What is verified
 
-| テスト | 内容 |
+| Test | Content |
 | --- | --- |
-| `server/src/test/.../TypedPropsSuite.scala`（`sbt test`） | `IslandComponents` が `@islands[P]` の `P` だけを受け付けること（コンパイルエラーの確認）、SSR の境界と props、データ・検証の単体 |
-| `tests/build-output.test.js` | ビルドした Worker を Node で呼び、SSR の HTML・動的ルートと 404・HEAD・POST の検証・JSON の API・client のバンドルに server だけの文字列が無いことを確かめる |
-| `tests/hydration.test.js` | jsdom 上で `app/client.ts` を動かし、hydrate・クリック・props の不一致の island が SSR のままであることを確かめる |
-| `tests/e2e.test.js` | `wrangler dev` と Playwright（Chromium）で、hydrate の誤りがなくクリックで状態が変わること、静的配信の範囲を確かめる |
+| `server/src/test/.../TypedPropsSuite.scala` (`sbt test`) | That `IslandComponents` accepts only the `P` of `@islands[P]` (checked via compile errors), SSR boundaries and props, unit tests for data and validation |
+| `tests/build-output.test.js` | Calls the built Worker on Node and checks the SSR HTML, dynamic routes and 404, HEAD, POST validation, the JSON API, and that the client bundle has no server-only strings |
+| `tests/hydration.test.js` | Runs `app/client.ts` on jsdom and checks hydration, clicks, and that islands with mismatched props stay as SSR |
+| `tests/e2e.test.js` | With `wrangler dev` and Playwright (Chromium), checks that hydration has no errors and clicks change state, and the scope of static serving |
 
-`npm test` で全部が走る（E2E は `HX4S_SKIP_E2E=1` で飛ばせる）。CI は Ubuntu と Windows で、ローカル公開から `npm test` までを通す（`.github/workflows/ci.yml`。api-only も同じ）。
+`npm test` runs everything (`HX4S_SKIP_E2E=1` skips E2E). CI runs everything from the local publish to `npm test` on Ubuntu and Windows (`.github/workflows/ci.yml`; api-only too).
 
 ## api-only
 
-`examples/api-only` は JSON の API だけのアプリ。client（island）を持たず、`react`・`react-dom`・`@hono/react-renderer` に依存しない。
-`vite.config.ts` で `hx4s({ mode, client: false, … })` を使い、`vite build` の 1 回で Worker を作る（[api.md](api.md)）。hx4s の解決はローカル公開の成果物だけ（minimal と同じ）。
+`examples/api-only` is a JSON-API-only app. It has no client (islands) and doesn't depend on `react`, `react-dom` or `@hono/react-renderer`.
+`vite.config.ts` uses `hx4s({ mode, client: false, … })` and builds the Worker with a single `vite build` ([api.md](api.md)). hx4s is resolved only from locally published artifacts (same as minimal).
 
-| URL | 内容 | 使っている機能 |
+| URL | Content | Features used |
 | --- | --- | --- |
-| `GET /api/notes` | メモの一覧の JSON | `c.json` |
-| `POST /api/notes` | JSON の本文を `JsShape` と値の規則で確かめ、201 か 400 を返す（保存はしない） | `c.req.json()`、`JsShape.validate` |
-| `GET /api/notes/:id` | 1 件の JSON。無い ID は Not Found | `c.notFound()` |
-| `DELETE /api/notes/:id` | 本文なしの 204。無い ID は 404 | `c.body(null, 204)` |
+| `GET /api/notes` | JSON list of notes | `c.json` |
+| `POST /api/notes` | Checks the JSON body with `JsShape` and value rules, and returns 201 or 400 (nothing is saved) | `c.req.json()`, `JsShape.validate` |
+| `GET /api/notes/:id` | JSON of one note. Unknown IDs return Not Found | `c.notFound()` |
+| `DELETE /api/notes/:id` | 204 without a body. Unknown IDs return 404 | `c.body(null, 204)` |
 
-| パス | 役割 |
+| Path | Role |
 | --- | --- |
-| `build.sbt` / `project/plugins.sbt` | `server` の 1 プロジェクト（`hx4sClientProject` は設定しない） |
-| `server/.../Main.scala`・`Notes.scala` | `@route` のハンドラと、サンプルのデータ・検証 |
-| `app/server.ts` | HonoX の入口（`createApp()` だけ。renderer は無い） |
-| `app/routes/**/*.ts` | 生成物（コミットしてある） |
-| `vite.config.ts` | `hx4s({ client: false })` と Cloudflare Workers のアダプタ |
-| `tests/api.test.js` | ビルドした Worker を Node で呼び、各 API の応答と、Worker のバンドルに React が入っていないことを確かめる |
+| `build.sbt` / `project/plugins.sbt` | A single `server` project (`hx4sClientProject` is not set) |
+| `server/.../Main.scala`, `Notes.scala` | `@route` handlers, sample data and validation |
+| `app/server.ts` | HonoX entry point (just `createApp()`; no renderer) |
+| `app/routes/**/*.ts` | Generated files (committed) |
+| `vite.config.ts` | `hx4s({ client: false })` and the Cloudflare Workers adapter |
+| `tests/api.test.js` | Calls the built Worker on Node and checks each API's response, and that React is not in the Worker bundle |
 
 ```bash
 node scripts/publish-local.mjs
@@ -72,12 +72,12 @@ node scripts/setup-example.mjs api-only
 cd examples/api-only && npm run build && npm test
 ```
 
-`wrangler` は入れておらず、Workers（`wrangler dev`）での起動は確かめていない。テストは Node で Worker の `fetch` を呼ぶところまで。
+`wrangler` is not installed, and starting it on Workers (`wrangler dev`) has not been verified. The tests go as far as calling the Worker's `fetch` on Node.
 
-## examples に無いもの
+## What the examples don't cover
 
-次は examples に含まれず、この文書群でも検証が限られている。
+The following are not included in the examples, and verification in these documents is limited.
 
-- ページ全体を 1 つの island にする構成（[spa.md](spa.md) で試作して確かめた範囲）
-- 要素 props を持つ island、island の入れ子を `IslandComponents` で書く例
-- Cloudflare 以外の実行基盤
+- Making the whole page one island (verified only as far as the prototype in [spa.md](spa.md))
+- Islands with element props, and examples of nested islands written with `IslandComponents`
+- Runtimes other than Cloudflare

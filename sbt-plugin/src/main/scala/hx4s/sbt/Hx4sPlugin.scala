@@ -7,8 +7,8 @@ import sbt.internal.util.FeedbackProvidedException
 import scala.collection.mutable.ListBuffer
 
 /**
- * route / islands アノテーションから HonoX の route・island と SSR 用の IslandComponents を生成する。server プロジェクトで有効にする
- * hx4s-codegen（Scala 3）は専用 configuration で解決し、fork した JVM で実行する
+ * Generates HonoX routes and islands and IslandComponents for SSR from route / islands annotations. Enable it on the server project
+ * hx4s-codegen (Scala 3) is resolved in a dedicated configuration and run in a forked JVM
  */
 object Hx4sPlugin extends AutoPlugin {
   override def trigger = noTrigger
@@ -17,32 +17,32 @@ object Hx4sPlugin extends AutoPlugin {
   object autoImport {
     val Hx4sCodegen = config("hx4s-codegen").hide
 
-    /** このプラグインの版。hx4s-core / hx4s-react の依存に同じ版を使う */
+    /** This plugin's version. Use the same version for the hx4s-core / hx4s-react dependencies */
     val hx4sVersion: String = Hx4sBuildInfo.version
 
-    val hx4sClientProject = settingKey[ProjectReference]("@islands を持つ client プロジェクト。hx4sClientSources の既定の取り出し元。未設定なら client なし（SSR だけ）")
-    val hx4sServerSources = taskKey[Seq[File]]("@route を探すソースファイル。既定はこのプロジェクトの Compile の Scala ソース")
-    val hx4sClientSources = taskKey[Seq[File]]("@islands を探すソースファイル。既定は hx4sClientProject の Compile の Scala ソース")
-    val hx4sProjectRoot = settingKey[File]("生成の基準ディレクトリ（Vite の root）。既定はビルドのルート")
-    val hx4sRouteDir = settingKey[File]("route ファイルの出力先。既定は <hx4sProjectRoot>/app/routes")
-    val hx4sIslandDir = settingKey[File]("island ファイルの出力先。既定は <hx4sProjectRoot>/app/islands")
-    val hx4sIslandIdPrefix = settingKey[String]("SSR で HonoX に渡す island 識別子の接頭辞。既定は /app/islands/")
-    val hx4sServerModule = settingKey[String]("server の @JSExportTopLevel の moduleID。既定は server")
-    val hx4sClientModule = settingKey[String]("client の @JSExportTopLevel の moduleID。既定は client")
-    val hx4sIslandComponentsPackage = settingKey[String]("生成する IslandComponents のパッケージ。既定は hx4s.generated")
-    val hx4sIslandComponentsObject = settingKey[String]("生成する object の名前。既定は IslandComponents")
-    val hx4sIslandBridge = settingKey[String]("island の境界を付ける関数の完全修飾名。既定は hx4s.react.Island")
-    val hx4sIslandExportType = settingKey[String]("@islands[P] と照合する client の export の型。既定は hx4s.react.IslandExport")
-    val hx4sAnnotationPackage = settingKey[String]("route / islands アノテーションのパッケージ。既定は hx4s.annotation")
-    val hx4sVirtualModulePrefix = settingKey[String]("Scala.js のリンク成果物を指す仮想モジュールの接頭辞。既定は scalajs:")
-    val hx4sBanner = settingKey[Seq[String]]("生成ファイルの先頭行。空なら hx4s-codegen の既定")
-    val hx4sGeneratedMarker = settingKey[Option[String]]("生成ファイルを見分ける先頭行の接頭辞。None なら hx4s-codegen の既定")
-    val hx4sCodegenVersion = settingKey[String]("実行する hx4s-codegen の版。既定はこのプラグインと同じ版")
-    val hx4sCodegenJavaOptions = settingKey[Seq[String]]("hx4s-codegen を実行する JVM のオプション")
-    val hx4sCodegenClasspath = taskKey[Seq[File]]("hx4s-codegen の実行時クラスパス")
-    val hx4sCheckDependencies = taskKey[Unit]("client が Hx4sPlugin を有効にしたプロジェクトに依存していないこと、このプロジェクトが client に依存していないことを確かめる")
-    val hx4sGenerate = taskKey[Seq[File]]("route / island の TS ファイルを生成し、生成した（内容が同じで据え置いた）ファイルの一覧を返す")
-    val hx4sIslandComponents = taskKey[Seq[File]]("client の @islands から SSR 用の IslandComponents を生成する")
+    val hx4sClientProject = settingKey[ProjectReference]("The client project with @islands. Default source of hx4sClientSources. If unset, there is no client (SSR only)")
+    val hx4sServerSources = taskKey[Seq[File]]("Source files searched for @route. Defaults to this project's Compile Scala sources")
+    val hx4sClientSources = taskKey[Seq[File]]("Source files searched for @islands. Defaults to hx4sClientProject's Compile Scala sources")
+    val hx4sProjectRoot = settingKey[File]("Base directory for generation (Vite's root). Defaults to the build root")
+    val hx4sRouteDir = settingKey[File]("Output directory for route files. Defaults to <hx4sProjectRoot>/app/routes")
+    val hx4sIslandDir = settingKey[File]("Output directory for island files. Defaults to <hx4sProjectRoot>/app/islands")
+    val hx4sIslandIdPrefix = settingKey[String]("Prefix of the island identifier passed to HonoX during SSR. Defaults to /app/islands/")
+    val hx4sServerModule = settingKey[String]("moduleID of the server's @JSExportTopLevel. Defaults to server")
+    val hx4sClientModule = settingKey[String]("moduleID of the client's @JSExportTopLevel. Defaults to client")
+    val hx4sIslandComponentsPackage = settingKey[String]("Package of the generated IslandComponents. Defaults to hx4s.generated")
+    val hx4sIslandComponentsObject = settingKey[String]("Name of the generated object. Defaults to IslandComponents")
+    val hx4sIslandBridge = settingKey[String]("Fully qualified name of the function that marks island boundaries. Defaults to hx4s.react.Island")
+    val hx4sIslandExportType = settingKey[String]("Type of client exports matched against @islands[P]. Defaults to hx4s.react.IslandExport")
+    val hx4sAnnotationPackage = settingKey[String]("Package of the route / islands annotations. Defaults to hx4s.annotation")
+    val hx4sVirtualModulePrefix = settingKey[String]("Prefix of the virtual module pointing to the Scala.js link output. Defaults to scalajs:")
+    val hx4sBanner = settingKey[Seq[String]]("First lines of generated files. hx4s-codegen's default if empty")
+    val hx4sGeneratedMarker = settingKey[Option[String]]("Prefix of the first line that identifies generated files. hx4s-codegen's default if None")
+    val hx4sCodegenVersion = settingKey[String]("Version of hx4s-codegen to run. Defaults to the same version as this plugin")
+    val hx4sCodegenJavaOptions = settingKey[Seq[String]]("Options for the JVM that runs hx4s-codegen")
+    val hx4sCodegenClasspath = taskKey[Seq[File]]("Runtime classpath of hx4s-codegen")
+    val hx4sCheckDependencies = taskKey[Unit]("Checks that the client does not depend on a project with Hx4sPlugin enabled, and that this project does not depend on the client")
+    val hx4sGenerate = taskKey[Seq[File]]("Generates route / island TS files and returns the files generated (or kept because their content was identical)")
+    val hx4sIslandComponents = taskKey[Seq[File]]("Generates IslandComponents for SSR from the client's @islands")
   }
 
   import autoImport._
@@ -103,7 +103,7 @@ object Hx4sPlugin extends AutoPlugin {
     }
   }
 
-  /** 設定キーから hx4s-codegen の --key value の引数を作る。root の配下のパスは / 区切りの相対パスにする */
+  /** Builds the --key value arguments of hx4s-codegen from the setting keys. Paths under root become /-separated relative paths */
   private lazy val sharedArguments: Def.Initialize[Task[Seq[String]]] = Def.task {
     val root = hx4sProjectRoot.value
     def path(file: File): String = IO.relativize(root, file).fold(file.getAbsolutePath)(_.replace(java.io.File.separatorChar, '/'))
@@ -145,7 +145,7 @@ object Hx4sPlugin extends AutoPlugin {
     val javaHomeDir = javaHome.value
     val javaOptions = hx4sCodegenJavaOptions.value
     val cacheDirectory = streams.value.cacheDirectory / "hx4s-island-components"
-    // 引数・JVM の設定・クラスパスの並びをキャッシュのキーにし、クラスパスの JAR は内容のハッシュで比べる
+    // The cache key is the arguments, the JVM settings and the classpath order; classpath JARs are compared by content hash
     val argumentsFile = cacheDirectory / "arguments.txt"
     val key = arguments ++ javaHomeDir.map(dir => s"java-home ${dir.getAbsolutePath}") ++ javaOptions.map(option => s"java-option $option") ++
       classpath.map(_.getAbsolutePath)
@@ -158,7 +158,7 @@ object Hx4sPlugin extends AutoPlugin {
     run((hx4sClientSources.value ++ classpathFiles :+ argumentsFile).toSet).toSeq
   }
 
-  /** hx4s-codegen を fork した JVM で実行する。失敗したら codegen の誤りの行を 1 回だけログに出し、要約を持つ例外でタスクを失敗させる */
+  /** Runs hx4s-codegen in a forked JVM. On failure, logs codegen's error lines once and fails the task with an exception carrying a summary */
   private def runCodegen(classpath: Seq[File], arguments: Seq[String], root: File, javaHomeDir: Option[File], javaOptions: Seq[String],
                          log: Logger): Unit = {
     if (classpath.isEmpty) throw new MessageOnlyException("hx4s-codegen could not be resolved (check hx4sCodegenVersion and resolvers)")
@@ -178,7 +178,7 @@ object Hx4sPlugin extends AutoPlugin {
     }
   }
 
-  /** codegen の誤りの行は覚えるだけにし、終了の例外の行は捨て、ほかの行は元のロガーへ渡す */
+  /** Only records codegen's error lines, drops the line of the exit exception, and passes other lines to the original logger */
   private final class CodegenOutput(underlying: Logger) extends Logger {
     private val errorLines: ListBuffer[String] = ListBuffer.empty
 
@@ -198,7 +198,7 @@ object Hx4sPlugin extends AutoPlugin {
   private val CodegenErrorPrefix = "[hx4s-codegen] error: "
   private val CodegenExitLine = "Exception in thread \"main\" hx4s.codegen.CodegenFailure"
 
-  /** codegen の失敗。誤りの行はログに出してあるので、sbt は最後の行に要約（toString）だけを出す。getMessage は誤りの行を含む */
+  /** Codegen failure. The error lines are already logged, so sbt prints only the summary (toString) on the last line. getMessage includes the error lines */
   private final class CodegenFailed(summary: String, errors: Seq[String])
     extends RuntimeException((summary +: errors).mkString("\n"), null, false, false) with FeedbackProvidedException {
     override def toString: String = summary

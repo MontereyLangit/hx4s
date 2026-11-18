@@ -1,16 +1,16 @@
-// hx4s が移動元の掲示板プロジェクトに依存していないことを確かめる。
-//   1. リポジトリ内のファイルに移動元のパッケージ名・旧プロジェクト名が無い（docs/hx4s/ の経緯説明と LICENSE / NOTICE を除く）
-//   2. examples/ が hx4s のソースツリーを sbt の ProjectRef や相対 import で参照していない（公開物だけで解決する）
-// 誤りがあれば一覧を出して終了コード 1 で終わる。
+// Checks that hx4s does not depend on the bulletin board project it was extracted from.
+//   1. Files in the repository do not contain the original package name or the old project name (except the history in docs/hx4s/ and ja/docs/hx4s/, and LICENSE / NOTICE)
+//   2. examples/ does not reference hx4s's source tree through sbt ProjectRefs or relative imports (resolves only published artifacts)
+// On errors, prints the list and exits with code 1.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-// このファイル自身に一致しないよう、語を分けて組み立てる
+// Build the words from parts so that this file itself does not match
 const forbidden = [["io._", "3ch"], ["ch", "3s"], ["_", "3ch"]].map((parts) => parts.join(""));
-const excluded = [/^docs\/hx4s\//, /^LICENSE$/, /^NOTICE$/];
+const excluded = [/^(ja\/)?docs\/hx4s\//, /^LICENSE$/, /^NOTICE$/];
 const exampleRules = [
   { pattern: /\b(ProjectRef|RootProject)\s*\(/, reason: "examples must resolve hx4s from published artifacts, not sbt project references" },
   { pattern: /\.\.\/\.\.\/(modules|sbt-plugin|vite\/src)\b/, reason: "examples must not import hx4s sources by relative path" },
@@ -19,7 +19,7 @@ const exampleRules = [
 const binary = /\.(png|jpe?g|gif|ico|jar|tgz|gz|zip|woff2?)$/i;
 
 export function findProblems() {
-  // git はシェルを介さず起動し、-z で空白や非 ASCII を含むパスも引用なしで受け取る
+  // Start git without a shell, and use -z to receive paths with spaces or non-ASCII characters unquoted
   const files = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8" })
     .split("\0").filter(Boolean).filter((file) => !binary.test(file));
   const problems = [];
@@ -28,7 +28,7 @@ export function findProblems() {
     try {
       text = readFileSync(path.join(root, file), "utf8");
     } catch {
-      continue; // 削除済みで作業ツリーに無いファイル
+      continue; // A deleted file not in the working tree
     }
     if (!excluded.some((rule) => rule.test(file))) {
       const lower = text.toLowerCase();

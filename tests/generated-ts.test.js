@@ -6,12 +6,12 @@ import test from 'node:test';
 import ts from 'typescript';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-// npm の pretest が sbt codegen/Test/runMain hx4s.codegen.TsFixtures で書き出す、衝突しうる export 名の生成ファイル
+// Generated files with export names that could collide, written by npm's pretest via sbt codegen/Test/runMain hx4s.codegen.TsFixtures
 const fixtures = path.join(root, 'target/ts-fixtures');
 
 const dataUrl = (source) => `data:text/javascript,${encodeURIComponent(source)}`;
 
-/** 生成 TS を JS に変換し、honox/factory と仮想モジュールをスタブに差し替えて読み込む */
+/** Converts generated TS to JS and loads it with honox/factory and the virtual modules replaced by stubs */
 async function load(file, stubs) {
   const source = await readFile(path.join(fixtures, file), 'utf8');
   const output = ts.transpileModule(source, {
@@ -24,12 +24,12 @@ async function load(file, stubs) {
   return import(dataUrl(code));
 }
 
-/** 各 export 名を、呼ばれると自分の名前を返す関数として公開するモジュール */
+/** A module exporting each export name as a function that returns its own name when called */
 function exportsNamed(names) {
   return [...new Set(names)].map((name, index) => `const h${index} = (c) => ${JSON.stringify(name)} + ":" + c;\nexport { h${index} as ${name} };`).join('\n');
 }
 
-test('export 名が createRoute・POST・GET・予約語でも、生成 route は構文が正しく、各メソッドが対応するハンドラを呼ぶ', async () => {
+test('even with export names createRoute, POST, GET or reserved words, generated routes are syntactically valid and each method calls its handler', async () => {
   const manifest = JSON.parse(await readFile(path.join(fixtures, 'manifest.json'), 'utf8'));
   const routes = manifest.filter((entry) => entry.handlers);
   assert.ok(routes.some((entry) => entry.handlers.some((h) => h.exportName === 'createRoute')));
@@ -46,7 +46,7 @@ test('export 名が createRoute・POST・GET・予約語でも、生成 route �
   }
 });
 
-test('export 名が default や createRoute でも、生成 island は client の export を default export に再公開する', async () => {
+test('even with export names default or createRoute, generated islands re-export the client export as the default export', async () => {
   const manifest = JSON.parse(await readFile(path.join(fixtures, 'manifest.json'), 'utf8'));
   for (const entry of manifest.filter((item) => !item.handlers)) {
     const module = await load(entry.file, { 'scalajs:client.js': exportsNamed([entry.exportName]) });

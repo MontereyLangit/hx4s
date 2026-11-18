@@ -9,10 +9,10 @@ import { JSDOM } from 'jsdom';
 import { act } from 'react';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-// npm の pretest が sbt react/Test/fastLinkJS で作る、実際の Scala のブリッジと client island
+// The real Scala bridge and client island, built by npm's pretest via sbt react/Test/fastLinkJS
 const bridge = path.join(root, 'modules/react/target/scala-3.3.8/hx4s-react-test-fastopt/island-test.js');
 
-// examples/minimal/app/client.ts と同じ hydrate。island と template 内の island の props の検証（IslandExport が付ける）が失敗したら hydrate しない
+// The same hydrate as examples/minimal/app/client.ts. Does not hydrate if props validation (attached by IslandExport) fails for the island or islands inside templates
 const clientSource = `
 import { createClient } from 'honox/client';
 import { createElement } from 'react';
@@ -37,7 +37,7 @@ export function hydrate() {
 }
 `;
 
-/** fixture を作り、SSR 用（islandComponents 付き）と client 用（Node 向け）の 2 つをビルドして読み込む */
+/** Creates the fixture, builds it twice, for SSR (with islandComponents) and for the client (targeting Node), and loads both */
 async function buildFixture(name, files) {
   await access(bridge);
   const fixture = await mkdtemp(path.join(root, `tests/.${name}-`));
@@ -54,7 +54,7 @@ async function buildFixture(name, files) {
   await build({ ...config, plugins: [islandComponents({ reactApiImportSource: 'react' })],
     build: { ssr: path.join(fixture, 'server.js'), outDir: path.join(fixture, 'server-out'),
       rollupOptions: { output: { entryFileNames: 'entry.mjs' } } } });
-  // 本番の client ビルドと同じく、SSR の island 変換プラグインは入れない
+  // Like the production client build, the SSR island transform plugin is not included
   await build({ ...config,
     build: { ssr: path.join(fixture, 'client.js'), outDir: path.join(fixture, 'client-out'),
       rollupOptions: { output: { entryFileNames: 'entry.mjs', chunkFileNames: '[name]-[hash].mjs' } } } });
@@ -65,7 +65,7 @@ async function buildFixture(name, files) {
   };
 }
 
-/** jsdom の window / document を globalThis に置いて body を実行し、終わったら戻す */
+/** Puts jsdom's window / document on globalThis, runs body, and restores them afterwards */
 async function withDom(html, body) {
   const dom = new JSDOM(`<!DOCTYPE html><html><body>${html}</body></html>`);
   const globals = { window: dom.window, document: dom.window.document, Node: dom.window.Node, IS_REACT_ACT_ENVIRONMENT: true };
@@ -88,7 +88,7 @@ async function cleanup(client) {
   client.skipped.length = 0;
 }
 
-/** React の dev ビルドを Vite と同じプロセスで揃える */
+/** Aligns React's dev build with Vite in the same process */
 async function inDevelopment(body) {
   const previousNodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'development';
@@ -99,7 +99,7 @@ async function inDevelopment(body) {
   }
 }
 
-test('Scala の Island は HonoX の検出・入れ子 island・要素 props に対応する', (t) => inDevelopment(async () => {
+test('the Scala Island supports HonoX detection, nested islands and element props', (t) => inDevelopment(async () => {
   const { fixture, server, client } = await buildFixture('islands-hydration', {
     'components.js': `
 import { createElement, useState } from 'react';
@@ -113,7 +113,7 @@ export function Slot({ children }) { return createElement('section', null, child
     'app/islands/counter.tsx': "import { Counter } from '../../components.js';\nexport default Counter;\n",
     'app/islands/parent.tsx': "import { Parent } from '../../components.js';\nexport default Parent;\n",
     'app/islands/slot.tsx': "import { Slot } from '../../components.js';\nexport default Slot;\n",
-    // SSR はリンクした Scala のブリッジと素のコンポーネントを使い、app/islands/*.tsx は import しない
+    // SSR uses the linked Scala bridge and plain components, and does not import app/islands/*.tsx
     'server.js': `
 import { createElement, cloneElement } from 'react';
 import { renderToString } from 'react-dom/server';
@@ -122,7 +122,7 @@ import { Counter, Slot } from './components.js';
 const island = (Component, props, name) => renderIslandTest(Component, props, '/app/islands/' + name + '.tsx');
 const NestedParent = props => createElement('div', null, island(Counter, props, 'counter'));
 export function renderCase(kind) {
-  const props = { label: '日本語 "<&>' };
+  const props = { label: 'Ünïcödé "<&>' };
   if (kind === 'nested') return renderToString(island(NestedParent, props, 'parent'));
   if (kind === 'slot') return renderToString(island(Slot, {
     children: [createElement('span', { key: 'text' }, 'slot <&>'),
@@ -145,7 +145,7 @@ export function renderCase(kind) {
             assert.ok(template);
             assert.equal(template.content.querySelectorAll('honox-island').length, 1);
           } else {
-            assert.deepEqual(JSON.parse(boundary.getAttribute('data-serialized-props')), { label: '日本語 "<&>' });
+            assert.deepEqual(JSON.parse(boundary.getAttribute('data-serialized-props')), { label: 'Ünïcödé "<&>' });
           }
           const originalButton = document.querySelector('button');
           await act(async () => { await client.hydrate(); });
@@ -154,7 +154,7 @@ export function renderCase(kind) {
           assert.equal(document.querySelector('button'), originalButton, 'hydration must reuse the server DOM');
           if (kind === 'slot') assert.equal(document.querySelector('span').textContent, 'slot <&>');
           await act(async () => { originalButton.click(); });
-          assert.equal(originalButton.textContent, '日本語 "<&>:1');
+          assert.equal(originalButton.textContent, 'Ünïcödé "<&>:1');
         } finally {
           await cleanup(client);
         }
@@ -165,7 +165,7 @@ export function renderCase(kind) {
   }
 }));
 
-test('island の props は危険な文字列・配列・入れ子・同じ island の複数インスタンスでも安全に往復する', () => inDevelopment(async () => {
+test('island props round-trip safely with dangerous strings, arrays, nesting and multiple instances of the same island', () => inDevelopment(async () => {
   const { fixture, server, client } = await buildFixture('islands-props', {
     'components.js': `
 import { createElement } from 'react';
@@ -190,11 +190,11 @@ export function render(first, second) {
     'client.js': `${clientSource}\nexport { received } from './components.js';\n`,
   });
   try {
-    const tricky = '日本語😀 改行</script><script>alert(1)</script><!-- "引用" \'single\' &amp; \\ ';
-    const first = { label: tricky, items: [{ id: 'a', text: tricky }, { id: 'b', text: '</SCRIPT>' }], nested: { list: [1, 2.5, true, null], deep: { 名前: '値' } } };
-    const second = { label: '2つ目', items: [], nested: { list: [] } };
+    const tricky = 'Ünïcödé😀 newline</script><script>alert(1)</script><!-- "quoted" \'single\' &amp; \\ ';
+    const first = { label: tricky, items: [{ id: 'a', text: tricky }, { id: 'b', text: '</SCRIPT>' }], nested: { list: [1, 2.5, true, null], deep: { clé: 'välue' } } };
+    const second = { label: 'second', items: [], nested: { list: [] } };
     const html = server.render(first, second);
-    assert.doesNotMatch(html, /<\/script>|<script>|<!--/i, 'props の文字列が HTML の構造として出ない');
+    assert.doesNotMatch(html, /<\/script>|<script>|<!--/i, 'props strings do not appear as HTML structure');
     await withDom(html, async (document) => {
       try {
         const boundaries = [...document.querySelectorAll('honox-island')];
@@ -205,8 +205,8 @@ export function render(first, second) {
         const lists = [...document.querySelectorAll('ul')];
         await act(async () => { await client.hydrate(); });
         assert.deepEqual(client.errors, [], 'hydration must match the SSR markup');
-        assert.equal(client.roots.length, 2, '同じ island の各インスタンスがそれぞれ hydrate される');
-        assert.deepEqual(client.received, [first, second], 'hydration 後も同じ値で読める');
+        assert.equal(client.roots.length, 2, 'each instance of the same island is hydrated');
+        assert.deepEqual(client.received, [first, second], 'the same values are read after hydration');
         assert.deepEqual([...document.querySelectorAll('ul')], lists);
         assert.equal(lists[0].getAttribute('data-label'), tricky);
         assert.equal(lists[0].querySelector('li').textContent, tricky);
@@ -219,7 +219,7 @@ export function render(first, second) {
   }
 }));
 
-test('Scala.js の client island（IslandExport）を hydrate し、props が合わない HTML では hydrate せずに SSR の markup を残す', () => inDevelopment(async () => {
+test('hydrates Scala.js client islands (IslandExport), and keeps the SSR markup without hydrating for HTML with mismatched props', () => inDevelopment(async () => {
   const { fixture, server, client } = await buildFixture('islands-scala-client', {
     'app/islands/counter.tsx': "import { CounterTest } from 'scala-island-test';\nexport default CounterTest;\n",
     'server.js': `
@@ -241,17 +241,17 @@ export function render() {
     await withDom(server.render(), async (document) => {
       try {
         const [, , old] = document.querySelectorAll('honox-island');
-        // 旧い世代の HTML: start を持たない props
+        // HTML from an older version: props without start
         old.setAttribute('data-serialized-props', JSON.stringify({ label: 'old' }));
         const buttons = [...document.querySelectorAll('button')];
         assert.deepEqual(buttons.map(b => b.textContent), ['a:1', 'b:5', 'old:0']);
         await act(async () => { await client.hydrate(); });
         assert.deepEqual(client.errors, []);
-        assert.equal(client.roots.length, 2, '検証を通った 2 つだけを hydrate する');
+        assert.equal(client.roots.length, 2, 'only the two that pass validation are hydrated');
         assert.deepEqual(client.skipped, ['props.start: missing']);
         assert.ok(consoleErrors.some(message => message.includes('props.start: missing')), consoleErrors.join('\n'));
         await act(async () => { for (const button of buttons) button.click(); });
-        assert.deepEqual(buttons.map(b => b.textContent), ['a:2', 'b:6', 'old:0'], 'hydrate しなかった island は SSR の markup のまま残る');
+        assert.deepEqual(buttons.map(b => b.textContent), ['a:2', 'b:6', 'old:0'], 'islands that were not hydrated keep the SSR markup');
         assert.deepEqual([...document.querySelectorAll('button')], buttons);
       } finally {
         await cleanup(client);
@@ -263,7 +263,7 @@ export function render() {
   }
 }));
 
-test('要素 props（template）の中の Scala.js の island の props が合わなければ、外側の island も hydrate せずに SSR の markup を残す', () => inDevelopment(async () => {
+test('if a Scala.js island inside element props (template) has mismatched props, the outer island is not hydrated either and keeps the SSR markup', () => inDevelopment(async () => {
   const { fixture, server, client } = await buildFixture('islands-template-validation', {
     'components.js': `
 import { createElement } from 'react';
@@ -292,7 +292,7 @@ export function render() {
         try {
           const inner = document.querySelector('template[data-hono-template="children"]').content.querySelector('honox-island');
           assert.equal(inner.getAttribute('component-name'), '/app/islands/counter.tsx');
-          // 旧い世代の HTML: template 内の island の props に start が無い
+          // HTML from an older version: the props of the island inside the template have no start
           if (!valid) inner.setAttribute('data-serialized-props', JSON.stringify({ label: 'in' }));
           const button = document.querySelector('button');
           assert.equal(button.textContent, 'in:3');
@@ -304,9 +304,9 @@ export function render() {
             assert.deepEqual(client.skipped, []);
             assert.equal(button.textContent, 'in:4');
           } else {
-            assert.equal(client.roots.length, 0, '外側の island も hydrate しない');
+            assert.equal(client.roots.length, 0, 'the outer island is not hydrated either');
             assert.deepEqual(client.skipped, ['props.children[1]: props.start: missing']);
-            assert.equal(button.textContent, 'in:3', 'SSR の markup のまま残る');
+            assert.equal(button.textContent, 'in:3', 'the SSR markup remains');
             assert.equal(document.querySelector('span').textContent, 'slot');
           }
         } finally {

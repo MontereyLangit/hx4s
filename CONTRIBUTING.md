@@ -1,41 +1,41 @@
-# 貢献ガイド
+# Contributing
 
-hx4s への変更（バグ修正・機能追加・文書）を歓迎します。hx4s は 0.1 を開発中で、API と設定は変わることがあります。大きな変更は、先に issue で方針を相談してください。
+Changes to hx4s (bug fixes, features, documentation) are welcome. hx4s 0.1 is in development, and the API and settings may change. For large changes, please discuss the approach in an issue first.
 
-## 開発環境
+## Development environment
 
-| 道具 | 版 |
+| Tool | Version |
 | --- | --- |
-| JDK | 17 以上（CI は 21） |
-| sbt | 1.x（`project/build.properties` は 1.13.0） |
-| Node.js | 22.12 以上 |
+| JDK | 17 or later (CI uses 21) |
+| sbt | 1.x (`project/build.properties` is 1.13.0) |
+| Node.js | 22.12 or later |
 
 ```bash
-git clone <hx4s のリポジトリ> && cd hx4s
+git clone <hx4s repository> && cd hx4s
 npm ci
 ```
 
-ブランチは `develop` を基準にします。
+Branch from `develop`.
 
-## ビルドとテスト
+## Build and test
 
 ```bash
-sbt test                      # core / react / codegen の munit
-sbt sbtHx4s/scripted          # sbt-hx4s の scripted テスト（codegen を publishLocal してから走る）
-sbt 'set ThisBuild / scalacOptions += "-no-indent"' Test/compile   # インデント構文が残っていないことの確認
-npm test                      # hx4s-vite のビルド、island の SSR・hydration、独立性の検査
-npm run typecheck             # hx4s-vite と、文書の TypeScript の例（tests/docs-typecheck）の型検査
+sbt test                      # munit for core / react / codegen
+sbt sbtHx4s/scripted          # scripted tests for sbt-hx4s (runs after publishLocal of codegen)
+sbt 'set ThisBuild / scalacOptions += "-no-indent"' Test/compile   # checks that no indentation syntax remains
+npm test                      # hx4s-vite build, island SSR and hydration, independence check
+npm run typecheck             # type-check hx4s-vite and the TypeScript examples in the docs (tests/docs-typecheck)
 node scripts/check-independence.mjs
 ```
 
-examples を動かすには、ローカル公開が要ります。テストはビルドの出力（`dist`）を読むので、`npm test` の前に `npm run build` を実行します。
-`examples/minimal` の E2E は Playwright の Chromium を使います（`HX4S_SKIP_E2E=1` で E2E だけ飛ばせます）。
+Running the examples requires a local publish. The tests read the build output (`dist`), so run `npm run build` before `npm test`.
+The E2E tests of `examples/minimal` use Playwright's Chromium (`HX4S_SKIP_E2E=1` skips only the E2E tests).
 
 ```bash
 node scripts/publish-local.mjs
 node scripts/setup-example.mjs minimal
 cd examples/minimal
-npx playwright install chromium   # 初回だけ
+npx playwright install chromium   # first time only
 npm run build
 npm run typecheck
 npm test
@@ -48,78 +48,78 @@ npm run typecheck
 npm test
 ```
 
-CI（`.github/workflows/ci.yml`）も同じ順で動かします。
+CI (`.github/workflows/ci.yml`) runs them in the same order.
 
-テストの内訳は [docs/testing.md](docs/testing.md)、examples は [docs/examples.md](docs/examples.md)。
-コードを変えたら、関係するテストを足し、上のコマンドが通ることを確かめてから出してください。CI は Ubuntu と Windows で同じものを走らせます。
+See [docs/testing.md](docs/testing.md) for what the tests cover and [docs/examples.md](docs/examples.md) for the examples.
+When you change code, add the relevant tests and make sure the commands above pass before submitting. CI runs the same steps on Ubuntu and Windows.
 
-## 生成物
+## Generated files
 
-`examples/minimal/app/routes`・`app/islands` と `examples/api-only/app/routes` の生成ファイルはコミットしてあります。`@route` / `@islands` や codegen の出力を変えたときは、examples で `npm run generate` を実行して差分を含めてください
-（CI が、ビルド後に各 example の `app` に差分や未追跡のファイルが無いことを確かめます）。
+The generated files in `examples/minimal/app/routes`, `app/islands` and `examples/api-only/app/routes` are committed. When you change `@route` / `@islands` or the codegen output, run `npm run generate` in the examples and include the diff
+(CI checks that each example's `app` has no diff or untracked files after the build).
 
-## 構成と依存
+## Structure and dependencies
 
-| モジュール | 場所 | 言語 |
+| Module | Location | Language |
 | --- | --- | --- |
-| hx4s-core | `modules/core` | Scala 3（JVM と Scala.js） |
+| hx4s-core | `modules/core` | Scala 3 (JVM and Scala.js) |
 | hx4s-react | `modules/react` | Scala.js |
-| hx4s-codegen | `modules/codegen` | Scala 3（JVM） |
-| sbt-hx4s | `sbt-plugin` | Scala 2.12（sbt 1.x のプラグイン） |
+| hx4s-codegen | `modules/codegen` | Scala 3 (JVM) |
+| sbt-hx4s | `sbt-plugin` | Scala 2.12 (sbt 1.x plugin) |
 | hx4s-vite | `vite` | TypeScript |
 
-- **依存を増やさない。** 新しい Maven / npm の依存は、既存のもので足りない理由と、ライセンス（Apache-2.0 と両立するか）を issue か PR に書いてください。版は固定します
-- `hx4s-codegen` は `hx4s-core` に依存しません（アノテーションを名前で見分けるため）
-- hx4s のモジュールは実行基盤（Cloudflare など）に依存しません。基盤固有のコードは examples か利用側に置きます
-- Scala で書けるロジックを TypeScript で書かないでください。TypeScript は Vite・HonoX の配線など、Scala で書けない部分に限ります
+- **Don't add dependencies.** For a new Maven / npm dependency, explain in the issue or PR why existing ones are not enough and what its license is (whether it is compatible with Apache-2.0). Pin versions
+- `hx4s-codegen` does not depend on `hx4s-core` (it recognizes annotations by name)
+- The hx4s modules do not depend on a runtime (such as Cloudflare). Runtime-specific code goes in the examples or in the user's project
+- Don't write logic in TypeScript that can be written in Scala. TypeScript is limited to what can't be written in Scala, such as wiring Vite and HonoX
 
-## コーディング規約
+## Coding conventions
 
-- 既存のコードのスタイル・命名・置き場所に合わせます
-- **Scala の Optional Braces（インデント構文）は原則使いません。** `{}` で書きます。`if ... then` などの制御構文は使えますが、複数行は `{}` で囲みます（CI が `-no-indent` でのコンパイルを確かめます）
-- 設計は FP を優先します。純粋な計算と I/O を分け、拒否や失敗は例外ではなく `Either` や enum で返します。可変状態や文字列で表した種別を必要以上に使いません
-- scalajs-react のコンポーネントは関数コンポーネント（`ScalaFnComponent`）にし、コンポーネントを持つ `val` は `final val` にします
-- Scala.js のライブラリがあれば、npm のパッケージの facade より優先します
-- TypeScript の `any` と Scala の未型付きの構造型を避けます。コンパイル・Lint の警告は抑制せず直します
-- **Scaladoc / JSDoc は簡潔に**: 「何をするか」と利用者が知るべき制約を 1〜2 行で書きます。日本語を基本にし、末尾に「。」を付けません。経緯・却下した案・実測値は `docs/hx4s/` に書きます
-- 不要なコメントや過剰な抽象化を入れません
-- 秘匿値（キー・トークン・パスワード）をコード・ログ・コミットメッセージに含めません
+- Follow the style, naming and placement of the existing code
+- **As a rule, don't use Scala's optional braces (indentation syntax).** Use `{}`. Control syntax such as `if ... then` is fine, but wrap multiple lines in `{}` (CI checks compilation with `-no-indent`)
+- Prefer FP in design. Separate pure computation from I/O, and return rejections and failures as `Either` or enums instead of exceptions. Don't use mutable state or kinds represented as strings more than necessary
+- Make scalajs-react components function components (`ScalaFnComponent`), and make `val`s holding components `final val`
+- Prefer Scala.js libraries, when they exist, over facades for npm packages
+- Avoid TypeScript's `any` and Scala's untyped structural types. Fix compiler and lint warnings instead of suppressing them
+- **Keep Scaladoc / JSDoc short**: in one or two lines, state what it does and the constraints users need to know. Write them in English, without a trailing period. History, rejected alternatives and measurements go in `docs/hx4s/`
+- Don't add unnecessary comments or excessive abstraction
+- Don't put secrets (keys, tokens, passwords) in code, logs or commit messages
 
-## 文書
+## Documentation
 
-- 利用者向けの文書は `docs/` 直下、設計と経緯は `docs/hx4s/` に置きます。日本語で、簡潔な技術文書の文体にします（説明の羅列や飾った言い回しを避け、表と短い段落とコード例を使います）
-- **コード例は実物で確かめたものだけを載せます。** `examples/minimal` と同じ書き方にするか、実際にコンパイル・実行して確かめます。確かめられていない機能を、できるかのように書きません
-- 未実装・未検証のものは、そう書きます。性能の主張はしません。数値は `docs/hx4s/reviews/` に記録があるものだけ、条件つきで引用します
-- 相対リンクが切れていないことを確かめます
-- 利用者向けの文書とコードに、特定のアプリケーションの名前を入れません（`node scripts/check-independence.mjs` が検査します。`docs/hx4s/` の経緯の説明は除きます）
+- User documentation goes directly under `docs/`, and design and history documents go in `docs/hx4s/`, both in English, with the Japanese translation at the same path under `ja/`. Use a concise technical style (avoid long lists of explanations and ornate wording; use tables, short paragraphs and code examples). When you change a document, update its Japanese translation too
+- **Only include code examples that have been verified against real code.** Either write them the same way as `examples/minimal`, or actually compile and run them. Don't describe unverified features as if they work
+- Say so when something is not implemented or not verified. Don't make performance claims. Only cite numbers recorded in `docs/hx4s/reviews/`, together with their conditions
+- Check that relative links are not broken
+- Don't put the names of specific applications in user documentation or code (`node scripts/check-independence.mjs` checks this, except for the history in `docs/hx4s/`)
 
-## コミット
+## Commits
 
-[Conventional Commits](https://www.conventionalcommits.org/) の形式で、件名は日本語です。
+Use the [Conventional Commits](https://www.conventionalcommits.org/) format.
 
 ```
-<type>(<scope>): <変更の要約>
+<type>(<scope>): <summary of the change>
 ```
 
-| type | 用途 |
+| type | Use |
 | --- | --- |
-| `feat` | 機能の追加 |
-| `fix` | 不具合の修正 |
-| `docs` | 文書だけの変更 |
-| `refactor` | 挙動を変えない整理（互換性を壊すときは `refactor!:` のように `!` を付ける） |
-| `build` / `ci` / `chore` | ビルド設定、CI、そのほか |
+| `feat` | New features |
+| `fix` | Bug fixes |
+| `docs` | Documentation-only changes |
+| `refactor` | Cleanups that don't change behavior (add `!`, as in `refactor!:`, when breaking compatibility) |
+| `build` / `ci` / `chore` | Build settings, CI, everything else |
 
-scope は `core`・`react`・`codegen`・`sbt`・`vite`・`scripts`・`examples`・`deps` など。例: `fix(codegen): 出力の安全策と生成コードの識別子・設定値の扱いを直す`。
-1 つのコミットは 1 つの目的にまとめ、本文には変更の理由を書きます。
+Scopes include `core`, `react`, `codegen`, `sbt`, `vite`, `scripts`, `examples` and `deps`. Example: `fix(codegen): fix output safeguards and handling of identifiers and settings in generated code`.
+Keep each commit to one purpose, and explain the reason for the change in the body.
 
-## レビューの流れ
+## Review flow
 
-1. `develop` から作業ブランチを切り、変更を加える
-2. 上の「ビルドとテスト」を通し、自分でレビューする（規約との整合、Scala で書けるものを TypeScript で書いていないか、テストが足りているか、文書の文体）
-3. Pull Request を `develop` に出す。目的、変更点、確かめたこと、確かめていないことを書く
-4. CI（Ubuntu と Windows）が通ることを確かめ、レビューの指摘に対応する
-5. 設計に関わる判断（公開 API、生成物の形式、依存）は `docs/hx4s/adr/` に ADR（1 判断 1 ファイル）で残す
+1. Branch from `develop` and make your changes
+2. Pass "Build and test" above and review your own change (consistency with the conventions, nothing written in TypeScript that could be in Scala, sufficient tests, documentation style)
+3. Open a pull request against `develop`. Describe the purpose, the changes, what you verified and what you did not verify
+4. Make sure CI (Ubuntu and Windows) passes, and address review comments
+5. For design decisions (public API, format of generated files, dependencies), record an ADR in `docs/hx4s/adr/` (one decision per file)
 
-## ライセンス
+## License
 
-貢献は [Apache License 2.0](LICENSE) で提供されるものとします（ライセンスの第 5 条）。
+Contributions are provided under the [Apache License 2.0](LICENSE) (Section 5 of the license).

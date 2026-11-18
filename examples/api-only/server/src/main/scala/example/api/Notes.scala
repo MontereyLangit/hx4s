@@ -1,19 +1,19 @@
 package example.api
 
-/** メモ 1 件 */
+/** One note */
 final case class Note(id: String, text: String)
 
-/** サンプルのメモ。保存はせず、入力の検証だけを行う */
+/** Sample notes. Nothing is saved; only input is validated */
 object Notes {
-  val all: List[Note] = List(Note("1", "牛乳を買う"), Note("2", "本を返す"))
+  val all: List[Note] = List(Note("1", "Buy milk 🥛"), Note("2", "Return the book"))
 
   def find(id: String): Option[Note] = all.find(_.id == id)
 
-  /** 新しいメモの本文を確かめる。空や長すぎる本文は理由を返す */
+  /** Validates the text of a new note. Returns a reason for empty or too long text */
   def validate(text: String): Either[String, String] = {
     val trimmed = text.trim
-    if (trimmed.isEmpty) Left("本文を入力してください")
-    else if (trimmed.length > 100) Left("本文は 100 文字までです")
+    if (trimmed.isEmpty) Left("Enter the note text")
+    else if (trimmed.length > 100) Left("Note text can be at most 100 characters")
     else Right(trimmed)
   }
 }

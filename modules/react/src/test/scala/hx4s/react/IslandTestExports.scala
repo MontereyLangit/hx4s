@@ -8,13 +8,13 @@ import japgolly.scalajs.react.vdom.html_<^.*
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExportTopLevel
 
-/** テスト用 island の props */
+/** Props of the test island */
 trait CounterTestProps extends js.Object {
   val label: String
   val start: Int
 }
 
-/** Node のテスト（tests/islands-hydration.test.js）が実際の Scala のブリッジと client island で SSR・hydration するための入口 */
+/** Entry points for Node tests (tests/islands-hydration.test.js) to SSR and hydrate with the real Scala bridge and client island */
 object IslandTestExports {
   @JSExportTopLevel("renderIslandTest", "island-test")
   def renderIslandTest(component: React.ComponentType[js.Object], props: js.Object, componentName: String): React.Element = {

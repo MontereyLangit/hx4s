@@ -4,7 +4,7 @@ import example.shared.CounterProps
 import japgolly.scalajs.react.*
 import japgolly.scalajs.react.vdom.html_<^.*
 
-/** クリックで数が増えるカウンター */
+/** A counter that increases on click */
 object Counter {
   final val Component = ScalaFnComponent[CounterProps] { props =>
     for {

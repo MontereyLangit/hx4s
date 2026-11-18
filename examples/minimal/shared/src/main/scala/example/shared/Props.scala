@@ -5,7 +5,7 @@ import hx4s.props.JsShape.{optional, required}
 
 import scala.scalajs.js
 
-/** カウンターの props */
+/** Counter props */
 trait CounterProps extends js.Object {
   val label: String
   val start: Int
@@ -15,20 +15,20 @@ object CounterProps {
   val fields: List[JsField] = List(required("label", JsKind.Str), required("start", JsKind.Int))
 }
 
-/** 一覧の 1 件 */
+/** One item in the list */
 trait ItemProps extends js.Object {
   val id: String
   val name: String
   val tags: js.Array[String]
 }
 
-/** 一覧の持ち主（入れ子の props の例） */
+/** Owner of the list (an example of nested props) */
 trait OwnerProps extends js.Object {
   val name: String
   val since: Int
 }
 
-/** 配列・入れ子・省略できるキーを持つ一覧の props */
+/** Props of a list with arrays, nesting and optional keys */
 trait ItemListProps extends js.Object {
   val title: String
   val owner: OwnerProps

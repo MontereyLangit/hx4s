@@ -33,7 +33,7 @@ const writeJson = (file, value) => writeFile(file, `${JSON.stringify(value, null
 const readJson = (file) => JSON.parse(readFileSync(file, 'utf8'));
 const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=hx4s test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' });
 
-/** 一時ディレクトリに、git の checkout・ivy のローカルリポジトリ・公開記録をそろえた公開を作る */
+/** Creates a publish in a temporary directory with a git checkout, an ivy local repository and publish records */
 async function withPublish(body) {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'hx4s-publish-'));
   try {
@@ -75,22 +75,22 @@ async function withPublish(body) {
 
 const assertProblem = (problems, pattern) => assert.ok(problems.some((problem) => pattern.test(problem)), `${pattern} not in ${JSON.stringify(problems)}`);
 
-test('ivyPublications は ivy.xml の publications を [type]s/[artifact](-[classifier]).[ext] にする', () => {
+test('ivyPublications maps the publications of ivy.xml to [type]s/[artifact](-[classifier]).[ext]', () => {
   assert.deepEqual(ivyPublications(ivyXml('m_3')), ['jars/m_3.jar', 'srcs/m_3-sources.jar', 'docs/m_3-javadoc.jar', 'poms/m_3.pom']);
 });
 
-test('mavenNames は build.sbt の root が aggregate するモジュールに対応する', () => {
+test('mavenNames matches the modules aggregated by the root of build.sbt', () => {
   const build = readFileSync(path.join(repositoryRoot, 'build.sbt'), 'utf8');
-  assert.match(build, /\.aggregate\(coreJVM, coreJS, react, codegen, sbtHx4s\)/, 'aggregate を変えたら scripts/lib/publish-record.mjs の mavenNames も直す');
+  assert.match(build, /\.aggregate\(coreJVM, coreJS, react, codegen, sbtHx4s\)/, 'when changing aggregate, also update mavenNames in scripts/lib/publish-record.mjs');
   assert.equal(mavenNames.length, 5);
 });
 
-test('公開対象のソースにルートの package.json と package-lock.json を含む', () => {
+test('the published sources include the root package.json and package-lock.json', () => {
   assert.ok(publishedSources.includes('package.json'));
   assert.ok(publishedSources.includes('package-lock.json'));
 });
 
-test('そろった公開は照合を通り、記録は ivy.xml と publications の実体を SHA-256 つきで持つ', async () => {
+test('a complete publish passes verification, and the record has ivy.xml and the publication files with SHA-256', async () => {
   await withPublish(({ output, problems }) => {
     assert.deepEqual(problems(), []);
     const plugin = readJson(path.join(output, recordFiles.complete)).maven.find((artifact) => artifact.name === 'sbt-hx4s');
@@ -99,7 +99,7 @@ test('そろった公開は照合を通り、記録は ivy.xml と publications 
   });
 });
 
-test('公開後に package-lock.json か package.json だけを変えると照合が失敗する', async () => {
+test('verification fails when only package-lock.json or package.json changes after publishing', async () => {
   for (const file of ['package-lock.json', 'package.json']) {
     await withPublish(({ root, problems }) => {
       writeFileSync(path.join(root, file), '{"changed":true}\n');
@@ -108,7 +108,7 @@ test('公開後に package-lock.json か package.json だけを変えると照�
   }
 });
 
-test('ivy の JAR・sources・pom を消すか置き換えると照合が失敗する', async () => {
+test('verification fails when ivy JARs, sources or poms are deleted or replaced', async () => {
   for (const [file, change] of [
     ['jars/hx4s-core_3.jar', 'delete'], ['jars/hx4s-core_3.jar', 'replace'], ['srcs/hx4s-core_3-sources.jar', 'delete'],
     ['poms/hx4s-core_3.pom', 'replace'], ['ivys/ivy.xml', 'replace'],
@@ -122,14 +122,14 @@ test('ivy の JAR・sources・pom を消すか置き換えると照合が失敗�
   }
 });
 
-test('tgz を置き換えると照合が失敗する', async () => {
+test('verification fails when the tgz is replaced', async () => {
   await withPublish(({ output, problems }) => {
     writeFileSync(path.join(output, npmArtifact.file), 'other');
     assertProblem(problems(), /does not match the recorded SHA-256/);
   });
 });
 
-test('完了の記録の項目の欠落・空配列・余分な項目・成果物の集合の食い違いで照合が失敗する', async () => {
+test('verification fails on missing entries, empty arrays, extra entries or a mismatched artifact set in the completed record', async () => {
   const cases = [
     [(record) => delete record.maven, /has no maven/],
     [(record) => { record.maven = []; }, /lists no maven artifacts/],
@@ -158,7 +158,7 @@ test('完了の記録の項目の欠落・空配列・余分な項目・成果�
   }
 });
 
-test('部分の記録の成果物が完了の記録と違うと照合が失敗する', async () => {
+test('verification fails when the artifacts of a partial record differ from the completed record', async () => {
   for (const [file, change, pattern] of [
     [recordFiles.sbt, (record) => { record.maven[0].files[1].sha256 = '0'.repeat(64); }, /the sbt record does not belong/],
     [recordFiles.sbt, (record) => delete record.maven, /the sbt record does not belong/],

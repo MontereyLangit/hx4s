@@ -16,12 +16,12 @@ class RoutePathSuite extends FunSuite {
         }
       }
 
-  test("HonoX の createApp と同じ URL パターンに変換する（tests/route-paths.test.js が同じ表を HonoX で確かめる）") {
+  test("converts to the same URL patterns as HonoX createApp (tests/route-paths.test.js checks the same table with HonoX)") {
     assert(table.sizeIs > 10)
     table.foreach { case (file, path) => assertEquals(RoutePath.pattern(file), path, file) }
   }
 
-  test("比較用の形はパラメータ名を除き、catch-all と通常のパラメータは区別する") {
+  test("the comparison shape drops parameter names but distinguishes catch-all from ordinary parameters") {
     assertEquals(RoutePath.shape("/items/:id/edit"), RoutePath.shape("/items/:item/edit"))
     assertEquals(RoutePath.shape("/docs/:slug{.+}"), "/docs/:{.+}")
     assertNotEquals(RoutePath.shape("/docs/:slug{.+}"), RoutePath.shape("/docs/:slug"))

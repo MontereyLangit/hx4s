@@ -1,34 +1,34 @@
-# ADR 0007: props の検証は hx4s-core の JS 側、typed export は hx4s-react の `IslandExport[P]`
+# ADR 0007: Props validation in the JS side of hx4s-core, typed export as `IslandExport[P]` in hx4s-react
 
-- 状態: 承認（2026-11-16、Phase 3）
-- 更新（2026-11-16、Phase 3 レビュー K6）: hydrate 前の検証を雛形への直書きから `hx4s-vite/client` の `islandPropsProblem(element)` に移した。
-  最外側の island だけでなく、要素 props（template から復元する子）の中の island も確かめる。下の「hydrate の前の検証」の 2 段落目は当初の判断として残す
-- 関連: [ADR 0003](0003-typed-island-props.md)、[rendering-model.md](../rendering-model.md) 2.3・2.4、[roadmap.md](../roadmap.md) U-12・U-24・U-26、Phase 0 レビュー C5
+- Status: Accepted (2026-11-16, Phase 3)
+- Updated (2026-11-16, Phase 3 review K6): validation before hydration moved from code written directly in the template to `islandPropsProblem(element)` in `hx4s-vite/client`.
+  It checks not only the outermost island but also islands inside element props (children restored from templates). The second paragraph of "Validation before hydration" below is kept as the original decision
+- Related: [ADR 0003](0003-typed-island-props.md), [rendering-model.md](../rendering-model.md) 2.3 and 2.4, [roadmap.md](../roadmap.md) U-12, U-24, U-26, Phase 0 review C5
 
-## 背景
+## Context
 
-ADR 0003 の型付き Props は、server の呼び出し `IslandComponents.Xxx(props: P)` だけを型で守り、client の island が同じ `P` を読む保証が無かった（C5、U-24）。
-client の受信値は手書きの検証（`validate(raw): Either[String, P]`）に頼る方針で、移動元では `JsShape` という検証器が shared の Scala.js 側にあった。
-Phase 3 でこれをどのモジュールに置くか、client の export を `P` にどう結び付けるかを決める。
+ADR 0003's typed props protected only the server's call `IslandComponents.Xxx(props: P)` with types; there was no guarantee that the client island reads the same `P` (C5, U-24).
+The policy was to rely on hand-written validation (`validate(raw): Either[String, P]`) for values received by the client, and in the original project a validator called `JsShape` lived on the Scala.js side of shared.
+Phase 3 decides which module it goes in, and how to tie the client export to `P`.
 
-条件:
+Constraints:
 
-- client のバンドルに、HonoX の SSR 用 import（`honox/vite/components` の `HonoXIsland`）や server のコードを引き込まない。
-- `hx4s-core` は React に依存しない（[module-boundaries.md](../module-boundaries.md) 2 章）。
-- 依存を増やさない。マクロや codec の導出は入れない（ADR 0003 の却下案）。
+- Don't pull HonoX's SSR imports (`HonoXIsland` from `honox/vite/components`) or server code into the client bundle.
+- `hx4s-core` doesn't depend on React ([module-boundaries.md](../module-boundaries.md) chapter 2).
+- Don't add dependencies. Don't introduce macros or codec derivation (rejected in ADR 0003).
 
-## 決定
+## Decision
 
-### JsShape の置き場所
+### Where JsShape lives
 
-`hx4s.props.{JsShape, JsKind, JsField}` を **`hx4s-core` の JS 側**（`modules/core/js`）に置く。`hx4s-core` は crossProject（Full）になり、JVM 側はアノテーションだけを持つ。
+`hx4s.props.{JsShape, JsKind, JsField}` goes in **the JS side of `hx4s-core`** (`modules/core/js`). `hx4s-core` becomes a crossProject (Full), and the JVM side has only the annotations.
 
-- JsShape は `scala.scalajs.js` だけに依存し、React にも HonoX にも依存しない。
-- shared の Props trait と同じ場所（`hx4s-core` だけに依存する shared プロジェクト）で `fields` を書ける。shared が `hx4s-react` に依存する必要が無い。
+- JsShape depends only on `scala.scalajs.js`, not on React or HonoX.
+- `fields` can be written in the same place as the shared props traits (a shared project depending only on `hx4s-core`). shared doesn't need to depend on `hx4s-react`.
 
-### typed export 補助
+### Typed export helper
 
-`hx4s-react` に次を置く。
+Put the following in `hx4s-react`.
 
 ```scala
 @js.native sealed trait IslandExport[P <: js.Object] extends js.Object
@@ -39,7 +39,7 @@ object IslandExport {
 }
 ```
 
-client の宣言は次の形にする。
+Client declarations take this form.
 
 ```scala
 @islands[example.shared.CounterProps]("counter.tsx")
@@ -47,39 +47,39 @@ client の宣言は次の形にする。
 val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps.fields)(props => Counter.Component(props))
 ```
 
-保証の鎖:
+The chain of guarantees:
 
-| 区間 | 誰が確かめるか |
+| Link | Who checks it |
 | --- | --- |
-| `@islands[P]` の `P` と、export の宣言型 `IslandExport[T]` の `T` | hx4s-codegen が構文で照合する。`T` が完全修飾名なら `_root_` を補って一致、単純名なら `P` の最後の名前と一致することを求める。宣言型が `IslandExport[T]` なのに `@islands` に型引数が無い場合も誤り。宣言型が `IslandExport` でなければ照合しない（`js.Any` の export も従来どおり書ける） |
-| 宣言型 `IslandExport[T]` と描画関数の props の型 | Scala コンパイラ。`IslandExport` は不変で `sealed` なので、別の `P` の export や描画関数は代入できない |
-| 受信した JSON と `P` | `IslandExport.apply` が `JsShape` で確かめる。不正なら `console.error` を出して何も描画しない |
+| The `P` of `@islands[P]` and the `T` of the export's declared type `IslandExport[T]` | hx4s-codegen compares them syntactically. If `T` is fully qualified, it must match after adding `_root_`; if it is a simple name, it must match the last name of `P`. A declared type of `IslandExport[T]` with no type argument on `@islands` is also an error. If the declared type is not `IslandExport`, nothing is compared (exports of `js.Any` can still be written as before) |
+| The declared type `IslandExport[T]` and the props type of the render function | The Scala compiler. `IslandExport` is invariant and `sealed`, so exports or render functions for a different `P` can't be assigned |
+| The received JSON and `P` | `IslandExport.apply` checks it with `JsShape`. If invalid, it logs `console.error` and renders nothing |
 
-`IslandExport` は `sealed` な native JS trait で、実体は scalajs-react の `toJsComponent.raw`（JS の関数コンポーネント）である。`@JSExportTopLevel` の値としてそのまま公開でき、
-生成した island TSX の `export default` と HonoX の `createClient` からは普通の React コンポーネントに見える。
+`IslandExport` is a `sealed` native JS trait whose actual value is scalajs-react's `toJsComponent.raw` (a JS function component). It can be published as-is as a `@JSExportTopLevel` value,
+and to the `export default` of the generated island TSX and HonoX's `createClient` it looks like an ordinary React component.
 
-### hydrate の前の検証（世代ずれ）
+### Validation before hydration (version skew)
 
-`IslandExport.apply` は、export した関数に検証関数 `hx4sValidate(props): string | undefined` を付ける。
-`app/client.ts` の `hydrate` で `element.type.hx4sValidate?.(element.props)` を呼び、理由が返れば `console.error` を出して `hydrateRoot` を呼ばない。
-これで ADR 0003 / rendering-model 2.4 の P0 の方針（不一致なら hydrate せず SSR の markup を残す）を実装した。
+`IslandExport.apply` attaches a validation function `hx4sValidate(props): string | undefined` to the exported function.
+`hydrate` in `app/client.ts` calls `element.type.hx4sValidate?.(element.props)`, and if a reason is returned, it logs `console.error` and doesn't call `hydrateRoot`.
+This implements the P0 policy of ADR 0003 / rendering-model 2.4 (on mismatch, don't hydrate and keep the SSR markup).
 
-`app/client.ts` の雛形（`examples/minimal/app/client.ts`）にこの数行を置き、ヘルパーにはしない（U-7 の方針どおり）。
-検証関数の名前 `hx4sValidate` は雛形と `IslandExport` の間の約束で、公開 API に含める。
+These few lines are put in the `app/client.ts` template (`examples/minimal/app/client.ts`) rather than in a helper (following the U-7 policy).
+The name of the validation function, `hx4sValidate`, is a contract between the template and `IslandExport`, and is part of the public API.
 
-## 却下案
+## Rejected alternatives
 
-| 案 | 理由 |
+| Alternative | Reason |
 | --- | --- |
-| JsShape を `hx4s-react` に置く | shared が props の `fields` を書くために `hx4s-react`（scalajs-react）に依存することになる |
-| JsShape を別モジュール（`hx4s-props`）にする | 成果物と依存行が増える。core の JS 側で依存の条件を満たせる |
-| `type IslandExport[P] = React.ComponentType[P]` の別名 | 検証を通さない任意のコンポーネント（`toJsComponent.raw`）を代入できてしまう。`ComponentType` は関数型の反変性で、`P` の上位型の props を受けるものも通る |
-| export の宣言型を codegen だけで照合し、Scala の型は付けない | 宣言型と実装の食い違いを検出できない |
-| `hx4sValidate` を使わず、検証失敗時に空を描画するだけ | hydrate で SSR の markup が消え、画面が空になる（移動元の挙動）。P0 の方針に合わない |
+| Put JsShape in `hx4s-react` | shared would have to depend on `hx4s-react` (scalajs-react) to write the props `fields` |
+| Make JsShape a separate module (`hx4s-props`) | Adds artifacts and dependency lines. The JS side of core satisfies the dependency constraints |
+| An alias `type IslandExport[P] = React.ComponentType[P]` | Any component that skips validation (`toJsComponent.raw`) could be assigned. Due to the contravariance of function types, `ComponentType` also accepts components taking a supertype of `P` as props |
+| Compare the export's declared type only in codegen, without Scala types | Mismatches between the declared type and the implementation can't be detected |
+| Don't use `hx4sValidate`; just render nothing when validation fails | Hydration wipes out the SSR markup and the screen becomes empty (the original project's behavior). Doesn't meet the P0 policy |
 
-## 影響
+## Consequences
 
-- 構文での照合なので、型エイリアスや import の別名で書いた `T` は追えない（ADR 0004）。単純名の `T` は最後の名前の一致だけを見るので、同名の別の型は見逃す。
-- `fields` と `P` の対応は手書きで、ずれてもコンパイルは通る（JsShape の検証が実行時に拾う）。マクロでの導出は P2 の候補のまま。
-- client のプロジェクトは `hx4s-react` に依存する。`IslandExport` は `Island`（`HonoXIsland` の `@JSImport`）を参照しないので、Scala.js のリンクで `honox/vite/components` は client に入らない。
-  examples/minimal の `tests/build-output.test.js` が client のバンドルに `HonoXIsland` が無いことを確かめる。
+- Since the comparison is syntactic, a `T` written with a type alias or an import alias can't be followed (ADR 0004). For a simple-name `T`, only the last name is compared, so a different type with the same name slips through.
+- The correspondence between `fields` and `P` is hand-written, and a mismatch still compiles (JsShape validation catches it at run time). Derivation with macros remains a P2 candidate.
+- The client project depends on `hx4s-react`. `IslandExport` doesn't reference `Island` (the `@JSImport` of `HonoXIsland`), so Scala.js linking keeps `honox/vite/components` out of the client.
+  `tests/build-output.test.js` in examples/minimal checks that the client bundle has no `HonoXIsland`.

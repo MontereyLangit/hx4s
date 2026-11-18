@@ -1,26 +1,26 @@
 package example.server
 
-/** 一覧の 1 件 */
+/** One item in the list */
 final case class Item(id: String, name: String, tags: List[String])
 
-/** サンプルの品目。保存はせず、入力の検証だけを行う */
+/** Sample items. Nothing is saved; only input is validated */
 object Catalog {
   val items: List[Item] = List(
-    Item("1", "りんご", List("果物", "赤")),
-    Item("2", "</script><b>タグ</b> \"引用\" 'single'", List("記号", "<&>")),
-    Item("3", "ぶどう😀", Nil)
+    Item("1", "apple", List("fruit", "red")),
+    Item("2", "</script><b>tag</b> \"quoted\" 'single'", List("symbols", "<&>")),
+    Item("3", "grape😀", Nil)
   )
 
   def find(id: String): Option[Item] = items.find(_.id == id)
 
-  /** tags をすべて持つ品目。tags が空なら全件 */
+  /** Items having all the tags. All items if tags is empty */
   def withTags(tags: List[String]): List[Item] = items.filter(item => tags.forall(item.tags.contains))
 
-  /** 新しい名前を確かめる。空や長すぎる名前は理由を返す */
+  /** Validates a new name. Returns a reason for empty or too long names */
   def rename(name: String): Either[String, String] = {
     val trimmed = name.trim
-    if (trimmed.isEmpty) Left("名前を入力してください")
-    else if (trimmed.length > 40) Left("名前は 40 文字までです")
+    if (trimmed.isEmpty) Left("Enter an item name")
+    else if (trimmed.length > 40) Left("Item names can be at most 40 characters")
     else Right(trimmed)
   }
 }

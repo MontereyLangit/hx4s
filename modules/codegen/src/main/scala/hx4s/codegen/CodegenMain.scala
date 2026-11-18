@@ -6,15 +6,15 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 
 /**
- * 設定を `--key value` の引数で受け取る入口
- * `app` で route / island の TS ファイル、`island-components` で SSR 用 Scala API を生成する。キーは docs/hx4s/codegen.md を参照
+ * Entry point that takes settings as `--key value` arguments
+ * `app` generates route / island TS files, and `island-components` the Scala API for SSR. See docs/hx4s/codegen.md for the keys
  */
 object CodegenMain {
   enum Command {
     case App, IslandComponents
   }
 
-  /** 設定と、生成したファイルの一覧を書く先（`--output-list`） */
+  /** Settings, and where to write the list of generated files (`--output-list`) */
   final case class Invocation(command: Command, config: CodegenConfig, outputList: Option[Path])
 
   private val Repeatable = Set("server-sources", "client-sources", "banner")
@@ -44,8 +44,8 @@ object CodegenMain {
   }
 
   /**
-   * 引数を解釈し、設定を確かめる。省いたキーは CodegenConfig.default の値にする
-   * `server-sources` / `client-sources` は 1 ファイルずつ繰り返し、省けば空にする。`banner` は 1 行ずつ繰り返す
+   * Parses the arguments and validates the settings. Omitted keys take the values of CodegenConfig.default
+   * `server-sources` / `client-sources` repeat once per file and are empty if omitted. `banner` repeats once per line
    */
   def parse(args: List[String], workingDirectory: Path = Paths.get(System.getProperty("user.dir"))): Result[Invocation] = {
     def error(message: String) = CodegenError("<args>", None, message)

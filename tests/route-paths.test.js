@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-// HonoX の内部モジュール（docs/hx4s/architecture.md 4 章 H11）。hx4s-codegen の RoutePath はこの変換を写している
+// HonoX's internal module (docs/hx4s/architecture.md chapter 4, H11). hx4s-codegen's RoutePath mirrors this conversion
 import { createApp } from 'honox/server/server';
 
 const table = fileURLToPath(new URL('../modules/codegen/src/test/resources/route-paths.tsv', import.meta.url));
 
-test('RoutePathSuite と同じ表の各 route ファイルを、HonoX の createApp が表のとおりの URL パターンで登録する', async () => {
+test('HonoX createApp registers each route file of the same table as RoutePathSuite with the URL pattern in the table', async () => {
   const rows = (await readFile(table, 'utf8')).split('\n').filter((line) => line !== '' && !line.startsWith('#')).map((line) => line.split('\t'));
   assert.ok(rows.length > 10);
   for (const [file, expected] of rows) {

@@ -1,6 +1,6 @@
 import { createApp } from "honox/server";
 
-// app/routes のファイルルート（@route の生成物）をそのまま使う
+// Uses the file routes in app/routes (generated from @route) as-is
 const app = createApp();
 
 export default app;

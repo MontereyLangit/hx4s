@@ -8,12 +8,12 @@ lazy val commonSettings = Seq(
   libraryDependencies += "io.github.montereylangit" %%% "hx4s-react" % hx4sVersion
 )
 
-// server と client が共有する island の props。server・client のどちらにも依存しない
+// Island props shared by server and client. Depends on neither
 lazy val shared = project
   .enablePlugins(ScalaJSPlugin)
   .settings(commonSettings)
 
-// @route のハンドラと SSR。client には依存しない（client の island は Vite の仮想モジュール scalajs:client.js で読む）
+// @route handlers and SSR. Does not depend on the client (client islands are loaded through Vite's virtual module scalajs:client.js)
 lazy val server = project
   .enablePlugins(ScalaJSPlugin, Hx4sPlugin)
   .dependsOn(shared)
@@ -21,7 +21,7 @@ lazy val server = project
   .settings(
     hx4sClientProject := client,
     libraryDependencies += "org.scalameta" %%% "munit" % "1.0.0" % Test,
-    // テストのリンク成果物が import する scalajs:client.js と、HonoX 内の hono/jsx を hx4s-vite の loader で解決する
+    // Resolve scalajs:client.js imported by the test link output, and hono/jsx inside HonoX, with hx4s-vite's loader
     Test / jsEnv := {
       val clientDir = (client / Compile / fastLinkJS / scalaJSLinkerOutputDirectory).value
       (client / Compile / fastLinkJS).value
@@ -33,7 +33,7 @@ lazy val server = project
     }
   )
 
-// ブラウザへ配る island。server には依存しない
+// Islands shipped to the browser. Does not depend on the server
 lazy val client = project
   .enablePlugins(ScalaJSPlugin)
   .dependsOn(shared)

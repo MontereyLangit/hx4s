@@ -23,7 +23,7 @@ class CodegenMainSuite extends FunSuite {
     "--generated-marker", "// generated-by-test"
   ) ++ extra
 
-  test("--key value の引数から設定を組み立て、省いた moduleID と仮想モジュール接頭辞は既定値にする") {
+  test("builds settings from --key value arguments, defaulting omitted moduleIDs and the virtual module prefix") {
     withTempDir { root =>
       val parsed = CodegenMain.parse("island-components" :: args(root, "--scala-output", "out/Islands.scala"))
       assertEquals(parsed, Right(CodegenMain.Invocation(CodegenMain.Command.IslandComponents, TestConfig(root.toAbsolutePath.normalize())
@@ -31,14 +31,14 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("ソースは 1 ファイルずつ繰り返して指定し、カンマや空白を含むパスも 1 つのパスとして扱う") {
+  test("sources are given one file at a time, and paths containing commas or spaces are treated as one path") {
     withTempDir { root =>
       val parsed = CodegenMain.parse("app" :: args(root, "--server-sources", "client,old/Main.scala", "--server-sources", " with space.scala"))
       assertEquals(parsed.map(_.config.serverSources), Right(List("server/App.scala", "client,old/Main.scala", " with space.scala")))
     }
   }
 
-  test("不明なキー・値の欠落・重複はまとめて誤りにする") {
+  test("unknown keys, missing values and duplicates are reported together as errors") {
     withTempDir { root =>
       val found = CodegenMain.parse(List("build", "--unknown", "x", "--route-dir")).left.getOrElse(fail("expected errors"))
       assertEquals(found.map(_.message), List("expected command app or island-components, found build", "unknown option --unknown",
@@ -48,7 +48,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("省いたキーは CodegenConfig.default の HonoX と hx4s の既定にする") {
+  test("omitted keys take the HonoX and hx4s defaults of CodegenConfig.default") {
     withTempDir { root =>
       val minimal = List("app", "--project-root", root.toString, "--server-sources", "server/App.scala", "--client-sources", "client/App.scala")
       val expected = CodegenConfig.default(root.toAbsolutePath.normalize(), List("server/App.scala"), List("client/App.scala"))
@@ -62,7 +62,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("main は誤りを「パス:行: メッセージ」で標準エラーに出し、System.exit せずに例外で失敗する") {
+  test("main prints errors as path:line: message to standard error and fails with an exception instead of System.exit") {
     withTempDir { root =>
       Files.createDirectories(root.resolve("server"))
       Files.writeString(root.resolve("server/App.scala"), "object Main {\n  @hx4s.annotation.route(\"x.ts\", \"HEAD\") @JSExportTopLevel(\"x\", \"server\") def x() = 1\n}\n")
@@ -79,7 +79,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("server と client の誤りはまとめて返し、何も書かない") {
+  test("server and client errors are returned together and nothing is written") {
     withTempDir { root =>
       Files.createDirectories(root.resolve("server"))
       Files.createDirectories(root.resolve("client"))
@@ -91,7 +91,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("project-root を省くと作業ディレクトリを使い、空白を含むパスもそのまま扱う") {
+  test("omitting project-root uses the working directory, and paths with spaces are handled as-is") {
     withTempDir { root =>
       val spaced = Files.createDirectories(root.resolve("with space [x]"))
       val parsed = CodegenMain.parse(List("app", "--server-sources", "a.scala", "--client-sources", "b.scala"), spaced)
@@ -99,7 +99,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("空のマーカーやバナーの 1 行目がマーカーで始まらない設定は、引数の解釈でも生成でも拒否する") {
+  test("an empty marker, or a banner whose first line does not start with the marker, is rejected both when parsing arguments and when generating") {
     withTempDir { root =>
       val base = args(root)
       val withEmptyMarker = base.updated(base.lastIndexOf("--generated-marker") + 1, "")
@@ -114,7 +114,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("汎用の設定だけで route / island と SSR 用 API を生成し、2 回目は書き直さない") {
+  test("generates routes, islands and the SSR API with generic settings only, and does not rewrite on the second run") {
     withTempDir { root =>
       Files.createDirectories(root.resolve("server"))
       Files.createDirectories(root.resolve("client"))
@@ -132,7 +132,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("ソースを省くと空として扱い、最後の route / island を消すと古い生成物が消えて空の Scala API になる") {
+  test("omitted sources are treated as empty, and removing the last route / island deletes stale outputs and leaves an empty Scala API") {
     withTempDir { root =>
       Files.createDirectories(root.resolve("server"))
       Files.createDirectories(root.resolve("client"))
@@ -155,7 +155,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("--output-list に、書いたファイルと据え置いたファイルの絶対パスを 1 行ずつ書く") {
+  test("--output-list gets the absolute paths of written and kept files, one per line") {
     withTempDir { root =>
       Files.createDirectories(root.resolve("server"))
       Files.writeString(root.resolve("server/App.scala"), """object A {
@@ -173,7 +173,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("生成ソースへ埋め込む設定値は、引用符・改行・バックスラッシュ・コメントの終わりなどを含めば拒否する") {
+  test("settings embedded in generated sources are rejected if they contain quotes, newlines, backslashes, comment ends and the like") {
     val lineSeparator = 0x2028.toChar
     val bad = List("a\"b", "a\nb", "a\\b", "a*/b", "a b", s"a${lineSeparator}b")
     val config = TestConfig()
@@ -205,7 +205,7 @@ class CodegenMainSuite extends FunSuite {
     assert(Codegen.validate(config.copy(serverModule = "app-server.v2", virtualModulePrefix = "@scalajs/x:", islandIdPrefix = "/static/~islands/")).isRight)
   }
 
-  test("文字列リテラルは TS と Scala で同じ値になるようエスケープする") {
+  test("string literals are escaped to have the same value in TS and Scala") {
     val lineSeparator = 0x2028.toChar
     assertEquals(AppFileRenderer.quote(s"a\"b\\c\nd$lineSeparator"), "\"a\\\"b\\\\c\\u000ad\\u2028\"")
     assertEquals(AppFileRenderer.quote("/app/islands/x.tsx"), "\"/app/islands/x.tsx\"")

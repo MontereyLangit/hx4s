@@ -3,7 +3,7 @@ package hx4s.codegen
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
-/** 生成器の識別子と衝突しうる export 名で route / island の TS を書き出す。tests/generated-ts.test.js が Node で読み込んで確かめる */
+/** Writes route / island TS with export names that could collide with generator identifiers. tests/generated-ts.test.js loads and checks them on Node */
 object TsFixtures {
   val Routes: List[RouteEntry] = List(
     RouteEntry("collide.ts", List(

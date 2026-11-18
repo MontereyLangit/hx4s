@@ -9,7 +9,7 @@ import java.util.Locale
 import scala.jdk.CollectionConverters.*
 import scala.util.{Try, Using}
 
-/** 出力ファイル 1 件。relativePath は root からの `/` 区切りの相対パス */
+/** One output file. relativePath is the `/`-separated path relative to root */
 final case class GeneratedFile(root: Path, relativePath: String, content: String)
 
 final case class WriteSummary(written: List[Path], unchanged: List[Path], deleted: List[Path]) {
@@ -17,19 +17,19 @@ final case class WriteSummary(written: List[Path], unchanged: List[Path], delete
 }
 
 /**
- * 生成ファイルを書き出す。設定・パス・既存ファイルとの衝突の誤りは書き込みの前に集めて返し、I/O の失敗も例外にせず返す
- * managed 配下にある生成ファイルのうち今回出力しないものは、書き込みが済んでから消す。生成マーカーの無いファイルは上書きも削除もしない
- * シンボリックリンクとジャンクションは、base より下（出力ルートの祖先を含む）にあれば辿らずに誤りにする
+ * Writes generated files. Errors in settings, paths and conflicts with existing files are collected and returned before writing, and I/O failures are returned instead of thrown
+ * Generated files under managed that are not output this time are deleted after writing. Files without the generated marker are never overwritten or deleted
+ * Symbolic links and junctions below base (including ancestors of output roots) are not followed and are errors
  */
 object OutputWriter {
   private val GeneratedExtensions = List(".ts", ".tsx", ".scala")
   private val TempSuffix = ".hx4s-tmp"
 
-  /** 書き込みの計画。leftovers は前回の失敗で残った一時ファイル、deleteFirst は出力と大文字小文字だけ違う古い生成ファイル */
+  /** The write plan. leftovers are temporary files left by a previous failure, and deleteFirst are stale generated files differing from outputs only in case */
   private final case class Plan(changed: List[(Path, String)], unchanged: List[Path], leftovers: List[Path], deleteFirst: List[Path],
                                 deleteAfter: List[Path])
 
-  /** 生成マーカーとして使えない値なら理由を返す。空や `//` だけのマーカーはどのファイルにも当てはまってしまう */
+  /** Returns a reason if the value cannot be a generated marker. An empty or `//`-only marker would match any file */
   def markerProblem(marker: String): Option[String] = {
     if (marker.trim.isEmpty) Some("generatedMarker must not be empty or blank")
     else if (marker.exists(Codegen.LineTerminators)) Some("generatedMarker must be a single line")
@@ -37,7 +37,7 @@ object OutputWriter {
     else None
   }
 
-  /** files を書き、managed 配下の古い生成ファイルを消す。base から出力ルートまでの祖先もリンクでないことを確かめる */
+  /** Writes files and deletes stale generated files under managed. Also checks that ancestors from base to the output roots are not links */
   def write(files: List[GeneratedFile], managed: List[Path], marker: String, base: Path): Result[WriteSummary] =
     for {
       _ <- markerProblem(marker).toLeft(()).left.map(reason => List(CodegenError("<config>", None, reason)))
@@ -46,7 +46,7 @@ object OutputWriter {
       summary <- execute(planned)
     } yield summary
 
-  /** 一時ファイルの残骸と大文字小文字だけ違う古いファイルの削除 → 書き込み → 残りの古いファイルの削除、の順に行う。途中で失敗しても再実行で収束する */
+  /** Runs in the order: delete leftover temporary files and stale files differing only in case → write → delete the remaining stale files. A rerun converges after a failure midway */
   private def execute(plan: Plan): Result[WriteSummary] = {
     def each[A](items: List[A], action: String)(path: A => Path)(run: A => Unit): Result[Unit] =
       items.foldLeft[Result[Unit]](Right(())) { (done, item) => done.flatMap(_ => attempt(path(item).toString, action)(run(item))) }
@@ -58,7 +58,7 @@ object OutputWriter {
     } yield WriteSummary(plan.changed.map(_._1), plan.unchanged, plan.deleteFirst ++ plan.deleteAfter)
   }
 
-  /** 同じディレクトリの一時ファイルに書き終えてから置き換える。途中で失敗しても既存のファイルは元の内容のまま残る */
+  /** Writes to a temporary file in the same directory, then replaces. On a failure midway the existing file keeps its original content */
   private def replace(path: Path, content: String): Unit = {
     Files.createDirectories(path.getParent)
     val temp = tempFile(path)
@@ -72,7 +72,7 @@ object OutputWriter {
     }
   }
 
-  /** ドットで始まり生成対象の拡張子で終わらない名前にし、HonoX の glob にも古い生成ファイルの判定にも掛からないようにする */
+  /** A name starting with a dot and not ending with a generated extension, so neither HonoX's glob nor the stale-file detection picks it up */
   private def tempFile(path: Path): Path = path.resolveSibling(s".${path.getFileName}$TempSuffix")
 
   private def isTemp(path: Path): Boolean = {
@@ -95,7 +95,7 @@ object OutputWriter {
     } yield result
   }
 
-  /** base から各出力ルートまでの祖先（base 自体は除く）がリンクでも通常ファイルでもないことを確かめる。base の外のルートは対象外 */
+  /** Checks that the ancestors from base to each output root (excluding base itself) are neither links nor regular files. Roots outside base are not checked */
   private def ancestors(roots: List[Path], base: Path): Result[Unit] = {
     val errors = roots.filter(root => root.startsWith(base) && root != base).flatMap(root => chain(base, root).drop(1).init).distinct.collect {
       case p if exists(p) && isLink(p) => CodegenError(p.toString, None, "refusing to follow a symbolic link or junction")
@@ -104,7 +104,7 @@ object OutputWriter {
     if (errors.nonEmpty) Left(errors) else Right(())
   }
 
-  /** リンク・ファイルとディレクトリの衝突を、既存ファイルを読む前に確かめる */
+  /** Checks links and file/directory conflicts before reading existing files */
   private def structure(outputs: List[(GeneratedFile, Path)]): Result[Unit] = {
     val links = outputs.flatMap { case (file, path) => chain(file.root, path) }.distinct.collect {
       case p if exists(p) && isLink(p) => CodegenError(p.toString, None, "refusing to follow a symbolic link or junction")
@@ -155,7 +155,7 @@ object OutputWriter {
     }
   }
 
-  /** root から path までの各階層（root と path を含む） */
+  /** Each level from root to path (including root and path) */
   private def chain(root: Path, path: Path): List[Path] = {
     val base = root.toAbsolutePath.normalize()
     base.relativize(path).iterator().asScala.toList.scanLeft(base)(_.resolve(_))
@@ -164,7 +164,7 @@ object OutputWriter {
   private def siblings(dir: Path): List[Path] =
     if (Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) Using.resource(Files.list(dir))(_.iterator().asScala.toList) else Nil
 
-  /** 出力パスの各階層で、名前の大文字小文字だけが違う既存のファイル・ディレクトリを探す。消してよい古い生成ファイルは除く */
+  /** Finds existing files and directories whose names differ only in case at each level of the output path, excluding stale generated files that may be deleted */
   private def caseConflicts(root: Path, path: Path, outputKeys: Set[String], managed: List[Path], marker: String): List[CodegenError] = {
     val base = root.toAbsolutePath.normalize()
     val names = base.relativize(path).iterator().asScala.map(_.toString).toList
@@ -181,7 +181,7 @@ object OutputWriter {
     }
   }
 
-  /** managed 配下の通常ファイル。リンクやジャンクションがあれば辿らずに誤りにする */
+  /** Regular files under managed. Links and junctions are not followed and are errors */
   private def managedFiles(root: Path): Result[List[Path]] = {
     def walk(dir: Path): Result[List[Path]] =
       attempt(dir.toString, "list directory")(Using.resource(Files.list(dir))(_.iterator().asScala.toList.sortBy(_.toString))).flatMap { children =>
@@ -200,7 +200,7 @@ object OutputWriter {
 
   private def exists(path: Path): Boolean = Files.exists(path, LinkOption.NOFOLLOW_LINKS)
 
-  /** シンボリックリンク、または Windows のジャンクションなどの再解析ポイント（Java では isOther になる） */
+  /** A symbolic link, or a reparse point such as a Windows junction (isOther in Java) */
   private def isLink(path: Path): Boolean = {
     val attributes = Files.readAttributes(path, classOf[BasicFileAttributes], LinkOption.NOFOLLOW_LINKS)
     attributes.isSymbolicLink || attributes.isOther

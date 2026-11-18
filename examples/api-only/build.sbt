@@ -1,6 +1,6 @@
 ThisBuild / scalaVersion := "3.3.8"
 
-// @route のハンドラだけの server。client（island）と React は持たない
+// A server with only @route handlers. No client (islands) and no React
 lazy val server = project
   .enablePlugins(ScalaJSPlugin, Hx4sPlugin)
   .settings(

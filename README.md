@@ -1,30 +1,30 @@
 # hx4s
 
-hx4s is a meta-framework for using [HonoX](https://github.com/honojs/honox) and React from Scala.js. It is not a re-implementation of HonoX: routing, middleware, renderers and island hydration stay in HonoX. (0.1.0 is in development and not yet published.)
+English | [日本語](ja/README.md)
 
-hx4s は、Scala.js から HonoX と React を使うためのメタフレームワークです。**HonoX の再実装ではありません。**
-ルーティング・ミドルウェア・renderer・island の探索と hydration は HonoX に任せ、hx4s は次の 2 つだけを受け持ちます。
+hx4s is a meta-framework for using [HonoX](https://github.com/honojs/honox) and React from Scala.js. **It is not a re-implementation of HonoX.**
+Routing, middleware, renderers, and island discovery and hydration stay in HonoX. hx4s takes on only two jobs:
 
-- Scala の宣言（`@route`・`@islands[P]`）から、HonoX の規約どおりのファイルと SSR 用の Scala API を生成する
-- Scala.js のビルドを Vite と HonoX につなぐ
+- Generate files that follow HonoX's conventions, plus a Scala API for SSR, from Scala declarations (`@route`, `@islands[P]`)
+- Connect the Scala.js build to Vite and HonoX
 
-## 現在の状態
+## Status
 
-0.1 を開発中で、**Maven Central にも npm にもまだ公開していません**。使うには、hx4s のリポジトリを clone してローカルに公開する必要があります
-（[docs/installation.md](docs/installation.md)）。API と設定は 0.x の間に変わることがあります。
+0.1 is in development and **not yet published to Maven Central or npm**. To use it, clone the hx4s repository and publish it locally
+([docs/installation.md](docs/installation.md)). The API and settings may change during 0.x.
 
-## 特徴
+## Features
 
-- **Scala で書く route**: `@route("items/[id].ts", "POST")` を付けた関数が HonoX のファイルルートになる。URL への対応は HonoX の規約のまま
-- **型付き island**: `@islands[P]("counter.tsx")` の `P`（props の trait）を、server の呼び出し `IslandComponents.CounterJs(props)` と client の export の両方がコンパイル時に照合する
-- **hydrate 前の props の検証**: HTML と client の世代がずれて props が合わないとき、hydrate せず SSR の HTML を残す
-- **server と client の分離**: 依存の向きを sbt の依存グラフで検査する（`hx4sCheckDependencies`）
-- **安全な生成**: 手書きファイルを上書きしない、全検査を済ませてから書く、リンクを辿らない
-- 実行基盤に依存しない: Cloudflare Workers の例を同梱するが、hx4s のモジュールは Cloudflare に依存しない
+- **Routes written in Scala**: a function annotated with `@route("items/[id].ts", "POST")` becomes a HonoX file route. URL mapping follows HonoX's conventions as-is
+- **Typed islands**: the `P` (props trait) of `@islands[P]("counter.tsx")` is checked at compile time against both the server call `IslandComponents.CounterJs(props)` and the client export
+- **Props validation before hydration**: when the HTML and the client are from different builds and the props don't match, the island is not hydrated and the SSR HTML stays
+- **Server/client separation**: the direction of dependencies is checked against the sbt dependency graph (`hx4sCheckDependencies`)
+- **Safe generation**: never overwrites hand-written files, writes only after all checks pass, does not follow links
+- Runtime-agnostic: a Cloudflare Workers example is included, but the hx4s modules do not depend on Cloudflare
 
-## 最小の例
+## Minimal example
 
-props は server と client が共有する trait で、client が受け取る値を確かめる規則を添える。
+Props are a trait shared by server and client, together with rules that check the values the client receives.
 
 ```scala
 // shared
@@ -38,7 +38,7 @@ object CounterProps {
 }
 ```
 
-client は island を `IslandExport[P]` として export し、`@islands[P]` で `app/islands` へ公開する。
+The client exports the island as an `IslandExport[P]` and publishes it to `app/islands` with `@islands[P]`.
 
 ```scala
 // client
@@ -47,7 +47,7 @@ client は island を `IslandExport[P]` として export し、`@islands[P]` で
 val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps.fields)(props => Counter(props))
 ```
 
-server のハンドラは `@route` で HonoX の route になり、生成された `IslandComponents` から island を置く。
+A server handler becomes a HonoX route with `@route` and places the island through the generated `IslandComponents`.
 
 ```scala
 // server
@@ -62,70 +62,70 @@ def indexPage(c: AppContext): js.Promise[Response] = {
 }
 ```
 
-`sbt server/hx4sGenerate` が `app/routes/index.ts` と `app/islands/counter.tsx` を生成する。
-ビルドとプロジェクトの作り方は [docs/getting-started.md](docs/getting-started.md)、全体は `examples/minimal` を参照。
+`sbt server/hx4sGenerate` generates `app/routes/index.ts` and `app/islands/counter.tsx`.
+See [docs/getting-started.md](docs/getting-started.md) for building and setting up a project, and `examples/minimal` for the full picture.
 
-## 実装済みの機能と未実装
+## Implemented and not implemented
 
-| 状態 | 内容 |
+| Status | Content |
 | --- | --- |
-| 実装済み | `@route`（GET / POST / PUT / DELETE / PATCH / OPTIONS）、`@islands[P]`、`IslandComponents` の生成、`IslandExport[P]` と `JsShape` による props の検証、hydrate 前の検証（`hx4s-vite/client`）、Hono の `Context` の facade |
-| 実装済み | sbt-hx4s（`hx4sGenerate`、依存の向きの検査、client なしの構成）、`hx4s()` Vite プラグイン、Node 用 loader、ローカル公開のスクリプト、`examples/minimal`・`examples/api-only` |
-| 未実装 | 型付きルート、Client Router（SPA 用のルーター）、`ALL` メソッド、npm CLI、プロジェクトの雛形、dev server の HMR、型付き API クライアント、OpenAPI、Maven Central / npm への公開 |
-| 未検証 | Cloudflare Workers 以外の実行基盤（Node・Deno・Bun など）、本番へのデプロイ |
+| Implemented | `@route` (GET / POST / PUT / DELETE / PATCH / OPTIONS), `@islands[P]`, generation of `IslandComponents`, props validation with `IslandExport[P]` and `JsShape`, validation before hydration (`hx4s-vite/client`), a facade for Hono's `Context` |
+| Implemented | sbt-hx4s (`hx4sGenerate`, dependency direction check, client-less setups), the `hx4s()` Vite plugin, a Node loader, local publish scripts, `examples/minimal` and `examples/api-only` |
+| Not implemented | Typed routes, a Client Router (router for SPAs), the `ALL` method, an npm CLI, project templates, HMR in the dev server, a typed API client, OpenAPI, publishing to Maven Central / npm |
+| Not verified | Runtimes other than Cloudflare Workers (Node, Deno, Bun, etc.), production deployment |
 
-未実装の機能の見込みは [docs/hx4s/roadmap.md](docs/hx4s/roadmap.md) にある。
+Plans for the unimplemented features are in [docs/hx4s/roadmap.md](docs/hx4s/roadmap.md).
 
-## 対応バージョン
+## Supported versions
 
-examples と CI で検証している組み合わせ。これ以外は検証していない。
+The combination verified by the examples and CI. Nothing else has been verified.
 
-| 対象 | 版 |
+| Target | Version |
 | --- | --- |
-| Scala | 3.3.8（LTS） |
-| Scala.js（sbt-scalajs） | 1.22.0 |
-| sbt | 1.13.0（sbt-hx4s は sbt 1.x、Scala 2.12 のプラグイン） |
+| Scala | 3.3.8 (LTS) |
+| Scala.js (sbt-scalajs) | 1.22.0 |
+| sbt | 1.13.0 (sbt-hx4s is an sbt 1.x plugin on Scala 2.12) |
 | scalajs-react | 4.0.0 |
 | scalajs-dom | 2.8.1 |
 | HonoX / Hono | 0.1.62 / 4.13.18 |
 | Vite / `@scala-js/vite-plugin-scalajs` | 8.3.3 / 1.1.0 |
 | React | 19.2.8 |
-| JDK | 17 以上（CI は 21） |
-| Node.js | 22.12 以上（`hx4s-vite` の `engines`。CI は 22） |
+| JDK | 17 or later (CI uses 21) |
+| Node.js | 22.12 or later (`engines` of `hx4s-vite`; CI uses 22) |
 
-HonoX は 0.1.x のアルファ版で、hx4s は HonoX の内部の挙動にいくつか依存する。`honox` は検証した版に固定して使う（[docs/hx4s/compatibility.md](docs/hx4s/compatibility.md)）。
+HonoX is a 0.1.x alpha, and hx4s depends on some of HonoX's internal behavior. Pin `honox` to the verified version ([docs/hx4s/compatibility.md](docs/hx4s/compatibility.md)).
 
-## 文書
+## Documentation
 
-利用者向けのガイドは [docs/README.md](docs/README.md) から読める。
+The user guides start at [docs/README.md](docs/README.md). A Japanese translation is in [ja/](ja/README.md).
 
-| 文書 | 内容 |
+| Document | Content |
 | --- | --- |
-| [はじめに](docs/getting-started.md) | `examples/minimal` の動かし方と、自分のプロジェクトの作り方 |
-| [インストール](docs/installation.md) | 座標、ローカル公開、版と commit の固定 |
-| [ルーティング](docs/routing.md) | `@route` と `Context` |
-| [Islands](docs/islands.md) | `@islands[P]`、props の型、`IslandExport` |
-| [SSR と hydration](docs/ssr-hydration.md) | 描画の流れ、世代ずれ、テスト |
-| [SPA](docs/spa.md) / [API](docs/api.md) | SPA と API の構成の現状 |
-| [ビルド設定](docs/build-configuration.md) | sbt のキー、`hx4s()` のオプション、codegen の引数 |
-| [デプロイ](docs/deployment.md) | Cloudflare Workers |
-| [移行](docs/migration.md) | 手書きの Scala.js × HonoX 構成からの移行 |
-| [examples](docs/examples.md) / [テスト](docs/testing.md) / [リリース](docs/release.md) | |
+| [Getting started](docs/getting-started.md) | Running `examples/minimal` and setting up your own project |
+| [Installation](docs/installation.md) | Coordinates, local publishing, pinning the version and commit |
+| [Routing](docs/routing.md) | `@route` and `Context` |
+| [Islands](docs/islands.md) | `@islands[P]`, props types, `IslandExport` |
+| [SSR and hydration](docs/ssr-hydration.md) | Rendering flow, version skew, testing |
+| [SPA](docs/spa.md) / [API](docs/api.md) | Current state of SPA and API setups |
+| [Build configuration](docs/build-configuration.md) | sbt keys, `hx4s()` options, codegen arguments |
+| [Deployment](docs/deployment.md) | Cloudflare Workers |
+| [Migration](docs/migration.md) | Migrating from a hand-written Scala.js × HonoX setup |
+| [Examples](docs/examples.md) / [Testing](docs/testing.md) / [Release](docs/release.md) | |
 
-設計と経緯の文書は [docs/hx4s/](docs/hx4s/README.md)。貢献の方法は [CONTRIBUTING.md](CONTRIBUTING.md)、変更履歴は [CHANGELOG.md](CHANGELOG.md)。
+Design and history documents are in [docs/hx4s/](docs/hx4s/README.md). See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [CHANGELOG.md](CHANGELOG.md) for the change history.
 
-## ビルドとテスト
+## Build and test
 
 ```bash
-npm ci                        # ワークスペース（hx4s-vite と Node のテスト）の依存
-sbt test                      # core / react / codegen の munit
-sbt sbtHx4s/scripted          # sbt-hx4s の scripted テスト
-npm test                      # hx4s-vite のビルド、island の SSR・hydration、独立性の検査
-npm run typecheck             # hx4s-vite の型検査
+npm ci                        # workspace dependencies (hx4s-vite and Node tests)
+sbt test                      # munit for core / react / codegen
+sbt sbtHx4s/scripted          # scripted tests for sbt-hx4s
+npm test                      # hx4s-vite build, island SSR and hydration, independence check
+npm run typecheck             # type-check hx4s-vite
 ```
 
-examples の実行は [docs/getting-started.md](docs/getting-started.md)、テストの内訳は [docs/testing.md](docs/testing.md)。
+See [docs/getting-started.md](docs/getting-started.md) for running the examples and [docs/testing.md](docs/testing.md) for what the tests cover.
 
-## ライセンス
+## License
 
 [Apache License 2.0](LICENSE)

@@ -1,21 +1,21 @@
 # SPA
 
-**hx4s に SPA 用の機能はまだ無い。** クライアント側のルーティング（Client Router）・型付きルート・型付き API クライアントは未実装で、ロードマップにある（[hx4s/roadmap.md](hx4s/roadmap.md)）。
-この文書は、今ある部品だけで成り立つ構成と、その限界を書く。
+**hx4s has no SPA features yet.** Client-side routing (Client Router), typed routes and a typed API client are not implemented and are on the roadmap ([hx4s/roadmap.md](hx4s/roadmap.md)).
+This document describes a setup that works with the parts available today, and its limits.
 
-## 今できる構成: ページ全体を 1 つの island にする
+## What works today: making the whole page one island
 
-ページの内容を 1 つの island にして、描画のあとに JSON の API を呼ぶ。API は `@route` で書く（[api.md](api.md)）。
+Make the page content one island, and call a JSON API after rendering. Write the API with `@route` ([api.md](api.md)).
 
 ```
-GET /spa          → シェルの HTML と、ページ全体を包んだ island（SSR）
-GET /api/items    → JSON を返す @route
-island（ブラウザ）→ マウント後に /api/items を fetch して一覧を描画する
+GET /spa          → shell HTML and an island wrapping the whole page (SSR)
+GET /api/items    → an @route returning JSON
+island (browser)  → fetches /api/items after mounting and renders the list
 ```
 
-次のコードは `examples/minimal` を土台に試作して、ビルド・SSR・hydration・API 呼び出しを確かめたもの（`examples/minimal` には含まれていない）。
+The following code was prototyped on top of `examples/minimal`, and its build, SSR, hydration and API calls were verified (it is not included in `examples/minimal`).
 
-shared の props:
+Shared props:
 
 ```scala
 trait AppProps extends js.Object {
@@ -27,7 +27,7 @@ object AppProps {
 }
 ```
 
-client の island。マウント時に 1 回だけ API を呼ぶ。
+The client island. Calls the API once on mount.
 
 ```scala
 object App {
@@ -50,9 +50,9 @@ object App {
 val app: IslandExport[AppProps] = IslandExport("AppJs", AppProps.fields)(props => App.Component(props))
 ```
 
-（`import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue` と `org.scalajs.dom` が要る。）
+(Requires `import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue` and `org.scalajs.dom`.)
 
-server のページ:
+The server page:
 
 ```scala
 @route("spa.ts")
@@ -61,23 +61,23 @@ def spaPage(c: ApiContext): js.Promise[Response] =
   c.renderPromise(IslandComponents.AppJs(new AppProps { val title = "SPA" }).rawElement, new RenderProps { val title = "spa" })
 ```
 
-確かめたこと（`wrangler dev` と Chromium）:
+What was verified (`wrangler dev` and Chromium):
 
-- JavaScript を無効にすると、SSR の部分（`<h1>SPA</h1>`）だけが表示される
-- 有効にすると、island が hydrate され、`/api/items` の結果（3 件）が一覧に出る
-- コンソールにエラー・警告は出ない
+- With JavaScript disabled, only the SSR part (`<h1>SPA</h1>`) is shown
+- With JavaScript enabled, the island is hydrated and the result of `/api/items` (3 items) appears in the list
+- No errors or warnings appear in the console
 
-## 限界
+## Limits
 
-| 項目 | 状態 |
+| Item | Status |
 | --- | --- |
-| クライアント側のルーティング | **無い**。ページ遷移は通常のリンク（フルロード）で、ページごとに `@route` を書き、それぞれが island を返す。History API を使ったルーターは hx4s も提供せず、検証もしていない |
-| scalajs-react の Router | hx4s とは統合していない。island の中で使えるかは検証していない |
-| 型付きルート | 未実装。URL は文字列で、server の `@route` と client の `fetch` の URL を手で合わせる |
-| API の型 | 未実装。レスポンスは `js.Any` で、`asInstanceOf` するか `JsShape.validate` で自分で確かめる。型付き API クライアントも OpenAPI も無い |
-| ページ全体の hydrate の費用 | ページの全データが `data-serialized-props` に入り、HTML 本体と二重に送られる。属性値のエスケープで JSON が膨らむ（[hx4s/rendering-model.md](hx4s/rendering-model.md) 1.2） |
-| 全パスを 1 つのシェルに向ける構成（SPA のフォールバック） | 試していない |
-| 要素 props を持つ island | 検証していない（[islands.md](islands.md)） |
+| Client-side routing | **None**. Navigation uses ordinary links (full reloads); write an `@route` per page, each returning an island. hx4s provides no router based on the History API and has verified none |
+| scalajs-react's Router | Not integrated with hx4s. Whether it works inside an island is not verified |
+| Typed routes | Not implemented. URLs are strings; match the server's `@route` and the client's `fetch` URLs by hand |
+| API types | Not implemented. Responses are `js.Any`; use `asInstanceOf` or check them yourself with `JsShape.validate`. There is no typed API client or OpenAPI |
+| Cost of hydrating the whole page | All of the page's data goes into `data-serialized-props` and is sent twice along with the HTML body. Attribute escaping inflates the JSON ([hx4s/rendering-model.md](hx4s/rendering-model.md) 1.2) |
+| Routing every path to one shell (SPA fallback) | Not tried |
+| Islands with element props | Not verified ([islands.md](islands.md)) |
 
-つまり今は、「複数ページのサイトで、ページの一部またはページ全体を island にし、その中から API を呼ぶ」構成までが使える。
-アプリケーション全体を 1 つの client ルーターで動かす構成は、Client Router が入るまで作れない。
+In short, what works today is "a multi-page site where part of a page or the whole page is an island that calls APIs".
+An application driven entirely by a single client router can't be built until a Client Router lands.

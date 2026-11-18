@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 
-test('hx4s-vite/node-loader は利用側の loader と並べて登録でき、それぞれの指定子を解決する', async () => {
-  // root の node_modules から hx4s-vite を解決できる場所に、build-integration.md 2.3 の例と同じ構成を置く
+test('hx4s-vite/node-loader can be registered alongside a user loader, and each resolves its own specifiers', async () => {
+  // Put the same setup as the example in build-integration.md 2.3 where hx4s-vite resolves from the root node_modules
   await mkdir(path.join(root, 'target'), { recursive: true });
   const dir = await mkdtemp(path.join(root, 'target', 'loader compose & '));
   try {

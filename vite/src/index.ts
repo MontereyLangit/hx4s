@@ -4,17 +4,17 @@ import scalaJSPlugin from "@scala-js/vite-plugin-scalajs";
 
 type HonoxOptions = NonNullable<Parameters<typeof honox>[0]>;
 
-/** client の Scala.js プロジェクトとそのビルドの設定 */
+/** Settings for the client Scala.js project and its build */
 export interface Hx4sClientOptions {
-  /** @islands を持つ sbt プロジェクトの ID。既定は "client" */
+  /** ID of the sbt project with @islands. Defaults to "client" */
   projectID?: string;
-  /** client のリンク成果物の @JSExportTopLevel moduleID。既定は "client" */
+  /** @JSExportTopLevel moduleID of the client link output. Defaults to "client" */
   module?: string;
-  /** client ビルドの入口。既定は "./app/client.ts" */
+  /** Entry of the client build. Defaults to "./app/client.ts" */
   entry?: string | string[];
-  /** SSR で client のリンク成果物を読む仮想モジュールの接頭辞。既定は "scalajs-client" */
+  /** Prefix of the virtual module that reads the client link output during SSR. Defaults to "scalajs-client" */
   uriPrefix?: string;
-  /** client ビルドの出力名。省いた項目は static/client.js・static/assets/[name]-[hash].js・static/assets/[name].[ext] */
+  /** Output names of the client build. Omitted entries default to static/client.js, static/assets/[name]-[hash].js and static/assets/[name].[ext] */
   output?: {
     entryFileNames?: string;
     chunkFileNames?: string;
@@ -22,25 +22,25 @@ export interface Hx4sClientOptions {
   };
 }
 
-/** hx4s() の設定。省いた値は HonoX と hx4s の既定（server / client、app/client.ts）にする */
+/** Settings of hx4s(). Omitted values take the HonoX and hx4s defaults (server / client, app/client.ts) */
 export interface Hx4sOptions {
-  /** Vite の mode。"client" ならブラウザ向け、それ以外は SSR（サーバー）向けの設定を返す */
+  /** Vite's mode. "client" returns settings for the browser; anything else, for SSR (server) */
   mode: string;
   sbt?: {
-    /** sbt を実行するディレクトリ。既定は process.cwd() */
+    /** Directory in which to run sbt. Defaults to process.cwd() */
     cwd?: string;
   };
   server?: {
-    /** @route を持つ sbt プロジェクトの ID。既定は "server" */
+    /** ID of the sbt project with @route. Defaults to "server" */
     projectID?: string;
   };
-  /** false なら client のプロジェクトを持たない構成（API だけ・island の無い SSR）。client のリンクと client ビルドを行わない */
+  /** false for setups without a client project (API only, SSR without islands). Skips linking and building the client */
   client?: Hx4sClientOptions | false;
-  /** honox() にそのまま渡す追加の設定。client があれば islandComponents.reactApiImportSource の既定は "react" */
+  /** Extra settings passed as-is to honox(). With a client, islandComponents.reactApiImportSource defaults to "react" */
   honox?: HonoxOptions;
 }
 
-/** sbt の Scala.js プロジェクトをリンクするプラグイン。複数のプロジェクトの sbt を同時に起動しないよう buildStart を直列にする */
+/** A plugin that links an sbt Scala.js project. Serializes buildStart so that sbt is not started for several projects at once */
 export function scalaProject(cwd: string, projectID: string, uriPrefix?: string): Plugin {
   const plugin = scalaJSPlugin({ cwd, projectID, uriPrefix });
   const buildStart = plugin.buildStart;
@@ -53,7 +53,7 @@ export function scalaProject(cwd: string, projectID: string, uriPrefix?: string)
   return plugin;
 }
 
-/** Scala.js の server / client プロジェクトを HonoX に載せる Vite プラグイン群を返す */
+/** Returns the Vite plugins that put the Scala.js server / client projects on HonoX */
 export default function hx4s(options: Hx4sOptions): PluginOption[] {
   const cwd = options.sbt?.cwd ?? process.cwd();
   const serverProjectID = options.server?.projectID ?? "server";
@@ -66,7 +66,7 @@ export default function hx4s(options: Hx4sOptions): PluginOption[] {
     return [scalaProject(cwd, client.projectID ?? "client"), clientBuild(client)];
   }
   if (client === undefined) {
-    // island が無いので React の設定は足さない（honox の既定のまま。React を入れない構成でもビルドできる）
+    // No islands, so no React settings are added (honox's defaults stay, so it builds without React too)
     return [honox(options.honox), scalaProject(cwd, serverProjectID)];
   }
 
@@ -88,7 +88,7 @@ export default function hx4s(options: Hx4sOptions): PluginOption[] {
   ];
 }
 
-/** client ビルドの入口と出力名を設定するプラグイン */
+/** A plugin that sets the entry and output names of the client build */
 function clientBuild(client: Hx4sClientOptions): Plugin {
   const entry = client.entry ?? "./app/client.ts";
   const output = client.output;

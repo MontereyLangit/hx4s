@@ -1,74 +1,74 @@
-# Phase 4（最初の利用側の移行）で分かった不足と、Codex の指摘への対応
+# Shortcomings found in Phase 4 (the first user migration), and responses to Codex's findings
 
-- 日付: 2026-11-16
-- 出どころ: 移動元の掲示板アプリが hx4s を使う構成に乗り換えたとき（以下「利用側の移行」）と、`scripts/publish-local.mjs` への Codex CLI 0.163.0 のレビュー
-- 対象: hx4s `develop`（`d133d7c` の次から）
+- Date: 2026-11-16
+- Sources: switching the original bulletin board app to a setup using hx4s ("the user migration" below), and a review of `scripts/publish-local.mjs` by Codex CLI 0.163.0
+- Target: hx4s `develop` (from the commit after `d133d7c`)
 
-## 1. 指摘と対応
+## 1. Findings and responses
 
-| ID | 指摘 | 出どころ | 判断・対応 |
+| ID | Finding | Source | Decision / response |
 | --- | --- | --- | --- |
-| F1-1 | `hx4s.hono.Context` に `executionCtx` が無く、利用側が `js.Dynamic` に落として読んでいる | 利用側の移行 | `hx4s.hono.ExecutionContext`（`waitUntil(promise)`・`passThroughOnException()` だけの `@js.native` trait）と `Context.executionCtx` を足した。型引数にはしない（既存の `Context[Env, R]` の書き換えが要り、基盤固有のメンバを使う場面が少ない。Cloudflare の型にも依存しない）。理由は [routing-design.md](../routing-design.md) 3 章 |
-| F1-2 | Hono の `c.executionCtx` は実行コンテキストが無いと例外を投げる getter | 利用側の移行（hono 4.13.18 の `dist/context.js` で確認） | 拡張メソッド `executionCtxOption: Option[ExecutionContext]` を足した。`Either` にしなかったのは、失敗の理由が「渡されていない」の 1 つしかないため。Node の SSR 検証のように実行コンテキストを渡さない呼び出しでも同じハンドラが動く |
-| F1-3 | Context / HonoRequest の基本 API の不足 | 利用側の移行 | 実物の型定義（`dist/types/context.d.ts`・`request.d.ts`）から、API だけのルートと SSR のルートで要る最小限として `Context.html`・`set` / `get`、`HonoRequest.queries`・`text()`・`json()`・`formData()` を足した。`set` / `get` は型付きで使う `ContextVariable[A]` と `setVariable` / `getVariable` も足した。`c.json` / `c.text` / `c.redirect` / `c.status` / `req.path` / `req.method` / `req.url` は既にあった。`parseBody`・`c.body`・`c.notFound`・ヘッダの一覧などは足していない |
-| F1-4 | 足した API の検証 | — | `ContextSuite`（実物の `Hono` に Scala のハンドラを登録して `fetch` する）で全メンバを使う。examples/minimal は POST を `c.req.formData()` に、`api/items` の JSON ルートで `c.json` と `c.req.queries` を使う |
-| F2 | `hx4s-vite/node-register` は hx4s の loader しか登録せず、実行基盤のスタブと組み合わせる方法が分からない | 利用側の移行 | [build-integration.md](../build-integration.md) 2.3 に、`register("hx4s-vite/node-loader", import.meta.url)` と利用側の loader を並べる register ファイルの例、登録順の意味、sbt の `Test / jsEnv` の例を書いた。`tests/node-loader.test.js` がその構成で `scalajs:client.js` と `cloudflare:workers` の両方を解決できることを確かめる。sbt-hx4s の設定での補助は P1 のまま（U-19） |
-| F3-1 | clone 直後（`node_modules` 無し）に `publish-local` が失敗する | 利用側の移行 | npm の公開の前に `npm ci` を実行する。`--reuse-node-modules` は、前回このスクリプトが `npm ci` したときの `package-lock.json` の SHA-256（`node_modules/.hx4s-npm-ci.json`）と一致するときだけ省く |
-| F3-2 | `--skip-sbt` / `--skip-npm` でも最後に `hx4s-version.txt` を書くので、部分公開が全体の公開に見える | Codex | sbt と npm の記録（`hx4s-publish-sbt.json` / `hx4s-publish-npm.json`）を分け、両方が同じ版・commit・作業ツリーの状態で成果物がそろうときだけ完了の記録 `hx4s-publish.json` と `hx4s-version.txt` を書く。公開の開始時に先に消すので、失敗や部分公開の後に古い完了の印が残らない |
-| F3-3 | 機械可読の公開記録が無い | Codex | `hx4s-publish.json`（`format`、版、commit、`dirty` / `dirtyHash`、Maven の成果物（organization・name・版・`~/.ivy2/local` からのパス）、tgz のファイル名と SHA-256。時刻なし）。`hx4s-version.txt` は `project/plugins.sbt` が JSON を読めないので残した |
-| F3-4 | Windows でパスに空白や `&` があると、`shell: true` の起動が壊れる | Codex | `scripts/lib/command.mjs` に起動を集めた。npm は `process.execPath` で npm-cli.js を直接、sbt は POSIX では直接、Windows では sbt.bat を絶対パスにして `cmd.exe /d /s /c` に引用済みの 1 行で渡す（`" % ! ^` と改行は拒否）。sbt.bat を引用した名前で PATH から探させると、バッチ内の `%~dp0` が作業ディレクトリになって起動できなかったので絶対パスにした。`tests/scripts-command.test.js` で、空白と `&` を含むディレクトリから npm を起動し、同じ名前のディレクトリに置いたバッチへ空白・`&`・`|`・末尾の `\` を含む引数を渡す |
-| F3-5 | `setup-example.mjs` と `check-independence.mjs` も同じ観点で見る | Codex | `setup-example` は同じ起動方法にし、入れる前に `--verify` で公開記録を照合する。`check-independence` は元から `execFileSync`（シェルなし）なので起動は変えず、`git ls-files -z` で読むようにした |
-| F3-6 | 利用側が再公開を省いてよいかを判断する手段が無い | Codex | `--verify [--version V] [--commit SHA]`。完了の記録・部分の記録の一致、期待値、HEAD と作業ツリー、`~/.ivy2/local` の `ivy.xml`、tgz の SHA-256、`hx4s-version.txt` を照らし、不一致なら理由を出して終了コード 1 |
-| F4 | `--no-save` の tgz が利用側の `npm ci` で消えること、版と commit の固定方法が書かれていない | 利用側の移行 | [local-dependency.md](../local-dependency.md) に、注意点と、lock ファイル（commit の完全な SHA と版）・セットアップスクリプト・`plugins.sbt` の例を書いた。README からリンクし、ADR 0006 に追記した |
+| F1-1 | `hx4s.hono.Context` has no `executionCtx`, and the user reads it by dropping to `js.Dynamic` | The user migration | Added `hx4s.hono.ExecutionContext` (a `@js.native` trait with only `waitUntil(promise)` and `passThroughOnException()`) and `Context.executionCtx`. Not a type parameter (it would require rewriting the existing `Context[Env, R]`, runtime-specific members are rarely used, and it doesn't depend on Cloudflare types). Reasons in [routing-design.md](../routing-design.md) chapter 3 |
+| F1-2 | Hono's `c.executionCtx` is a getter that throws without an execution context | The user migration (checked in `dist/context.js` of hono 4.13.18) | Added the extension method `executionCtxOption: Option[ExecutionContext]`. Not `Either`, because the only failure reason is "not provided". The same handler runs in calls that don't provide an execution context, such as SSR verification on Node |
+| F1-3 | Basic APIs missing from Context / HonoRequest | The user migration | From the real type definitions (`dist/types/context.d.ts`, `request.d.ts`), added the minimum needed by API-only routes and SSR routes: `Context.html`, `set` / `get`, and `HonoRequest.queries`, `text()`, `json()`, `formData()`. For `set` / `get`, also added the typed `ContextVariable[A]` and `setVariable` / `getVariable`. `c.json` / `c.text` / `c.redirect` / `c.status` / `req.path` / `req.method` / `req.url` already existed. `parseBody`, `c.body`, `c.notFound`, header listing and the like were not added |
+| F1-4 | Verifying the added APIs | — | `ContextSuite` (registers Scala handlers on a real `Hono` and calls `fetch`) uses every member. examples/minimal uses `c.req.formData()` for POST, and `c.json` and `c.req.queries` in the `api/items` JSON route |
+| F2 | `hx4s-vite/node-register` registers only hx4s's loader, and it isn't clear how to combine it with runtime stubs | The user migration | [build-integration.md](../build-integration.md) 2.3 now has an example register file registering `register("hx4s-vite/node-loader", import.meta.url)` alongside the user's loader, the meaning of the registration order, and an example of sbt's `Test / jsEnv`. `tests/node-loader.test.js` checks that this setup resolves both `scalajs:client.js` and `cloudflare:workers`. Helpers in sbt-hx4s settings remain P1 (U-19) |
+| F3-1 | `publish-local` fails right after a clone (no `node_modules`) | The user migration | Runs `npm ci` before the npm publish. `--reuse-node-modules` skips it only when the SHA-256 of `package-lock.json` matches the one from when this script last ran `npm ci` (`node_modules/.hx4s-npm-ci.json`) |
+| F3-2 | Even with `--skip-sbt` / `--skip-npm`, `hx4s-version.txt` is written at the end, so a partial publish looks like a full one | Codex | Split the sbt and npm records (`hx4s-publish-sbt.json` / `hx4s-publish-npm.json`), and write the completed record `hx4s-publish.json` and `hx4s-version.txt` only when both have the same version, commit and working tree state with all artifacts present. They are deleted first when publishing starts, so no stale completion marker remains after a failure or a partial publish |
+| F3-3 | No machine-readable publish record | Codex | `hx4s-publish.json` (`format`, version, commit, `dirty` / `dirtyHash`, Maven artifacts (organization, name, version, path from `~/.ivy2/local`), tgz file name and SHA-256; no timestamps). `hx4s-version.txt` was kept because `project/plugins.sbt` can't read JSON |
+| F3-4 | On Windows, paths with spaces or `&` break starting with `shell: true` | Codex | Gathered process starting into `scripts/lib/command.mjs`. npm runs npm-cli.js directly with `process.execPath`; sbt runs directly on POSIX, and on Windows sbt.bat is made an absolute path and passed to `cmd.exe /d /s /c` as a single pre-quoted line (`" % ! ^` and newlines are rejected). Having PATH search for sbt.bat by a quoted name made `%~dp0` inside the batch file become the working directory and fail to start, so it uses an absolute path. `tests/scripts-command.test.js` starts npm from a directory containing spaces and `&`, and passes arguments containing spaces, `&`, `|` and a trailing `\` to a batch file placed in a directory with the same name |
+| F3-5 | Review `setup-example.mjs` and `check-independence.mjs` from the same angle | Codex | `setup-example` uses the same starting method, and verifies the publish record with `--verify` before installing. `check-independence` already used `execFileSync` (no shell), so starting wasn't changed; it now reads with `git ls-files -z` |
+| F3-6 | No way for users to decide whether republishing can be skipped | Codex | `--verify [--version V] [--commit SHA]`. Checks the agreement of the completed and partial records, the expected values, HEAD and the working tree, `ivy.xml` in `~/.ivy2/local`, the SHA-256 of the tgz and `hx4s-version.txt`; on mismatch, prints the reason and exits with code 1 |
+| F4 | Not documented: the `--no-save` tgz disappears on the user's `npm ci`, and how to pin the version and commit | The user migration | [local-dependency.md](../local-dependency.md) now has the caveats and examples of a lock file (full commit SHA and version), a setup script and `plugins.sbt`. Linked from the README and added to ADR 0006 |
 
-## 2. 公開 API の変更
+## 2. Changes to the public API
 
-- hx4s-react: `hx4s.hono.ExecutionContext`、`hx4s.hono.ContextVariable[A]`、`Context.executionCtx`・`html`・`set`・`get`、
-  拡張メソッド `executionCtxOption`・`setVariable`・`getVariable`、`HonoRequest.queries`・`text()`・`json()`・`formData()`。既存のメンバは変えていない。
-- `scripts/publish-local.mjs`: フラグ `--reuse-node-modules`・`--verify`・`--commit`（`--verify` と一緒にだけ使う）。
-  出力 `target/local/hx4s-publish.json`・`hx4s-publish-sbt.json`・`hx4s-publish-npm.json`。`hx4s-version.txt` は完了したときだけ書く。
+- hx4s-react: `hx4s.hono.ExecutionContext`, `hx4s.hono.ContextVariable[A]`, `Context.executionCtx`, `html`, `set`, `get`,
+  the extension methods `executionCtxOption`, `setVariable`, `getVariable`, and `HonoRequest.queries`, `text()`, `json()`, `formData()`. Existing members are unchanged.
+- `scripts/publish-local.mjs`: the flags `--reuse-node-modules`, `--verify`, `--commit` (only together with `--verify`).
+  Outputs `target/local/hx4s-publish.json`, `hx4s-publish-sbt.json`, `hx4s-publish-npm.json`. `hx4s-version.txt` is written only on completion.
 
-## 3. 残すこと
+## 3. Remaining
 
-- `--verify` は `~/.ivy2/local` 以外の ivy の場所を扱わない。
-- 成果物の照合は `ivy.xml` の有無までで、JAR の内容のハッシュは記録しない。
-- sbt-hx4s の設定で `Test / jsEnv` を組む補助（U-19）は P1 のまま。
+- `--verify` doesn't handle ivy locations other than `~/.ivy2/local`.
+- Artifact verification goes only as far as the presence of `ivy.xml`; content hashes of JARs aren't recorded.
+- A helper that sets up `Test / jsEnv` in sbt-hx4s settings (U-19) remains P1.
 
-## 4. 利用者向けの文書を書く過程で見つかった不整合（2026-11-16）
+## 4. Inconsistencies found while writing the user documentation (2026-11-16)
 
-利用者向けの文書（`docs/`）のコード例を実物で確かめる過程で、実装側の不整合が見つかった。各項目は再現してから直した。
+While checking the code examples of the user documentation (`docs/`) against real code, inconsistencies on the implementation side were found. Each was reproduced before being fixed.
 
-| ID | 不整合 | 再現 | 対応 |
+| ID | Inconsistency | Reproduction | Response |
 | --- | --- | --- | --- |
-| G1 | `hx4s()` は server モードで常に client の sbt プロジェクトをリンクするので、client の無い構成（API だけ・island の無い SSR）で `Not a valid key: client` になる。sbt-hx4s は client なしを扱えるのに、Vite 側だけが対応していない | client の無い sbt ビルドで `vite build` | `hx4s({ client: false })` を足した。client のリンク・`scalajs:client.js` の別名・client ビルドを省き、`honox()` に React の設定も足さない（island が無いので要らない。`reactApiImportSource: "react"` を渡しても、React を入れない構成でビルドが通ることも確かめた。honox の island 用のコンポーネントが読み込まれないため）。`mode: "client"` との組み合わせはエラー。既定は従来どおり client あり。最小の例 `examples/api-only`（React・react-dom・`@hono/react-renderer` に依存しない。Worker を Node で呼ぶテスト、CI と独立性検査の対象）を足した |
-| G2 | codegen の失敗で、同じ誤りの行が sbt の出力に 3 回出る | scripted の `error`。fork した JVM の stderr、`MessageOnlyException` のメッセージ（sbt がタスクの失敗で 1 回、最後の `(server / hx4sGenerate) …` で 1 回出す） | 誤りの行は記録だけしてタスクのログに 1 回出し、fork した JVM の `Exception in thread "main" …CodegenFailure` の行は捨てる。例外は `FeedbackProvidedException` にして、sbt が最後の行に要約（`hx4s-codegen app failed: 2 error(s)`）だけを出すようにした。`getMessage` は要約と誤りの行を持つ。scripted の `error` がタスクのログ（`target/streams/…/out`）で行が重複しないことを確かめる |
-| G3 | `Context` に `c.body` と `c.notFound` が無く、本文なしの 204 を素直に書けない。`c.text("", 204)` は 500 になる | hono 4.13.18 の `dist/context.js`: `c.text` は空文字列でも本文として `new Response(text, { status })` を作り、Fetch API の `Response` は 204 / 304 に本文（`null` 以外）を許さないので `TypeError` になり、Hono の既定のエラー処理が 500 を返す | `body(data: BodyInit \| Null, status, headers)` と `notFound(): Response \| js.Promise[Response]` を足した。`ContextSuite` で 204 / 304 / 本文とヘッダ / `c.text("", 204)` の 500 / `notFound` を確かめる。`examples/api-only` の DELETE と GET で使う |
-| G4 | `vite/package.json` の `version` が `0.1.0-SNAPSHOT` 固定で、sbt の版と手で合わせていた | — | 版の定義を `version.txt`（`X.Y.Z`）の 1 か所にした。sbt の既定は `<版>-SNAPSHOT`、ローカル公開は `<版>-local.g<commit>` をそこから作る（`scripts/lib/version.mjs`）。npm には `-SNAPSHOT` を使わない（semver の書式としては通るが、npm に書き換わる開発版の意味は無く、`0.1.0` より前の版として並ぶだけ）ので、`vite/package.json` は `version.txt` と同じ版にし、`tests/version.test.js` が `package.json`・`package-lock.json`・`build.sbt` の食い違いを検出する |
-| G5 | codegen が誤りを段階的に報告する。個別の宣言に誤りがあると、export 名の重複や URL の衝突の検査まで進まない | `HEAD` の route と、同じ URL になる 2 つの route を同じ実行で | 宣言ごとの検査を通ったエントリ（と読めたソース）だけで重複・衝突を確かめ、全部の誤りを 1 回で返す。誤った宣言は衝突の検査から外すので、それが原因の二次的な誤りは出さない（直したあとで初めて出る衝突はありうる）。`AnnotationScannerSuite` に 2 件足した |
+| G1 | In server mode, `hx4s()` always links the client sbt project, so setups without a client (API only, SSR without islands) fail with `Not a valid key: client`. sbt-hx4s handles client-less setups, but the Vite side doesn't | `vite build` in an sbt build without a client | Added `hx4s({ client: false })`. It skips linking the client, the `scalajs:client.js` alias and the client build, and doesn't add React settings to `honox()` (not needed without islands; also confirmed that the build passes in a setup without React even when `reactApiImportSource: "react"` is passed, since honox's island components aren't loaded). Combining it with `mode: "client"` is an error. The default is a client, as before. Added a minimal example, `examples/api-only` (doesn't depend on React, react-dom or `@hono/react-renderer`; tests call the Worker on Node; covered by CI and the independence check) |
+| G2 | On codegen failure, the same error line appears three times in sbt's output | scripted `error`. The forked JVM's stderr, and the message of `MessageOnlyException` (sbt prints it once for the task failure and once in the final `(server / hx4sGenerate) …`) | Error lines are only recorded and printed once to the task log, and the forked JVM's `Exception in thread "main" …CodegenFailure` line is dropped. The exception is now a `FeedbackProvidedException`, so sbt prints only the summary (`hx4s-codegen app failed: 2 error(s)`) on the last line. `getMessage` has the summary and the error lines. scripted `error` checks that lines aren't duplicated in the task log (`target/streams/…/out`) |
+| G3 | `Context` has no `c.body` or `c.notFound`, so a 204 without a body can't be written straightforwardly. `c.text("", 204)` becomes a 500 | `dist/context.js` of hono 4.13.18: `c.text` creates `new Response(text, { status })` with a body even for an empty string, the Fetch API's `Response` doesn't allow a (non-`null`) body for 204 / 304, so it becomes a `TypeError`, and Hono's default error handling returns 500 | Added `body(data: BodyInit \| Null, status, headers)` and `notFound(): Response \| js.Promise[Response]`. `ContextSuite` checks 204 / 304 / body and headers / the 500 of `c.text("", 204)` / `notFound`. Used by DELETE and GET in `examples/api-only` |
+| G4 | `version` in `vite/package.json` was fixed at `0.1.0-SNAPSHOT` and kept in sync with the sbt version by hand | — | Made `version.txt` (`X.Y.Z`) the single definition of the version. The sbt default `<version>-SNAPSHOT` and the local publish `<version>-local.g<commit>` derive from it (`scripts/lib/version.mjs`). npm doesn't use `-SNAPSHOT` (it passes as semver syntax, but npm has no notion of a mutable development version; it would just sort before `0.1.0`), so `vite/package.json` has the same version as `version.txt`, and `tests/version.test.js` detects mismatches among `package.json`, `package-lock.json` and `build.sbt` |
+| G5 | Codegen reports errors in stages. If an individual declaration has an error, it doesn't get as far as checking duplicate export names or URL conflicts | A `HEAD` route and two routes with the same URL in the same run | Duplicates and conflicts are checked using only the entries that passed per-declaration checks (and the sources that could be read), and all errors are returned at once. Erroneous declarations are excluded from conflict checks, so secondary errors caused by them aren't reported (conflicts appearing only after fixing are possible). Added 2 tests to `AnnotationScannerSuite` |
 
-### 4.1 直さずに記録したもの
+### 4.1 Recorded without fixing
 
-| 事項 | 内容 | 扱い |
+| Item | Content | Handling |
 | --- | --- | --- |
-| `IslandExport` の `fields` と props の trait の食い違い | `IslandExport("X", fields)` の `fields`（`JsField` の一覧）と props の trait を別々に書くので、キーの名前・型・省略の可否が食い違ってもコンパイルで見つからない。codegen の照合は `@islands[P]` と `IslandExport[T]` の型名が構文上一致するかだけ | P1。trait から `fields` を導出する案。Scala 3 の `Mirror` は JS の trait に使えないので、マクロか codegen になる（[roadmap.md](../roadmap.md) U-27） |
-| ビルドの sbt 起動回数と JDK 25 の警告 | `npm run build` は sbt を 4 回起動する。JDK 25 では起動のたびに `sun.misc.Unsafe` の警告が出る（sbt の起動の部品が呼ぶ。動作への影響は見ていない） | 未対応（U-15、U-28） |
-| 要素 props・入れ子 island の例 | `IslandComponents` / `IslandExport` で要素 props や入れ子の island を書く例が無い。`JsKind` には React の要素や `null` を表す種類が無い | 未対応（U-29） |
-| getting-started の新規解決 | 文書の `package.json` から lockfile なしで `npm install` する手順を実行していなかった | **確かめた**: 下の 4.2 |
+| Mismatch between the `fields` of `IslandExport` and the props trait | The `fields` (a list of `JsField`) of `IslandExport("X", fields)` and the props trait are written separately, so mismatched key names, types or optionality aren't found at compile time. Codegen only checks that the type names of `@islands[P]` and `IslandExport[T]` match syntactically | P1. The idea is to derive `fields` from the trait. Scala 3's `Mirror` can't be used on JS traits, so it would be macros or codegen ([roadmap.md](../roadmap.md) U-27) |
+| Number of sbt starts in the build, and the JDK 25 warning | `npm run build` starts sbt four times. On JDK 25, a `sun.misc.Unsafe` warning appears at every start (called by sbt's startup components; impact on behavior not examined) | Not addressed (U-15, U-28) |
+| Examples of element props and nested islands | There are no examples writing element props or nested islands with `IslandComponents` / `IslandExport`. `JsKind` has no kinds for React elements or `null` | Not addressed (U-29) |
+| Fresh resolution in getting-started | The step of running `npm install` without a lockfile from the documented `package.json` hadn't been run | **Checked**: 4.2 below |
 
-### 4.2 getting-started の手順の確認
+### 4.2 Checking the getting-started steps
 
-`docs/getting-started.md` の「自分のプロジェクトを作る」だけを見て、作業用のディレクトリ（examples の複製ではない）に同じファイルを作り、次を通した（2026-11-16、Windows 11、Node 22.18.0、JDK 25.0.1、hx4s `0.1.0-local.g933e0f7e1b`）。
+Looking only at "Creating your own project" in `docs/getting-started.md`, the same files were created in a working directory (not a copy of the examples), and the following passed (2026-11-16, Windows 11, Node 22.18.0, JDK 25.0.1, hx4s `0.1.0-local.g933e0f7e1b`).
 
-1. lockfile なしで `npm install`（138 パッケージを新規に解決）
+1. `npm install` without a lockfile (138 packages freshly resolved)
 2. `npm install --no-save <hx4s>/target/local/hx4s-vite.tgz`
-3. `npm run build`（`app/routes/index.ts` と `app/islands/counter.tsx` を生成し、client と Worker をビルド）と `npm run typecheck`
-4. `wrangler dev` で起動し、`/` が `<h1>Hello hx4s</h1>` と island（`clicks: 0` のボタン）を持つ HTML を返し、`/static/client.js` が 200 になること
+3. `npm run build` (generates `app/routes/index.ts` and `app/islands/counter.tsx`, and builds the client and the Worker) and `npm run typecheck`
+4. Started with `wrangler dev`; `/` returns HTML with `<h1>Hello hx4s</h1>` and an island (a `clicks: 0` button), and `/static/client.js` returns 200
 
-文書と違うところは無かったので、getting-started は変えていない。ブラウザでのクリックの確認はこのときは行っていない（examples/minimal の E2E が同じ構成を確かめる）。
+Nothing differed from the documentation, so getting-started wasn't changed. Clicking in a browser wasn't checked at this time (the E2E of examples/minimal checks the same setup).
 
-### 4.3 公開 API の変更
+### 4.3 Changes to the public API
 
-- hx4s-react: `Context.body(data, status, headers)`・`Context.notFound()` を足した。既存のメンバは変えていない。
-- hx4s-vite: `Hx4sOptions.client` が `Hx4sClientOptions | false` になった（`Hx4sClientOptions` を export する）。既存の設定（`client` を省くか、オブジェクトを渡す）の挙動は変わらない。
-- sbt-hx4s: codegen の失敗の例外が `MessageOnlyException` から、要約を `toString` に持つ `FeedbackProvidedException` になった。`getMessage` は従来どおり誤りの行を含むが、先頭の行が `hx4s-codegen <command> failed: N error(s)` に変わった。
-- 版: `version.txt` が版の定義。`vite/package.json` の `version` は `0.1.0`。
+- hx4s-react: added `Context.body(data, status, headers)` and `Context.notFound()`. Existing members are unchanged.
+- hx4s-vite: `Hx4sOptions.client` became `Hx4sClientOptions | false` (`Hx4sClientOptions` is exported). The behavior of existing settings (omitting `client` or passing an object) doesn't change.
+- sbt-hx4s: the exception on codegen failure changed from `MessageOnlyException` to a `FeedbackProvidedException` whose `toString` is the summary. `getMessage` still contains the error lines, but its first line changed to `hx4s-codegen <command> failed: N error(s)`.
+- Version: `version.txt` defines the version. `version` in `vite/package.json` is `0.1.0`.

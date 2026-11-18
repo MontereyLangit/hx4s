@@ -11,7 +11,7 @@ def failureMessage(result: Result[_]): String = result match {
   case Value(_) => sys.error("the task should fail")
 }
 
-val checkGenerateFailure = taskKey[Unit]("hx4sGenerate の失敗にソースのパスと行番号が出ることを確かめる")
+val checkGenerateFailure = taskKey[Unit]("Checks that the hx4sGenerate failure shows the source path and line number")
 
 checkGenerateFailure := {
   val message = failureMessage((server / hx4sGenerate).result.value)
@@ -22,7 +22,7 @@ checkGenerateFailure := {
   assert(lines.distinct == lines, s"duplicated lines in the message: $message")
 }
 
-val checkGenerateLog = taskKey[Unit]("hx4sGenerate の失敗のログに、誤りの行が 1 回ずつだけ出ることを確かめる")
+val checkGenerateLog = taskKey[Unit]("Checks that each error line appears only once in the log of the hx4sGenerate failure")
 
 checkGenerateLog := {
   val logs = ((server / target).value / "streams" ** "out").get.filter(_.getPath.contains("hx4sGenerate"))
@@ -36,7 +36,7 @@ checkGenerateLog := {
   assert(!lines.exists(_.contains("Exception in thread")), text)
 }
 
-val checkIslandComponentsFailure = taskKey[Unit]("sourceGenerators の失敗にソースのパスと行番号が出ることを確かめる")
+val checkIslandComponentsFailure = taskKey[Unit]("Checks that the sourceGenerators failure shows the source path and line number")
 
 checkIslandComponentsFailure := {
   val message = failureMessage((server / Compile / managedSources).result.value)

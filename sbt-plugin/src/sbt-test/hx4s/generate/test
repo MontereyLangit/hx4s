@@ -1,24 +1,24 @@
-# route / island の TS ファイルを生成する
+# Generate route / island TS files
 > server/hx4sGenerate
 $ exists app/routes/index.ts
 $ exists app/routes/about.ts
 $ exists app/islands/counter.tsx
 $ exists app/islands/other.tsx
-# sourceGenerators が IslandComponents を src_managed に出す
+# sourceGenerators writes IslandComponents to src_managed
 > check
 
-# 2 回目も同じ結果になる
+# The second run gives the same result
 > server/hx4sGenerate
 > check
 
-# 宣言から消した route の生成物は消え、手書きのファイルは残る
+# Generated files of routes removed from the declarations are deleted, and hand-written files remain
 $ copy-file changes/Main.scala server/src/main/scala/app/Main.scala
 > server/hx4sGenerate
 $ absent app/routes/about.ts
 $ exists app/routes/index.ts
 > check
 
-# 最後の island を消すと古い TSX が消え、IslandComponents は空の object になる
+# Removing the last island deletes the stale TSX, and IslandComponents becomes an empty object
 > removeIslands
 > server/hx4sGenerate
 $ absent app/islands/counter.tsx
@@ -26,7 +26,7 @@ $ absent app/islands/other.tsx
 $ exists app/routes/index.ts
 > checkNoIslands
 
-# hx4sClientProject を設定しなければ client なしとして生成する
+# Without hx4sClientProject, generate as client-less
 > ssrOnly/hx4sGenerate
 $ exists ssr-only/app/routes/index.ts
 > checkSsrOnly

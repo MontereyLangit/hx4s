@@ -3,14 +3,14 @@ package hx4s.props
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
 
-/** JSON で受け渡せる値の種類。Num は有限の数、Int は Int の範囲の整数 */
+/** Kinds of values that can be passed through JSON. Num is a finite number, Int an integer in the Int range */
 enum JsKind {
   case Str, Num, Int, Bool
   case Obj(fields: List[JsField])
   case Arr(element: JsKind)
 }
 
-/** オブジェクトのキー 1 つ。optional なら undefined（キーの省略）を許す */
+/** One key of an object. optional allows undefined (an omitted key) */
 final case class JsField(name: String, kind: JsKind, optional: Boolean = false)
 
 @js.native
@@ -19,19 +19,19 @@ private object Console extends js.Object {
   def error(message: String): Unit = js.native
 }
 
-/** 境界で受け取った JS 値が期待するキーと型を持つかを確かめ、型付きの値にする */
+/** Checks that a JS value received at a boundary has the expected keys and types, and turns it into a typed value */
 object JsShape {
   def required(name: String, kind: JsKind): JsField = JsField(name, kind)
   def optional(name: String, kind: JsKind): JsField = JsField(name, kind, optional = true)
 
-  /** すべてのキーを確かめ、誤りがあれば一覧を 1 つの文字列で返す */
+  /** Checks every key, and returns the list of errors as one string if any */
   def validate[P <: js.Object](raw: js.Any, fields: List[JsField]): Either[String, P] =
     problems(raw, JsKind.Obj(fields), "props") match {
       case Nil => Right(raw.asInstanceOf[P])
       case found => Left(found.mkString("; "))
     }
 
-  /** 検証に失敗したら console.error に出して None を返す。例外にはしない */
+  /** On validation failure, logs to console.error and returns None. Does not throw */
   def read[P <: js.Object](label: String, raw: js.Any, fields: List[JsField]): Option[P] =
     validate[P](raw, fields) match {
       case Right(value) => Some(value)

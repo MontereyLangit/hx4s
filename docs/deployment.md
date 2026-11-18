@@ -1,11 +1,11 @@
-# デプロイ
+# Deployment
 
-hx4s が動作を確かめた実行基盤は **Cloudflare Workers**（ローカルの workerd。`wrangler dev`）だけ。hx4s のモジュールは Cloudflare に依存しない（下の「実行基盤との関係」）が、
-ほかの基盤は検証していない。本番へのデプロイ（`wrangler deploy`）も、hx4s の検証には含まれていない。
+The only runtime on which hx4s has been verified is **Cloudflare Workers** (local workerd via `wrangler dev`). The hx4s modules don't depend on Cloudflare (see "Relationship with the runtime" below),
+but other runtimes have not been verified. Production deployment (`wrangler deploy`) is not part of hx4s's verification either.
 
 ## Cloudflare Workers
 
-`examples/minimal` の構成。
+The setup of `examples/minimal`.
 
 ```jsonc
 // wrangler.jsonc
@@ -14,9 +14,9 @@ hx4s が動作を確かめた実行基盤は **Cloudflare Workers**（ローカ�
   "name": "hx4s-minimal",
   "main": "dist/server/index.js",
   "compatibility_date": "2025-09-01",
-  // react-dom/server が node:async_hooks を import する
+  // react-dom/server imports node:async_hooks
   "compatibility_flags": ["nodejs_compat"],
-  // client の成果物だけを静的配信する（dist/server の Worker のコードは公開しない）
+  // Serve only the client output as static assets (the Worker code in dist/server is not exposed)
   "assets": {
     "directory": "dist/client"
   }
@@ -24,58 +24,58 @@ hx4s が動作を確かめた実行基盤は **Cloudflare Workers**（ローカ�
 ```
 
 ```ts
-// vite.config.ts（実行基盤のアダプタは利用側が選ぶ）
+// vite.config.ts (the runtime adapter is chosen by the user)
 import buildCloudflareWorkers from "@hono/vite-build/cloudflare-workers";
 ```
 
-| 設定 | 理由 |
+| Setting | Reason |
 | --- | --- |
-| `main` = `dist/server/index.js` | `vite build`（server モード）が `@hono/vite-build/cloudflare-workers` で作る Worker |
-| `assets.directory` = `dist/client` | `vite build --mode client` の出力。`static/client.js` と `static/assets/*` を Workers Static Assets で配信する |
-| `nodejs_compat` | `react-dom/server` が `node:async_hooks` を import する。無いと、ビルドした Worker が workerd で起動しない（Node 上のテストでは見えず、E2E で見つかった） |
+| `main` = `dist/server/index.js` | The Worker that `vite build` (server mode) creates with `@hono/vite-build/cloudflare-workers` |
+| `assets.directory` = `dist/client` | Output of `vite build --mode client`. Serves `static/client.js` and `static/assets/*` with Workers Static Assets |
+| `nodejs_compat` | `react-dom/server` imports `node:async_hooks`. Without it, the built Worker doesn't start on workerd (invisible in tests on Node; found by E2E) |
 
-### 静的配信の範囲
+### Scope of static serving
 
-静的に配信するのは `dist/client` だけ。`dist/server` は含めない。`examples/minimal` の E2E は次を確かめている。
+Only `dist/client` is served statically; `dist/server` is not included. The E2E tests of `examples/minimal` check that:
 
-- `/static/client.js` が 200 で返る（`_renderer.tsx` の `clientScriptSrc` が `/static/client.js`）
-- `/index.js` が 404 で、Worker のコードは配信されない
+- `/static/client.js` returns 200 (the `clientScriptSrc` of `_renderer.tsx` is `/static/client.js`)
+- `/index.js` returns 404, so the Worker code is not served
 
-`hx4s()` の `client.output` で出力名を変えたときは、`_renderer.tsx` の `clientScriptSrc` も合わせる。
+When you change output names with `client.output` of `hx4s()`, update `clientScriptSrc` in `_renderer.tsx` too.
 
-### ビルドとローカル実行
+### Building and running locally
 
 ```bash
-npm run build   # hx4sGenerate → client ビルド → Worker ビルド
-npx wrangler dev   # または npm run dev（build してから wrangler dev）
+npm run build   # hx4sGenerate → client build → Worker build
+npx wrangler dev   # or npm run dev (build, then wrangler dev)
 ```
 
-`wrangler deploy` で公開するときは、`wrangler.jsonc` の `name`・`compatibility_date`・アカウントの設定を自分のものにする。hx4s としては検証していない手順で、
-Workers の設定（ルート、ドメイン、環境変数、Bindings）は Cloudflare の文書に従う。
+When publishing with `wrangler deploy`, set `name`, `compatibility_date` and the account settings in `wrangler.jsonc` to your own. This step is not verified by hx4s;
+follow Cloudflare's documentation for Workers settings (routes, domains, environment variables, Bindings).
 
-### 注意
+### Notes
 
-- **island の props はブラウザに送られる。** `data-serialized-props` として HTML に入るので、秘匿値を props に入れない。秘匿値は `c.env`（Bindings、Secrets）から server のハンドラだけが読む
-- client の入口は既定で固定名（`static/client.js`）のため、キャッシュの設定によっては古い client が残り、HTML との世代がずれる。`hx4s-vite/client` の検証は不一致の island を hydrate せず SSR の HTML のまま残す（[ssr-hydration.md](ssr-hydration.md)）。
-  静的アセットのキャッシュ制御は実行基盤の設定で、hx4s は決めない
+- **Island props are sent to the browser.** They go into the HTML as `data-serialized-props`, so don't put secrets in props. Secrets should be read only by server handlers from `c.env` (Bindings, Secrets)
+- The client entry has a fixed name by default (`static/client.js`), so depending on cache settings an old client can linger and drift from the HTML version. The validation in `hx4s-vite/client` leaves mismatched islands unhydrated, as SSR HTML ([ssr-hydration.md](ssr-hydration.md)).
+  Cache control for static assets belongs to the runtime settings; hx4s doesn't decide it
 
-## 実行基盤との関係
+## Relationship with the runtime
 
-| モジュール | Cloudflare への依存 |
+| Module | Dependency on Cloudflare |
 | --- | --- |
-| `hx4s-core`・`hx4s-react`・`hx4s-codegen`・`sbt-hx4s`・`hx4s-vite` | 無い |
-| `Context[Env, R]` | `Env` は型引数。Cloudflare の Bindings の型は利用側が定義する（[routing.md](routing.md)） |
-| `ExecutionContext` | `waitUntil` と `passThroughOnException` だけを持つ最小の facade。渡さない基盤向けに `executionCtxOption` がある |
-| `examples/minimal` | Cloudflare に依存する（`wrangler.jsonc`、`@hono/vite-build/cloudflare-workers`、E2E の起動） |
+| `hx4s-core`, `hx4s-react`, `hx4s-codegen`, `sbt-hx4s`, `hx4s-vite` | None |
+| `Context[Env, R]` | `Env` is a type parameter. The type of Cloudflare Bindings is defined by the user ([routing.md](routing.md)) |
+| `ExecutionContext` | A minimal facade with only `waitUntil` and `passThroughOnException`. `executionCtxOption` exists for runtimes that don't provide it |
+| `examples/minimal` | Depends on Cloudflare (`wrangler.jsonc`, `@hono/vite-build/cloudflare-workers`, starting E2E) |
 
-Durable Objects・R2・KV などの Cloudflare 固有の機能向けの補助（DO の RPC スタブの生成など）は hx4s に含まれない。将来 `hx4s-cloudflare` として検討する構想がある
-（[hx4s/roadmap.md](hx4s/roadmap.md) の P2、[hx4s/adr/0005-core-independent-of-cloudflare.md](hx4s/adr/0005-core-independent-of-cloudflare.md)）。
+Helpers for Cloudflare-specific features such as Durable Objects, R2 and KV (e.g. generating DO RPC stubs) are not included in hx4s. There is a plan to consider them as `hx4s-cloudflare` in the future
+(P2 in [hx4s/roadmap.md](hx4s/roadmap.md), [hx4s/adr/0005-core-independent-of-cloudflare.md](hx4s/adr/0005-core-independent-of-cloudflare.md)).
 
-## ほかの実行基盤
+## Other runtimes
 
-Node・Deno・Bun・Vercel などで動かすには、`vite.config.ts` の `buildCloudflareWorkers(...)` を `@hono/vite-build` の別のアダプタに替え、wrangler の設定を基盤の設定に替えることになる。
-**hx4s はこれらで検証していない。** 動くとは書かない。試す場合は次の点が検討対象になる。
+Running on Node, Deno, Bun, Vercel and so on would mean replacing `buildCloudflareWorkers(...)` in `vite.config.ts` with another `@hono/vite-build` adapter, and the wrangler settings with the runtime's settings.
+**hx4s has not been verified on these.** We don't claim they work. If you try, consider the following:
 
-- `app/routes/_renderer.tsx` と `app/client.ts` は HonoX の標準の構成で、基盤に依存しない
-- client の静的配信を基盤側でどう行うか（`dist/client` の `static/` を `/static/` で配信する必要がある）
-- `Context` の `executionCtx` は基盤が渡さなければ例外になる。`executionCtxOption` を使う
+- `app/routes/_renderer.tsx` and `app/client.ts` are a standard HonoX setup and don't depend on the runtime
+- How the runtime serves the client statically (`static/` in `dist/client` must be served at `/static/`)
+- `executionCtx` of `Context` throws if the runtime doesn't provide it. Use `executionCtxOption`

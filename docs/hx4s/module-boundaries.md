@@ -1,115 +1,115 @@
-# モジュール境界
+# Module boundaries
 
-[architecture.md](architecture.md) の現行実装を、フレームワーク（hx4s）と掲示板固有（3ch）に分ける。移す時期と手順は [extraction-plan.md](extraction-plan.md) に書く。
-ファイル名は調査基準 commit `875a47b` のもの（`io._3ch.codegen.framework` パッケージを含む）。3ch の Phase 1 / 2 は進行中なので、ファイル名は変わりうる。
+This splits the current implementation in [architecture.md](architecture.md) into framework (hx4s) and bulletin-board-specific (3ch) parts. When and how things move is in [extraction-plan.md](extraction-plan.md).
+File names are those of the reference commit `875a47b` (including the `io._3ch.codegen.framework` package). 3ch's Phases 1 / 2 are in progress, so file names may change.
 
-## 1. 分類表（ファイル単位）
+## 1. Classification (per file)
 
-区分の意味:
+Meaning of the categories:
 
-- **hx4s**: そのまま、または 3ch 固有の名前・パスを引数に出して移す。
-- **分割**: ファイル内に両方が混ざっている。
-- **3ch**: 3ch に残す。
-- **3ch（将来候補）**: 当面 3ch に残し、ロードマップ上の別モジュール候補とする。
+- **hx4s**: moved as-is, or with 3ch-specific names and paths turned into parameters.
+- **Split**: the file mixes both.
+- **3ch**: stays in 3ch.
+- **3ch (future candidate)**: stays in 3ch for now, as a candidate for a separate module on the roadmap.
 
 ### 1.1 Scala
 
-| 3CH のファイル | 区分 | 移す先 / 残す理由 |
+| 3CH file | Category | Destination / reason to stay |
 | --- | --- | --- |
-| `common/.../routes/Annotations.scala` | hx4s | `hx4s-core`。`hx4s.annotation.route` / `hx4s.annotation.islands[P]`。`islands` に型引数を足す（[ADR 0003](adr/0003-typed-island-props.md)） |
-| `common/.../routes/RouteTable.scala` | 3ch | `publicPatterns` のみ。下表 1.2 |
-| `codegen/.../framework/AnnotationScanner.scala`・`AppEntries.scala` | hx4s | `hx4s-codegen`。`object Main` 固定の走査・moduleID・アノテーションの完全修飾名（`CodegenConfig.annotationPackage`）は既に設定値になっている |
-| `codegen/.../framework/AppFileRenderer.scala` | hx4s | `hx4s-codegen`。route / island / `IslandComponents` のテンプレート。出力パッケージ・bridge の完全修飾名は `CodegenConfig` の値 |
-| `codegen/.../framework/{OutputPath,OutputWriter,Codegen,CodegenConfig,CodegenError,CodegenReport}.scala` | hx4s | `hx4s-codegen`。書き出し規則・設定・誤りの型 |
-| `codegen/.../GenerateAppFiles.scala` | 3ch | 3ch の `CodegenConfig`（入力パスの固定値、バナー）と、DO の TS 型生成の呼び出し。sbt-hx4s の `hx4sGenerate` が置き換える |
-| `codegen/.../DurableObjectSources.scala` | 3ch（将来候補） | DO 専用。`hx4s-cloudflare` 候補 |
-| `codegen/.../GenerateDurableObjectTypes.scala` | 3ch（将来候補） | 同上 |
-| `codegen/.../GenerateDurableObjectStubs.scala` / `GenerateDurableObjectStubsMain.scala` | 3ch（将来候補） | 同上。パッケージ `io._3ch.bbs.external.cloudflare` を固定で持つ |
-| `codegen/src/test/.../framework/*Suite.scala`・`TestConfig.scala` | hx4s | `hx4s-codegen` のテスト |
-| `codegen/src/test/.../GenerateAppFilesSuite.scala` | 分割 | 3ch の設定を使う部分は 3ch。汎用の部分は `framework` のテストへ寄せて移す |
-| `codegen/src/test/.../GenerateDurableObject*Suite.scala` | 3ch | DO 生成器に付随 |
-| `common/src/test/.../routes/RouteTableSuite.scala` | 3ch | `publicPatterns` の検査。テンプレートの検査は `framework` のテストに移っている |
-| `bbs/.../external/honox/Island.scala` | hx4s | `hx4s-react`（`hx4s.react.Island`） |
-| `bbs/.../external/hono/HonoContext.scala`・`HonoContextFacade.scala` | 分割 | `HonoRequestFacade` / `HonoContextFacade` / `renderPromise` は `hx4s-react`（Env を型引数にする）。`RenderProps` の `title` / `authModal` は 3ch |
-| `bbs/.../external/web/WebFacade.scala` | 3ch | hx4s は scalajs-dom の Fetch 型（`org.scalajs.dom.Request` / `Response`）を使う案（未決事項 U-6）。3ch の手書き facade は 3ch に残す |
-| `bbs/.../external/cloudflare/Bindings.scala` | 3ch（将来候補） | `WorkerEnv` など。`hx4s-cloudflare` 候補 |
-| `bbs/.../Main.scala` | 3ch | 宣言そのもの。hx4s は宣言の書き方を規定するだけ |
-| `bbs-client/.../Main.scala` と `islands/*` | 3ch | 掲示板の UI |
-| `bbs/.../generated/IslandComponents.scala` | 3ch（生成物） | 生成器は hx4s、出力は利用側のプロジェクトに置く |
-| `bbs/.../handler/RendererShell.scala` | 3ch | `<html lang="ja">`、CSS パス、認証モーダル、Shift_JIS |
-| `bbs/.../components/*` | 3ch | `IslandComponents` の利用側 |
-| `bbs/src/test/.../IslandTestExports.scala` | 分割 | `renderIslandTest` は `hx4s-react` のテスト支援へ。`renderBoardTopTest` は 3ch |
+| `common/.../routes/Annotations.scala` | hx4s | `hx4s-core`. `hx4s.annotation.route` / `hx4s.annotation.islands[P]`. Add a type parameter to `islands` ([ADR 0003](adr/0003-typed-island-props.md)) |
+| `common/.../routes/RouteTable.scala` | 3ch | Only `publicPatterns`. Table 1.2 below |
+| `codegen/.../framework/AnnotationScanner.scala`, `AppEntries.scala` | hx4s | `hx4s-codegen`. Walking a fixed `object Main`, moduleIDs and the fully qualified names of annotations (`CodegenConfig.annotationPackage`) are already settings |
+| `codegen/.../framework/AppFileRenderer.scala` | hx4s | `hx4s-codegen`. Templates for routes / islands / `IslandComponents`. The output package and the fully qualified name of the bridge are values in `CodegenConfig` |
+| `codegen/.../framework/{OutputPath,OutputWriter,Codegen,CodegenConfig,CodegenError,CodegenReport}.scala` | hx4s | `hx4s-codegen`. Output rules, settings, error types |
+| `codegen/.../GenerateAppFiles.scala` | 3ch | 3ch's `CodegenConfig` (fixed input paths, banner) and the call to generate DO TS types. Replaced by sbt-hx4s's `hx4sGenerate` |
+| `codegen/.../DurableObjectSources.scala` | 3ch (future candidate) | DO-only. A `hx4s-cloudflare` candidate |
+| `codegen/.../GenerateDurableObjectTypes.scala` | 3ch (future candidate) | Same as above |
+| `codegen/.../GenerateDurableObjectStubs.scala` / `GenerateDurableObjectStubsMain.scala` | 3ch (future candidate) | Same as above. Has the package `io._3ch.bbs.external.cloudflare` hard-coded |
+| `codegen/src/test/.../framework/*Suite.scala`, `TestConfig.scala` | hx4s | Tests of `hx4s-codegen` |
+| `codegen/src/test/.../GenerateAppFilesSuite.scala` | Split | Parts using 3ch's settings stay in 3ch. Generic parts are moved into the `framework` tests |
+| `codegen/src/test/.../GenerateDurableObject*Suite.scala` | 3ch | Accompanies the DO generators |
+| `common/src/test/.../routes/RouteTableSuite.scala` | 3ch | Checks `publicPatterns`. Template checks have moved to the `framework` tests |
+| `bbs/.../external/honox/Island.scala` | hx4s | `hx4s-react` (`hx4s.react.Island`) |
+| `bbs/.../external/hono/HonoContext.scala`, `HonoContextFacade.scala` | Split | `HonoRequestFacade` / `HonoContextFacade` / `renderPromise` go to `hx4s-react` (with Env as a type parameter). `title` / `authModal` of `RenderProps` stay in 3ch |
+| `bbs/.../external/web/WebFacade.scala` | 3ch | The proposal is for hx4s to use scalajs-dom's Fetch types (`org.scalajs.dom.Request` / `Response`) (open question U-6). 3ch's hand-written facade stays in 3ch |
+| `bbs/.../external/cloudflare/Bindings.scala` | 3ch (future candidate) | `WorkerEnv` and so on. A `hx4s-cloudflare` candidate |
+| `bbs/.../Main.scala` | 3ch | The declarations themselves. hx4s only specifies how to write them |
+| `bbs-client/.../Main.scala` and `islands/*` | 3ch | The bulletin board UI |
+| `bbs/.../generated/IslandComponents.scala` | 3ch (generated) | The generator is hx4s; the output lives in the user's project |
+| `bbs/.../handler/RendererShell.scala` | 3ch | `<html lang="ja">`, CSS paths, auth modal, Shift_JIS |
+| `bbs/.../components/*` | 3ch | Users of `IslandComponents` |
+| `bbs/src/test/.../IslandTestExports.scala` | Split | `renderIslandTest` goes to test support in `hx4s-react`. `renderBoardTopTest` stays in 3ch |
 
-### 1.2 `common` に混在しているもの
+### 1.2 What is mixed in `common`
 
-`common/.../routes/RouteTable.scala` は、`875a47b` 時点で `publicPatterns` だけを持つ。生成テンプレート（かつての `RouteKind` / `RouteEntry` / `IslandEntry` / `render*` / バナー）は
-`codegen/.../framework/`（`AppEntries`・`AppFileRenderer`）へ移動済みである。
+As of `875a47b`, `common/.../routes/RouteTable.scala` holds only `publicPatterns`. The generation templates (formerly `RouteKind` / `RouteEntry` / `IslandEntry` / `render*` / the banner) have
+already moved to `codegen/.../framework/` (`AppEntries`, `AppFileRenderer`).
 
-| 要素 | 区分 | 理由 |
+| Element | Category | Reason |
 | --- | --- | --- |
-| `publicPatterns` | 3ch | v5 互換の dat / subject.txt / SETTING.TXT の URL パターン。`PublicRoutes` だけが使う。3ch の `common` か `bbs` の handler 側へ移す（Phase 1 の 1-4） |
-| `Annotations.scala`（`route` / `islands`） | hx4s-core | `common` の `routes` に置かれたまま。Phase 3 で `hx4s.annotation` へ移す |
+| `publicPatterns` | 3ch | URL patterns for v5-compatible dat / subject.txt / SETTING.TXT. Used only by `PublicRoutes`. Move to 3ch's `common` or to the handler side of `bbs` (Phase 1 step 1-4) |
+| `Annotations.scala` (`route` / `islands`) | hx4s-core | Still in `routes` of `common`. Move to `hx4s.annotation` in Phase 3 |
 
-テンプレートを `codegen` へ移したので、`bbs` の Scala.js リンク対象にテンプレート文字列が入る問題は解消している（`RouteTable` が `publicPatterns` だけのため）。
+With the templates moved to `codegen`, the problem of template strings ending up in the Scala.js link of `bbs` is resolved (since `RouteTable` holds only `publicPatterns`).
 
-### 1.3 TypeScript / JavaScript / 設定
+### 1.3 TypeScript / JavaScript / settings
 
-| 3CH のファイル | 区分 | 移す先 / 残す理由 |
+| 3CH file | Category | Destination / reason to stay |
 | --- | --- | --- |
-| `vite.config.ts` の `scalaProject()` | hx4s | `hx4s-vite`。`buildStart` を `sequential: true` にするラッパー |
-| `vite.config.ts` の `resolve.alias["scalajs:client.js"]`、2 つ目の Scala.js プラグイン（`uriPrefix: "scalajs-client"`） | hx4s | `hx4s-vite` |
-| `vite.config.ts` の `honox({ islandComponents: { reactApiImportSource: "react" } })` | hx4s | `hx4s-vite` が既定値として渡す |
-| `vite.config.ts` の client モードの `rollupOptions`（`input`・出力名） | hx4s | `hx4s-vite` の既定値（上書き可能） |
-| `vite.config.ts` の `tailwindcss()` | 3ch | CSS の選択は利用側 |
-| `vite.config.ts` の `@hono/vite-build/cloudflare-workers` と DO の `entryContentAfterHooks` | 3ch（将来候補） | 実行基盤固有 |
-| `app/server.ts` | 3ch | ミドルウェア・認証 API・LegacyDispatch・DO の export。`examples/minimal` は最小の `server.ts` を持つ |
-| `app/client.ts` | 3ch（雛形は hx4s） | 内容は汎用。`examples/minimal` に同じ形を置く。ヘルパー化は未決事項 U-7 |
-| `app/routes/_renderer.tsx` / `app/renderer.d.ts` / `app/scalajs-server.d.ts` | 3ch | renderer の Props と Scala 側 export の型は 3ch 固有 |
-| `app/routes/**` の生成物 / `app/islands/**` の生成物 | 3ch（生成物） | — |
-| `bbs/test-stubs/cloudflare-workers-stub.mjs` | 3ch | Cloudflare 固有 |
-| `bbs/test-stubs/cloudflare-workers-loader.mjs` | 分割 | `scalajs:client.js` の解決と HonoX 内の `hono/jsx` → `react` の置換は `hx4s-vite` の Node 用 loader へ。`cloudflare:workers` は 3ch。環境変数 `CH3S_CLIENT_JS_DIR` は `HX4S_CLIENT_JS_DIR` に改める |
-| `bbs/test-stubs/register.mjs` | 分割 | 同上 |
-| `build.sbt` の `Test / jsEnv`（`--import register.mjs`、client の fastLinkJS を先に実行） | 分割 | 仕組みは `sbt-hx4s` の補助（P1）。`cloudflare:workers` の差し替えは 3ch |
-| `build.sbt` の `codegen` プロジェクトと `Compile / mainClass` | hx4s | `sbt-hx4s` の `hx4sGenerate` が置き換える |
-| `build.sbt` の `generateDurableObjectStubs` | 3ch（将来候補） | DO 固有 |
-| `package.json` の `v6:*` スクリプト | 3ch | 中身を `sbt hx4sGenerate` と hx4s-vite 前提に書き換える |
-| `tests/islands-bridge.test.js` | hx4s | `hx4s-vite` / `hx4s-react` の互換性テスト。3ch の `vite.config.ts` を読む部分は examples に置き換える |
-| `tests/islands-hydration.test.js` | hx4s | 同上。`bbs-test-fastopt/island-test.js` の代わりに hx4s-react のテスト用 export を使う |
-| `tests/board-islands.test.js` / `tests/board-top-hydration.test.js` | 3ch | 掲示板 UI |
-| `tests/client-bundle.test.js` | 3ch（原則は hx4s） | 文字列は 3ch 固有。「client 成果物に server のコードが入らない」検査は examples にも置く |
-| `tests/worker-bundle.test.js` | 3ch | DO の export |
+| `scalaProject()` in `vite.config.ts` | hx4s | `hx4s-vite`. A wrapper that makes `buildStart` `sequential: true` |
+| `resolve.alias["scalajs:client.js"]` and the second Scala.js plugin (`uriPrefix: "scalajs-client"`) in `vite.config.ts` | hx4s | `hx4s-vite` |
+| `honox({ islandComponents: { reactApiImportSource: "react" } })` in `vite.config.ts` | hx4s | `hx4s-vite` passes it as a default |
+| `rollupOptions` of client mode in `vite.config.ts` (`input`, output names) | hx4s | Defaults of `hx4s-vite` (overridable) |
+| `tailwindcss()` in `vite.config.ts` | 3ch | The choice of CSS is the user's |
+| `@hono/vite-build/cloudflare-workers` and the DO `entryContentAfterHooks` in `vite.config.ts` | 3ch (future candidate) | Runtime-specific |
+| `app/server.ts` | 3ch | Middleware, auth API, LegacyDispatch, DO exports. `examples/minimal` has a minimal `server.ts` |
+| `app/client.ts` | 3ch (template in hx4s) | The content is generic. The same shape goes in `examples/minimal`. Turning it into a helper is open question U-7 |
+| `app/routes/_renderer.tsx` / `app/renderer.d.ts` / `app/scalajs-server.d.ts` | 3ch | The renderer props and the types of Scala-side exports are 3ch-specific |
+| Generated files in `app/routes/**` / `app/islands/**` | 3ch (generated) | — |
+| `bbs/test-stubs/cloudflare-workers-stub.mjs` | 3ch | Cloudflare-specific |
+| `bbs/test-stubs/cloudflare-workers-loader.mjs` | Split | Resolving `scalajs:client.js` and replacing `hono/jsx` → `react` inside HonoX go to the Node loader in `hx4s-vite`. `cloudflare:workers` stays in 3ch. The environment variable `CH3S_CLIENT_JS_DIR` becomes `HX4S_CLIENT_JS_DIR` |
+| `bbs/test-stubs/register.mjs` | Split | Same as above |
+| `Test / jsEnv` in `build.sbt` (`--import register.mjs`, running the client's fastLinkJS first) | Split | The mechanism becomes a helper in `sbt-hx4s` (P1). Replacing `cloudflare:workers` stays in 3ch |
+| The `codegen` project and `Compile / mainClass` in `build.sbt` | hx4s | Replaced by `hx4sGenerate` in `sbt-hx4s` |
+| `generateDurableObjectStubs` in `build.sbt` | 3ch (future candidate) | DO-specific |
+| The `v6:*` scripts in `package.json` | 3ch | Rewrite them to assume `sbt hx4sGenerate` and hx4s-vite |
+| `tests/islands-bridge.test.js` | hx4s | Compatibility tests for `hx4s-vite` / `hx4s-react`. The parts that read 3ch's `vite.config.ts` are replaced with the examples |
+| `tests/islands-hydration.test.js` | hx4s | Same as above. Uses hx4s-react's test exports instead of `bbs-test-fastopt/island-test.js` |
+| `tests/board-islands.test.js` / `tests/board-top-hydration.test.js` | 3ch | Bulletin board UI |
+| `tests/client-bundle.test.js` | 3ch (principle goes to hx4s) | The strings are 3ch-specific. A check that "server code doesn't end up in the client output" is also put in the examples |
+| `tests/worker-bundle.test.js` | 3ch | DO exports |
 
-## 2. 依存方向の規則
+## 2. Dependency direction rules
 
-1. 3ch → hx4s の一方向。hx4s のどのモジュールも 3ch（`io._3ch.*`、`ch3s`、3ch のファイルパス・文言）を参照しない（[ADR 0006](adr/0006-one-way-dependency-and-local-publish.md)）。
-2. `hx4s-react` → `hx4s-core`。`hx4s-core` は他の hx4s モジュールに依存しない。
-3. `hx4s-codegen` は `hx4s-core` にコンパイル依存しない（アノテーションは名前で照合する）。scalameta 以外の重い依存を足さない。
-4. `sbt-hx4s` は `hx4s-codegen` を **実行時に解決する**（ライブラリ依存にしない）。
-5. `hx4s-vite` は `@scala-js/vite-plugin-scalajs` と `honox` を peerDependencies とし、版の決定は利用側に任せる（案。U-8）。
-6. どのモジュールも Cloudflare 固有 API（`cloudflare:workers`、DO、Bindings、`@hono/vite-build/cloudflare-workers`）に依存しない（[ADR 0005](adr/0005-core-independent-of-cloudflare.md)）。
-7. 利用側のプロジェクト間の依存方向を次のとおりにする。
-   - server → shared、client → shared は可。
-   - **server → client は禁止**（server に client の実装が混ざる）。
-   - **client → server は禁止**（client の成果物にサーバ処理が混入する。3ch の KB-27 の本体）。
-   - **shared → server、shared → client は禁止**（shared 経由で server のコードが client に届く）。
-   両者が共有する型（island の Props）は shared に置く。これらは hx4s の規約として文書化する。
-   検査は、sbt の依存グラフ（client の推移的依存に server が入らないこと）と、Vite のモジュールグラフ（client ビルドに server のモジュールが入らないこと）で行う。
-   バンドルの文字列検査（3ch の `tests/client-bundle.test.js`）は、これらの検査をすり抜けたものを拾う補助であって、主たる保証ではない。
-   - **sbt の依存グラフ: 実装済み（Phase 3 レビュー K7）**。sbt-hx4s の `hx4sCheckDependencies` が、`hx4sClientProject` とその推移的な `dependsOn`（Compile に効くもの）が
-     `Hx4sPlugin` を有効にしたプロジェクトに届くか、server が client に届けば、経路を出してビルドを失敗させる。`hx4sGenerate` と `IslandComponents` の生成の前に走る。
-     shared → server は、client が shared に依存していれば client → shared → server の経路として検出する。shared → client、server → shared → client も同じ。
-   - **Vite のモジュールグラフ: 未実装**。sbt の検査をすり抜ける経路（client の Scala.js が server のリンク成果物を `@JSImport` する、`app/client.ts` が server 用のモジュールを import する など）は、
-     今は examples のバンドルの文字列検査でしか見ていない（[roadmap.md](roadmap.md)）。
+1. One way, 3ch → hx4s. No hx4s module references 3ch (`io._3ch.*`, `ch3s`, 3ch's file paths and wording) ([ADR 0006](adr/0006-one-way-dependency-and-local-publish.md)).
+2. `hx4s-react` → `hx4s-core`. `hx4s-core` depends on no other hx4s module.
+3. `hx4s-codegen` has no compile dependency on `hx4s-core` (annotations are matched by name). Don't add heavy dependencies other than scalameta.
+4. `sbt-hx4s` **resolves `hx4s-codegen` at run time** (not as a library dependency).
+5. `hx4s-vite` makes `@scala-js/vite-plugin-scalajs` and `honox` peerDependencies and leaves the version choice to the user (proposal; U-8).
+6. No module depends on Cloudflare-specific APIs (`cloudflare:workers`, DOs, Bindings, `@hono/vite-build/cloudflare-workers`) ([ADR 0005](adr/0005-core-independent-of-cloudflare.md)).
+7. The dependency direction between the user's projects is as follows.
+   - server → shared and client → shared are allowed.
+   - **server → client is forbidden** (client implementation would mix into the server).
+   - **client → server is forbidden** (server processing would leak into the client output; the core of 3ch's KB-27).
+   - **shared → server and shared → client are forbidden** (server code would reach the client through shared).
+   Types shared by both (island props) go in shared. These are documented as hx4s conventions.
+   They are checked with the sbt dependency graph (the server is not among the client's transitive dependencies) and Vite's module graph (the client build contains no server modules).
+   String checks on the bundle (3ch's `tests/client-bundle.test.js`) are a supplement that catches whatever slips past those checks, not the primary guarantee.
+   - **sbt dependency graph: implemented (Phase 3 review K7)**. sbt-hx4s's `hx4sCheckDependencies` fails the build and prints the path if `hx4sClientProject` and its transitive `dependsOn` (those affecting Compile)
+     reach a project with `Hx4sPlugin` enabled, or if the server reaches the client. It runs before `hx4sGenerate` and the generation of `IslandComponents`.
+     shared → server is detected as the path client → shared → server if the client depends on shared. The same goes for shared → client and server → shared → client.
+   - **Vite module graph: not implemented**. Paths that slip past the sbt check (client Scala.js `@JSImport`ing the server's link output, `app/client.ts` importing a server module, etc.)
+     are currently caught only by string checks on the examples' bundles ([roadmap.md](roadmap.md)).
 
-## 3. 公開 API と内部 API
+## 3. Public and internal APIs
 
-| モジュール | 公開 API（互換性を守る） | 内部 API（予告なく変える） |
+| Module | Public API (compatibility is maintained) | Internal API (may change without notice) |
 | --- | --- | --- |
-| hx4s-core | `hx4s.annotation.route`、`hx4s.annotation.islands[P]` の名前・引数の順と名前。JS 側の `hx4s.props.{JsShape, JsKind, JsField}` | — |
-| hx4s-react | `hx4s.react.Island.apply`、`hx4s.react.IslandExport[P]`（`apply` / `unchecked`）と export に付ける検証関数の名前 `hx4sValidate`、`hx4s.hono.Context[Env, R]` / `HonoRequest` / `ExecutionContext` の facade、`ContextVariable[A]`、拡張メソッド `renderPromise` / `executionCtxOption` / `setVariable` / `getVariable` | `HonoXIsland` の facade と `IslandProps`（H1）。`private` にしてある |
-| hx4s-codegen | 設定 case class（3ch の `CodegenConfig` が原型。名前は Phase 3 で確定）、CLI の引数、生成物の形（バナー・ファイル配置・import の別名・`IslandComponents` のメソッド名規則） | `AppEntries` などの中間表現、`AppFileRenderer` のテンプレート関数、`RoutePath` |
-| sbt-hx4s | 設定キー（`hx4s*`）と `hx4sGenerate`・`hx4sIslandComponents`・`hx4sCheckDependencies` タスク | 専用 configuration の名前、隔離実行の方式、codegen との受け渡し（`--output-list`） |
-| hx4s-vite | `hx4s()` プラグイン関数のオプション、`hx4s-vite/client` の `islandPropsProblem`、Node 用 loader のエントリ | 内部で組む Vite 設定の細部（alias の接頭辞など） |
+| hx4s-core | The names, argument order and argument names of `hx4s.annotation.route` and `hx4s.annotation.islands[P]`. On the JS side, `hx4s.props.{JsShape, JsKind, JsField}` | — |
+| hx4s-react | `hx4s.react.Island.apply`, `hx4s.react.IslandExport[P]` (`apply` / `unchecked`) and the name of the validation function attached to exports, `hx4sValidate`, the `hx4s.hono.Context[Env, R]` / `HonoRequest` / `ExecutionContext` facades, `ContextVariable[A]`, the extension methods `renderPromise` / `executionCtxOption` / `setVariable` / `getVariable` | The `HonoXIsland` facade and `IslandProps` (H1). Made `private` |
+| hx4s-codegen | The settings case class (prototyped by 3ch's `CodegenConfig`; the name is fixed in Phase 3), CLI arguments, the shape of generated files (banner, file layout, import aliases, the method naming rule of `IslandComponents`) | Intermediate representations such as `AppEntries`, the template functions of `AppFileRenderer`, `RoutePath` |
+| sbt-hx4s | Setting keys (`hx4s*`) and the tasks `hx4sGenerate`, `hx4sIslandComponents` and `hx4sCheckDependencies` | The name of the dedicated configuration, how isolated execution works, the handoff with codegen (`--output-list`) |
+| hx4s-vite | Options of the `hx4s()` plugin function, `islandPropsProblem` in `hx4s-vite/client`, the Node loader entry points | Details of the Vite settings assembled internally (alias prefixes, etc.) |
 
-生成物の形（TS の import 文、バナー文言）は「公開」に含める。利用者のリポジトリにコミットされるため、変えると差分が全ファイルに出る。
-変える場合はマイナー版を上げ、変更点を CHANGELOG に書く。
+The shape of generated files (TS import statements, banner text) counts as "public". They are committed to users' repositories, so changing them produces diffs in every file.
+When changing them, bump the minor version and describe the change in the CHANGELOG.

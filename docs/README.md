@@ -1,41 +1,43 @@
-# hx4s の文書
+# hx4s documentation
 
-hx4s は、Scala.js から [HonoX](https://github.com/honojs/honox) と React を使うためのメタフレームワーク（0.1 開発中・未公開）。概要は [README](../README.md)。
+English | [日本語](../ja/docs/README.md)
 
-## 利用者向けのガイド
+hx4s is a meta-framework for using [HonoX](https://github.com/honojs/honox) and React from Scala.js (0.1 in development, not published). See the [README](../README.md) for an overview.
 
-| 文書 | 内容 |
+## User guides
+
+| Document | Content |
 | --- | --- |
-| [はじめに](getting-started.md) | `examples/minimal` の動かし方。自分のプロジェクトの作り方（sbt・npm・Vite・Scala のコード） |
-| [インストール](installation.md) | 座標、ローカル公開、版と commit の固定 |
-| [ルーティング](routing.md) | `@route`、ファイルパスと URL、codegen が拒否するもの、`Context` |
-| [Islands](islands.md) | `@islands[P]`、props の trait と使える型、`IslandExport`、`IslandComponents` |
-| [SSR と hydration](ssr-hydration.md) | 描画の流れ、hydrate 前の検証、世代ずれ、server のコードを client に入れない仕組み、テスト |
-| [SPA](spa.md) | SPA の現状（Client Router は未実装）と、今できる構成 |
-| [API](api.md) | API だけのルート、リクエストの読み方、React を使わない構成 |
-| [ビルド設定](build-configuration.md) | sbt のキー、`hx4s()` のオプション、`CodegenMain` の引数、生成ファイルの扱い |
-| [デプロイ](deployment.md) | Cloudflare Workers。ほかの実行基盤は未検証 |
-| [移行](migration.md) | 手書きの Scala.js × HonoX 構成からの移行 |
-| [examples](examples.md) | `examples/minimal`（SSR + Islands）と `examples/api-only`（API だけ）の説明 |
-| [テスト](testing.md) | hx4s 自体のテストの構成と実行方法 |
-| [リリース](release.md) | 版付けと検証の手順。公開の手順は未整備 |
+| [Getting started](getting-started.md) | Running `examples/minimal`. Setting up your own project (sbt, npm, Vite, Scala code) |
+| [Installation](installation.md) | Coordinates, local publishing, pinning the version and commit |
+| [Routing](routing.md) | `@route`, file paths and URLs, what codegen rejects, `Context` |
+| [Islands](islands.md) | `@islands[P]`, the props trait and supported types, `IslandExport`, `IslandComponents` |
+| [SSR and hydration](ssr-hydration.md) | Rendering flow, validation before hydration, version skew, keeping server code out of the client, testing |
+| [SPA](spa.md) | Current state of SPAs (no Client Router yet) and setups possible today |
+| [API](api.md) | API-only routes, reading requests, setups without React |
+| [Build configuration](build-configuration.md) | sbt keys, `hx4s()` options, `CodegenMain` arguments, handling generated files |
+| [Deployment](deployment.md) | Cloudflare Workers. Other runtimes are not verified |
+| [Migration](migration.md) | Migrating from a hand-written Scala.js × HonoX setup |
+| [Examples](examples.md) | `examples/minimal` (SSR + Islands) and `examples/api-only` (API only) |
+| [Testing](testing.md) | How hx4s's own tests are organized and run |
+| [Release](release.md) | Versioning and verification steps. Publishing steps are not yet defined |
 
-関連する文書: [CONTRIBUTING](../CONTRIBUTING.md)、[CHANGELOG](../CHANGELOG.md)。
+Related documents: [CONTRIBUTING](../CONTRIBUTING.md), [CHANGELOG](../CHANGELOG.md).
 
-## 設計と経緯
+## Design and history
 
-[hx4s/](hx4s/README.md) は設計と経緯の文書。利用者がガイドを読むときに必要な部分は、ガイドからリンクしている。
+[hx4s/](hx4s/README.md) holds the design and history documents. The parts users need while reading the guides are linked from the guides.
 
-| 文書 | 内容 |
+| Document | Content |
 | --- | --- |
-| [architecture](hx4s/architecture.md) | 全体像、HonoX との責務分担、HonoX の内部 API への依存箇所 |
-| [module-boundaries](hx4s/module-boundaries.md) | モジュールの境界と依存方向、公開 API と内部 API |
-| [rendering-model](hx4s/rendering-model.md) | 描画方式の位置づけ、hydration の境界、props のシリアライズ、世代ずれ |
-| [routing-design](hx4s/routing-design.md) | `@route` の設計と、型付きルート・Client Router の構想 |
-| [build-integration](hx4s/build-integration.md) | sbt と Vite の統合の設計 |
-| [codegen](hx4s/codegen.md) | codegen の宣言の規則・出力の規則・エラーの形式・設定 |
-| [compatibility](hx4s/compatibility.md) | 依存バージョン、HonoX アルファ版への追従方針、ライセンス |
-| [local-dependency](hx4s/local-dependency.md) | ローカル公開の記録と、利用側での固定の手順 |
-| [roadmap](hx4s/roadmap.md) | 機能の状態（実装済み・構想）と未決事項 |
-| [adr/](hx4s/README.md) | 設計判断の記録（1 判断 1 ファイル） |
-| [reviews/](hx4s/README.md) | 検証とレビューの記録 |
+| [architecture](hx4s/architecture.md) | Overall picture, division of responsibilities with HonoX, places that depend on HonoX's internal APIs |
+| [module-boundaries](hx4s/module-boundaries.md) | Module boundaries and dependency direction, public and internal APIs |
+| [rendering-model](hx4s/rendering-model.md) | Where each rendering mode stands, hydration boundaries, props serialization, version skew |
+| [routing-design](hx4s/routing-design.md) | Design of `@route`, and plans for typed routes and a Client Router |
+| [build-integration](hx4s/build-integration.md) | Design of the sbt and Vite integration |
+| [codegen](hx4s/codegen.md) | Codegen declaration rules, output rules, error format, settings |
+| [compatibility](hx4s/compatibility.md) | Dependency versions, policy for tracking the HonoX alpha, licenses |
+| [local-dependency](hx4s/local-dependency.md) | Local publish records and how to pin them in your project |
+| [roadmap](hx4s/roadmap.md) | Feature status (implemented, planned) and open questions |
+| [adr/](hx4s/README.md) | Records of design decisions (one decision per file) |
+| [reviews/](hx4s/README.md) | Records of verification and reviews |

@@ -7,13 +7,13 @@ class AppFileRendererSuite extends FunSuite {
   private val config = TestConfig()
   private val bodyAfterBanner: String => String = _.linesIterator.drop(config.banner.size).mkString("\n") + "\n"
 
-  test("route ファイルは GET を export default、ほかを named export にし、import は重複させず生成器専用の別名で受ける") {
+  test("route files make GET export default and others named exports, importing once each under generator-specific aliases") {
     val entry = RouteEntry("api/items.ts", List(
       RouteHandler(HttpMethod.PUT, "putHandler"), RouteHandler(HttpMethod.POST, "itemsHandler"), RouteHandler(HttpMethod.GET, "itemsHandler")
     ))
     val expected =
       """import { createRoute as __hx4s_createRoute } from "honox/factory";
-        |// @ts-expect-error scalajs:server.js は仮想モジュール（vite.config.ts参照）。
+        |// @ts-expect-error scalajs:server.js is a virtual module (see vite.config.ts).
         |import { itemsHandler as __hx4s_handler_itemsHandler, putHandler as __hx4s_handler_putHandler } from "scalajs:server.js";
         |
         |export default __hx4s_createRoute((c) => __hx4s_handler_itemsHandler(c));
@@ -23,17 +23,17 @@ class AppFileRendererSuite extends FunSuite {
     assertEquals(bodyAfterBanner(AppFileRenderer.route(entry, config)), expected)
   }
 
-  test("island ファイルは仮想モジュールの export を default export に再公開する") {
+  test("island files re-export the virtual module export as the default export") {
     val rendered = AppFileRenderer.island(IslandEntry("item-view.tsx", "ItemViewJs", "client.js"), config)
     val expected =
-      """// @ts-expect-error scalajs:client.js は @scala-js/vite-plugin-scalajs が解決する仮想モジュール（.d.ts無し）。
+      """// @ts-expect-error scalajs:client.js is a virtual module resolved by @scala-js/vite-plugin-scalajs (no .d.ts).
         |import { ItemViewJs as __hx4s_island } from "scalajs:client.js";
         |export default __hx4s_island;
         |""".stripMargin.replace("\r\n", "\n")
     assertEquals(bodyAfterBanner(rendered), expected)
   }
 
-  test("生成ファイルはすべて設定のバナーで始まり、改行で終わる") {
+  test("every generated file starts with the configured banner and ends with a newline") {
     List(
       AppFileRenderer.route(RouteEntry("x.ts", List(RouteHandler(HttpMethod.GET, "x"))), config),
       AppFileRenderer.island(IslandEntry("x.tsx", "X", "client.js"), config),
@@ -49,7 +49,7 @@ class AppFileRendererSuite extends FunSuite {
     IslandEntry("panel.tsx", "match", "client.js")
   )
 
-  test("SSR 用 API は export と HonoX の識別子を共有し、ファイルパス順に並ぶ") {
+  test("the SSR API shares the export and the HonoX identifier, ordered by file path") {
     val source = AppFileRenderer.islandComponents(entries, config)
     assertEquals(AppFileRenderer.islandComponents(entries.reverse, config), source)
     val tree = dialects.Scala3(source).parse[Source].get
@@ -67,7 +67,7 @@ class AppFileRendererSuite extends FunSuite {
     assert(!source.contains("@JSImport(\"/app/islands"))
   }
 
-  test("island が無ければ空の object だけを出す") {
+  test("with no islands, only an empty object is output") {
     val source = AppFileRenderer.islandComponents(Nil, config)
     val tree = dialects.Scala3(source).parse[Source].get
     assertEquals(tree.collect { case obj: Defn.Object => obj.name.value }, List("Islands"))

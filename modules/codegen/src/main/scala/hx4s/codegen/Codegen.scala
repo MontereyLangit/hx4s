@@ -6,19 +6,19 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import scala.util.Try
 
-/** 設定に従ってソースを読み、route / island の TS ファイルと SSR 用 Scala API を生成する */
+/** Reads sources according to the settings and generates route / island TS files and the Scala API for SSR */
 object Codegen {
 
-  /** route と island の TS ファイルを書く。古い生成ファイルは消す。ソースが空なら出力も空にする */
+  /** Writes route and island TS files and deletes stale generated files. Empty sources produce empty output */
   def appFiles(config: CodegenConfig): Result[WriteSummary] =
     appOutputs(config).flatMap { files =>
       OutputWriter.write(files, List(config.routeRoot, config.islandRoot), config.generatedMarker, config.projectRoot)
     }
 
-  /** route と island の TS ファイルの内容 */
+  /** Contents of the route and island TS files */
   def appOutputs(config: CodegenConfig): Result[List[GeneratedFile]] =
     validate(config).flatMap { _ =>
-      // server と client の誤りをまとめて返す
+      // Return server and client errors together
       val routes = scan(config, config.serverSources, AnnotationScanner.routes)
       val islands = scan(config, config.clientSources, AnnotationScanner.islands)
       (routes, islands) match {
@@ -29,7 +29,7 @@ object Codegen {
       }
     }
 
-  /** SSR 用 Scala API。入力は client のソースだけ */
+  /** The Scala API for SSR. Its only input is the client sources */
   def islandComponents(config: CodegenConfig): Result[WriteSummary] =
     for {
       _ <- validate(config)
@@ -40,7 +40,7 @@ object Codegen {
       summary <- OutputWriter.write(List(file), Nil, config.generatedMarker, config.projectRoot)
     } yield summary
 
-  /** 設定の値を確かめる。生成ソースへ埋め込む値は識別子・パスとして使える文字に限る。誤りはまとめて返す */
+  /** Validates the settings. Values embedded in generated sources are limited to characters usable in identifiers and paths. Errors are returned together */
   def validate(config: CodegenConfig): Result[Unit] = {
     val identifier = "[A-Za-z_][A-Za-z0-9_]*"
     def scalaName(value: String): Boolean = value.matches(identifier) && !ScalaKeywords(value)
@@ -73,14 +73,14 @@ object Codegen {
   private val UrlPrefix = "[A-Za-z0-9_@./:~-]*"
   private[codegen] val LineTerminators: Set[Char] = Set('\n', '\r', '\u2028', '\u2029')
 
-  /** Scala 3 の予約語。生成する package・object 名と、生成コードが参照する完全修飾名の各部に使えない */
+  /** Scala 3 reserved words. Not allowed in the generated package and object names or in any part of fully qualified names the generated code references */
   private val ScalaKeywords = Set(
     "abstract", "case", "catch", "class", "def", "do", "else", "enum", "export", "extends", "false", "final", "finally", "for",
     "given", "if", "implicit", "import", "lazy", "match", "new", "null", "object", "override", "package", "private", "protected",
     "return", "sealed", "super", "then", "throw", "trait", "true", "try", "type", "val", "var", "while", "with", "yield"
   )
 
-  /** 読めたソースを scanner に渡し、読めなかったソースの誤りと合わせて返す */
+  /** Passes the readable sources to the scanner and returns the result together with errors for unreadable sources */
   private def scan[A](config: CodegenConfig, sources: List[String], scanner: (List[(String, String)], CodegenConfig) => Result[A]): Result[A] = {
     val (errors, texts) = CodegenError.partition(sources.map { source =>
       Try(Files.readString(config.projectRoot.resolve(source), StandardCharsets.UTF_8)).toEither

@@ -1,39 +1,39 @@
-# hx4s 設計文書
+# hx4s design documents
 
-利用者向けのガイド（使い方・設定・API）は [../README.md](../README.md)。この下は設計と経緯の文書。
+English | [日本語](../../ja/docs/hx4s/README.md)
 
-hx4s は、2ch 互換掲示板「3ch」の Scala.js × HonoX 連携基盤を独立した OSS メタフレームワークとして切り出す計画である。
-Phase 0（設計）で書き、Phase 3（hx4s リポジトリへの分離、2026-11-16）で実装に合わせて更新した。実装の状態は [roadmap.md](roadmap.md) を参照。記述中の「現行実装」は 3ch リポジトリ
-（`ch3s`、2026-11-16 時点。調査基準 commit `875a47b`。3ch の Phase 1 / 2 は進行中で作業ツリーは変わりうる）を指す。
+The user guides (usage, settings, API) are in [../README.md](../README.md). The documents below cover design and history.
 
-| 文書 | 内容 |
+hx4s is the plan to extract the Scala.js × HonoX integration layer of "3ch", a 2ch-compatible bulletin board, into an independent OSS meta-framework.
+These were written in Phase 0 (design) and updated to match the implementation in Phase 3 (splitting into the hx4s repository, 2026-11-16). See [roadmap.md](roadmap.md) for the implementation status. "Current implementation" in these documents refers to the 3ch repository
+(`ch3s`, as of 2026-11-16; reference commit `875a47b` for the investigation. 3ch's Phases 1 / 2 are in progress and the working tree may change).
+
+| Document | Content |
 | --- | --- |
-| [architecture.md](architecture.md) | 3ch の現行実装の調査結果、hx4s の全体像、HonoX との責務分担、HonoX 内部 API への依存箇所 |
-| [module-boundaries.md](module-boundaries.md) | フレームワークと掲示板固有コードのファイル単位の分類、依存方向、公開 API と内部 API |
-| [extraction-plan.md](extraction-plan.md) | Phase 0〜5 の手順・検証条件・完了条件、移動ファイルの対応表 |
-| [rendering-model.md](rendering-model.md) | 描画方式の位置づけ、Hydration 境界、Props のシリアライズ制約、型付き Props 方式の比較 |
-| [routing-design.md](routing-design.md) | `@route` の現状と拡張方針、検証範囲、型付きルート・Client Router の P1 案 |
-| [build-integration.md](build-integration.md) | sbt + Vite の現状、hx4s-vite と sbt-hx4s の責務、codegen・CLI の方式比較 |
-| [compatibility.md](compatibility.md) | 依存バージョン、HonoX アルファ版への追従方針、ライセンス |
-| [roadmap.md](roadmap.md) | P0 / P1 / P2 の機能と状態、未決事項 |
-| [codegen.md](codegen.md) | hx4s-codegen の宣言の規則・出力の規則・エラーの形式・設定 |
-| [local-dependency.md](local-dependency.md) | ローカル公開の記録と照合、利用側で版と commit を固定する手順とセットアップスクリプトの例 |
-| [reviews/phase0-review.md](reviews/phase0-review.md) | Phase 0 のレビュー記録（セルフレビューと Codex CLI の指摘、反映先） |
-| [reviews/phase3-review.md](reviews/phase3-review.md) | Phase 3 の検証結果とセルフレビュー |
-| [reviews/phase4-feedback.md](reviews/phase4-feedback.md) | 最初の利用側の移行（Phase 4）と Codex の指摘への対応 |
-| [reviews/final-review.md](reviews/final-review.md) | `d133d7c..95d77c2` の最終レビュー（Codex・IntelliJ inspect）の指摘と対応、修正後の検証 |
+| [architecture.md](architecture.md) | Findings from investigating 3ch's current implementation, the overall picture of hx4s, division of responsibilities with HonoX, places that depend on HonoX's internal APIs |
+| [module-boundaries.md](module-boundaries.md) | File-level classification of framework and bulletin-board-specific code, dependency direction, public and internal APIs |
+| [extraction-plan.md](extraction-plan.md) | Steps, verification conditions and completion criteria for Phases 0–5, the mapping of moved files |
+| [rendering-model.md](rendering-model.md) | Where each rendering mode stands, hydration boundaries, constraints on props serialization, comparison of typed props approaches |
+| [routing-design.md](routing-design.md) | Current state and extension policy of `@route`, scope of verification, P1 proposals for typed routes and a Client Router |
+| [build-integration.md](build-integration.md) | Current state of sbt + Vite, responsibilities of hx4s-vite and sbt-hx4s, comparison of codegen and CLI approaches |
+| [compatibility.md](compatibility.md) | Dependency versions, policy for tracking the HonoX alpha, licenses |
+| [roadmap.md](roadmap.md) | P0 / P1 / P2 features and their status, open questions |
+| [codegen.md](codegen.md) | hx4s-codegen declaration rules, output rules, error format, settings |
+| [local-dependency.md](local-dependency.md) | Local publish records and verification, steps for pinning the version and commit in a user project, and an example setup script |
+| [reviews/phase3-review.md](reviews/phase3-review.md) | Phase 3 verification results and self-review |
+| [reviews/phase4-feedback.md](reviews/phase4-feedback.md) | The first user migration (Phase 4) and responses to Codex's findings |
 
-ADR（1 判断 1 ファイル）:
+ADRs (one decision per file):
 
-| ADR | 判断 |
+| ADR | Decision |
 | --- | --- |
-| [0001](adr/0001-name-and-coordinates.md) | 名前と公開座標（`hx4s`、`hx4s.*`、`io.github.montereylangit`、`hx4s-vite`） |
-| [0002](adr/0002-initial-modules.md) | 初期モジュール構成（core / react / codegen / sbt-hx4s / hx4s-vite / examples） |
-| [0003](adr/0003-typed-island-props.md) | 型付き Props は非ネイティブ JS trait + `@islands[P]` |
-| [0004](adr/0004-scalameta-codegen.md) | コード生成は scalameta の構文解析を継続する |
-| [0005](adr/0005-core-independent-of-cloudflare.md) | Core は Cloudflare 固有 API に依存しない |
-| [0006](adr/0006-one-way-dependency-and-local-publish.md) | 3ch → hx4s の一方向依存と、分離直後のローカル依存 |
-| [0007](adr/0007-props-validation-and-typed-export.md) | props の検証は hx4s-core の JS 側、typed export は hx4s-react の `IslandExport[P]` |
+| [0001](adr/0001-name-and-coordinates.md) | Name and publishing coordinates (`hx4s`, `hx4s.*`, `io.github.montereylangit`, `hx4s-vite`) |
+| [0002](adr/0002-initial-modules.md) | Initial module structure (core / react / codegen / sbt-hx4s / hx4s-vite / examples) |
+| [0003](adr/0003-typed-island-props.md) | Typed props are non-native JS traits + `@islands[P]` |
+| [0004](adr/0004-scalameta-codegen.md) | Keep using scalameta syntax analysis for code generation |
+| [0005](adr/0005-core-independent-of-cloudflare.md) | Core does not depend on Cloudflare-specific APIs |
+| [0006](adr/0006-one-way-dependency-and-local-publish.md) | One-way dependency 3ch → hx4s, and local dependencies right after the split |
+| [0007](adr/0007-props-validation-and-typed-export.md) | Props validation in the JS side of hx4s-core, typed export as `IslandExport[P]` in hx4s-react |
 
-前提となる進め方（スクラッチ再実装をしない、3ch で改善・検証してから切り出す）は
-[extraction-plan.md](extraction-plan.md) に、Effect System・DI を必須にしない方針は [architecture.md](architecture.md) の 3.4 に書いた。
+The underlying approach (no from-scratch reimplementation; improve and verify in 3ch before extracting) is in
+[extraction-plan.md](extraction-plan.md), and the policy of not requiring an Effect System or DI is in section 3.4 of [architecture.md](architecture.md).

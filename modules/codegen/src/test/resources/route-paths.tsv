@@ -1,4 +1,4 @@
-# route 出力ディレクトリからの相対パス<TAB>HonoX の createApp が登録する URL パターン。RoutePathSuite と tests/route-paths.test.js が同じ表を使う
+# Path relative to the route output directory<TAB>URL pattern HonoX createApp registers. RoutePathSuite and tests/route-paths.test.js share this table
 index.ts	/
 about.ts	/about
 a.b.ts	/a.b

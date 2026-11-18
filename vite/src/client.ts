@@ -1,4 +1,4 @@
-/** createClient の hydrate に渡される要素の形。React の ReactElement はこれに当てはまる */
+/** The shape of the element passed to createClient's hydrate. React's ReactElement fits it */
 export interface IslandElement {
   readonly type: unknown;
   readonly props: unknown;
@@ -38,8 +38,8 @@ function problemInValue(value: unknown, path: string): string | undefined {
 }
 
 /**
- * hydrate する前に、island と、要素 props（HonoX が template から復元する子）に含まれる island の props を確かめる。
- * hx4s.react.IslandExport が付けた検証関数が理由を返したら、その最初のものを返す。問題が無ければ undefined。
+ * Before hydrating, checks the props of the island and of islands contained in its element props (children HonoX restores from templates).
+ * Returns the first reason returned by a validation function attached by hx4s.react.IslandExport, or undefined if there is no problem.
  */
 export function islandPropsProblem(element: IslandElement): string | undefined {
   return problemIn(element, "");

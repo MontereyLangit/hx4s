@@ -1,205 +1,205 @@
-# 分離計画
+# Extraction plan
 
-## 1. 進め方
+## 1. Approach
 
-**3ch 内で改善 → 3ch で検証 → 3ch 内で汎用化 → hx4s へ分離 → 3ch を hx4s の利用側へ移行** の順に進める。
-スクラッチでの再実装はしない。
+Proceed in the order **improve within 3ch → verify in 3ch → generalize within 3ch → split into hx4s → migrate 3ch to being a user of hx4s**.
+No from-scratch reimplementation.
 
-理由:
+Reasons:
 
-- 現行の連携基盤は 3ch の本番で動いており、`tests/islands-*.test.js` などの検証も揃っている。動いているコードを移す方が、作り直すより壊れにくい。
-- 改善（型付き Props、生成の安全性）を先に 3ch で行えば、本番の画面で検証できる。分離後に改善すると、hx4s と 3ch の 2 か所で同時に直すことになる。
-- 3ch 内で汎用化（パッケージ・設定値の切り出し）まで済ませておけば、分離の作業は「ファイルの移動とビルド設定の差し替え」に近づき、差分を追いやすい。
+- The current integration layer runs in 3ch's production, and verification such as `tests/islands-*.test.js` is in place. Moving working code is less likely to break than rebuilding it.
+- If improvements (typed props, generation safety) are made first in 3ch, they can be verified on the production screens. Improving after the split would mean fixing two places, hx4s and 3ch, at the same time.
+- If generalization (extracting packages and settings) is finished within 3ch, the split itself becomes close to "moving files and swapping build settings", and the diffs are easier to follow.
 
-却下した進め方:
+Rejected approaches:
 
-| 案 | 却下理由 |
+| Alternative | Reason for rejection |
 | --- | --- |
-| hx4s をスクラッチで書き、3ch を後から載せ替える | 3ch の本番で検証済みの挙動（入れ子 island、要素 props、KB-27 の分離）を再発見する手間がかかる。移行時に挙動差が出ても原因を切り分けにくい |
-| 先に hx4s へ移してから改善する | 改善のたびに hx4s と 3ch の両方の版を合わせる必要がある。ローカル依存の期間が長くなる |
-| 3ch の中に置いたまま公開する（モノレポ） | 3ch の掲示板固有のコード・秘匿設定と同じリポジトリになり、公開の範囲を管理しにくい |
+| Write hx4s from scratch and port 3ch onto it later | Behavior already verified in 3ch's production (nested islands, element props, the KB-27 separation) would have to be rediscovered. Behavior differences during migration would be hard to isolate |
+| Move to hx4s first and improve afterwards | Every improvement would require aligning the versions of both hx4s and 3ch. The period of local dependencies would be longer |
+| Publish while keeping it inside 3ch (monorepo) | It would share a repository with 3ch's bulletin-board-specific code and secret settings, making the scope of what is published hard to manage |
 
-## 2. Phase 一覧
+## 2. Phases
 
-| Phase | 内容 | 作業場所 |
+| Phase | Content | Where |
 | --- | --- | --- |
-| 0 | 設計（この文書群） | hx4s |
-| 1 | 3ch 内で改善 | 3ch |
-| 2 | 3ch 内で汎用化（`io._3ch.codegen.framework` への分離と設定 case class 化。パッケージの `hx4s.*` への改名は Phase 3） | 3ch |
-| 3 | hx4s リポジトリへ移動し、`hx4s.*` へ改名する。`examples/minimal` を作る | hx4s |
-| 4 | 3ch を hx4s の利用側へ移行（ローカル依存） | 3ch |
-| 5 | 公開の準備（CI での依存解決、ライセンス、版付け、公開） | hx4s / 3ch |
+| 0 | Design (these documents) | hx4s |
+| 1 | Improve within 3ch | 3ch |
+| 2 | Generalize within 3ch (split into `io._3ch.codegen.framework` and turn settings into a case class; renaming the packages to `hx4s.*` is Phase 3) | 3ch |
+| 3 | Move to the hx4s repository and rename to `hx4s.*`. Create `examples/minimal` | hx4s |
+| 4 | Migrate 3ch to being a user of hx4s (local dependencies) | 3ch |
+| 5 | Prepare for publishing (dependency resolution in CI, license, versioning, publishing) | hx4s / 3ch |
 
-### Phase 0: 設計
+### Phase 0: Design
 
-- 作業: 本文書群と ADR を書く。3ch には書き込まない。
-- 完了条件: `docs/hx4s/` の文書が揃い、相互リンクが正しい。hx4s の `develop` に 1 コミット。
+- Work: write these documents and the ADRs. Nothing is written to 3ch.
+- Completion criteria: the documents in `docs/hx4s/` are complete and cross-links are correct. One commit on hx4s's `develop`.
 
-### Phase 1: 3ch 内で改善
+### Phase 1: Improve within 3ch
 
-3ch のパッケージ名・構成のまま、hx4s に持ち込みたい改善を行う。各項目は独立したコミットにする。
+Make the improvements to bring into hx4s, keeping 3ch's package names and structure. Each item is a separate commit.
 
-| # | 作業 | 根拠 |
+| # | Work | Basis |
 | --- | --- | --- |
-| 1-1 | 型付き Props: `@islands[P]`、生成 API `IslandComponents.Xxx(props: P)`、`io._3ch.common.islands` の trait と `validate`。板トップの 3 island から置き換える | [ADR 0003](adr/0003-typed-island-props.md)、3ch `docs/island-props型付け計画.md` |
-| 1-2 | `@route` の検査強化: `HEAD` の拒否、HonoX が無視するファイル名の拒否、URL パターンの衝突検出 | [routing-design.md](routing-design.md) 2.2 |
-| 1-3 | 書き出し規則: 内容が同じなら書かない、改行の正規化、出力ルート外の拒否（正規化後のパス）、書き込み前の全検査 | [build-integration.md](build-integration.md) 3.3 |
-| 1-4 | `RouteTable` の分割: `publicPatterns` を 3ch のドメイン側へ、テンプレートを `codegen` へ。`RouteKind.PassThrough` の整理 | [module-boundaries.md](module-boundaries.md) 1.2 |
-| 1-5 | ハンドラの型: `c: js.Any` + `asInstanceOf` をやめ、`HonoContextFacade` を引数型にする | [routing-design.md](routing-design.md) 3 章 |
-| 1-6 | 3ch の文書の食い違いを直す（`handler-rendering.md`、`islands-ssr.md` の版と例、`client-build-review.md` のマーカー名、`AGENTS.md` の手書きルートと管理画面の記述） | [architecture.md](architecture.md) 2.5 |
+| 1-1 | Typed props: `@islands[P]`, the generated API `IslandComponents.Xxx(props: P)`, the traits and `validate` in `io._3ch.common.islands`. Replace starting with the 3 islands of the board top | [ADR 0003](adr/0003-typed-island-props.md), 3ch `docs/island-props型付け計画.md` |
+| 1-2 | Stricter `@route` checks: reject `HEAD`, reject file names HonoX ignores, detect URL pattern conflicts | [routing-design.md](routing-design.md) 2.2 |
+| 1-3 | Output rules: skip identical content, normalize line endings, reject paths outside the output root (after normalization), all checks before writing | [build-integration.md](build-integration.md) 3.3 |
+| 1-4 | Split `RouteTable`: `publicPatterns` to 3ch's domain side, templates to `codegen`. Clean up `RouteKind.PassThrough` | [module-boundaries.md](module-boundaries.md) 1.2 |
+| 1-5 | Handler types: stop using `c: js.Any` + `asInstanceOf`, and make `HonoContextFacade` the argument type | [routing-design.md](routing-design.md) chapter 3 |
+| 1-6 | Fix discrepancies in 3ch's documents (`handler-rendering.md`, the version and examples in `islands-ssr.md`, the marker name in `client-build-review.md`, the descriptions of hand-written routes and the admin screen in `AGENTS.md`) | [architecture.md](architecture.md) 2.5 |
 
-検証条件:
+Verification conditions:
 
-- `sbt test`、`npm run v6:build`、`npm run v6:typecheck`、`npm test` が成功する。
-- 板トップの `data-serialized-props` の形が変わる island（`board-details` の入れ子化）について、SSR と hydration のテストが期待値を更新したうえで通る。
-- 再生成を 2 回続けて実行し、2 回目にファイルの更新時刻が変わらない（1-3）。
-- 3ch の公開プロトコル（dat、subject.txt、Shift_JIS、エラーマーカー）・ストレージに差分が無い（3ch AGENTS.md 3.2）。
+- `sbt test`, `npm run v6:build`, `npm run v6:typecheck` and `npm test` succeed.
+- For islands whose `data-serialized-props` shape changes on the board top (nesting of `board-details`), the SSR and hydration tests pass with updated expectations.
+- Running regeneration twice in a row leaves the files' modification times unchanged the second time (1-3).
+- No diffs in 3ch's public protocol (dat, subject.txt, Shift_JIS, error markers) or storage (3ch AGENTS.md 3.2).
 
-完了条件: 上の 6 項目が済み、ローカルのビルドと全テスト（`sbt test`、`npm run v6:build`、`npm run v6:typecheck`、`npm test`）が通る。
-今回の作業ではデプロイしない。3ch の `develop` へのマージと本番反映は 3ch 側の判断（ユーザー判断）に委ねる。
+Completion criteria: the six items above are done, and the local build and all tests (`sbt test`, `npm run v6:build`, `npm run v6:typecheck`, `npm test`) pass.
+No deployment is done in this work. Merging into 3ch's `develop` and releasing to production are left to 3ch's decision (the user's decision).
 
-状況（調査基準 commit `875a47b`、[architecture.md](architecture.md) 1 章）: Phase 1 / 2 は 3ch で進行中で、作業ツリーは変わりうる。
-1-3 の一部（内容が同じなら書かない、改行の正規化、全検査後に書く）、Phase 2 の生成器の `framework` パッケージ化と設定 case class 化（2-3、2-4）、
-`IslandComponents` の `src_managed` への生成（[build-integration.md](build-integration.md) 3.3、U-9）は既に 3ch に入っている。
-1-4 は生成テンプレートの `codegen` への移動までが済んでいる（`publicPatterns` は `RouteTable` に残る）。1-1（型付き Props）・1-2（`@route` の検査強化）・1-5・1-6 は未了である。着手時に 3ch の現状を読み直して確かめる。
+Status (reference commit `875a47b`, [architecture.md](architecture.md) chapter 1): Phases 1 / 2 are in progress in 3ch, and the working tree may change.
+Part of 1-3 (skipping identical content, normalizing line endings, writing after all checks), turning the generators into the `framework` package and settings into a case class in Phase 2 (2-3, 2-4),
+and generating `IslandComponents` into `src_managed` ([build-integration.md](build-integration.md) 3.3, U-9) are already in 3ch.
+1-4 is done up to moving the generation templates to `codegen` (`publicPatterns` remains in `RouteTable`). 1-1 (typed props), 1-2 (stricter `@route` checks), 1-5 and 1-6 are not done. Re-read 3ch's current state when starting.
 
-### Phase 2: 3ch 内で汎用化
+### Phase 2: Generalize within 3ch
 
-3ch のビルドの中で、hx4s に移す部分を「3ch 固有の名前を持たない形」にまで整える。**`hx4s/` ディレクトリは作らず、パッケージも `io._3ch.*` のまま**進める。
-`hx4s.*` への改名はファイルの移動と同時に Phase 3 で行う（改名だけの差分を 3ch に残すと、全ファイルを 2 度書き換えることになるため）。
+Within 3ch's build, bring the parts to be moved to hx4s into "a form without 3ch-specific names". **Don't create an `hx4s/` directory, and keep the packages as `io._3ch.*`.**
+Renaming to `hx4s.*` is done in Phase 3 together with moving the files (leaving a rename-only diff in 3ch would mean rewriting every file twice).
 
-3ch の現在の状態（`875a47b` 時点）:
+3ch's current state (as of `875a47b`):
 
-- 生成器の汎用部分は `codegen/src/main/scala/io/_3ch/codegen/framework/` にある（`AnnotationScanner`・`AppEntries`・`AppFileRenderer`・`Codegen`・`CodegenConfig`・`CodegenError`・`CodegenReport`・`OutputPath`・`OutputWriter`）。
-- 3ch 固有の値（入力パス、moduleID、出力先、パッケージ、bridge の完全修飾名、バナー）は `GenerateAppFiles.config` が `CodegenConfig` として渡す。
-- DO の TS 型・RPC スタブの生成は `codegen/.../` 直下に残る（3ch 固有）。
+- The generic parts of the generator are in `codegen/src/main/scala/io/_3ch/codegen/framework/` (`AnnotationScanner`, `AppEntries`, `AppFileRenderer`, `Codegen`, `CodegenConfig`, `CodegenError`, `CodegenReport`, `OutputPath`, `OutputWriter`).
+- 3ch-specific values (input paths, moduleIDs, output directories, package, fully qualified name of the bridge, banner) are passed as a `CodegenConfig` by `GenerateAppFiles.config`.
+- Generation of DO TS types and RPC stubs remains directly under `codegen/.../` (3ch-specific).
 
-| # | 作業 | 状況 |
+| # | Work | Status |
 | --- | --- | --- |
-| 2-1 | `RouteTable.publicPatterns` を 3ch 側へ分け、アノテーションに `islands[P]` の型引数を足す（1-1、1-4）。アノテーション自体（`common/.../routes/Annotations.scala`）は Phase 3 で `hx4s.annotation.{route, islands}` へ移す | 一部 |
-| 2-2 | `Island`・Hono Context facade の Env / Props の型引数化。3ch は `HonoContext[WorkerEnv]` のような別名で受ける | 進行中（`HonoContext` / `HonoContextFacade` に分ける作業ツリー上の変更あり） |
-| 2-3 | アノテーション走査・テンプレート・書き出し・`IslandComponents` 生成を `framework` パッケージへ分け、設定を `CodegenConfig` にする | 入っている（`875a47b`） |
-| 2-4 | 3ch の `codegen` は DO の生成器と、`framework` を設定付きで呼ぶ薄い main（`GenerateAppFiles`）だけにする | 入っている（`875a47b`） |
-| 2-5 | `vite.config.ts` の `scalaProject`・alias・`honox()` の React 設定・client ビルド設定を、3ch に依存しない関数として `vite.config.ts` の外へ切り出す。Tailwind と Cloudflare の設定は 3ch に残す | 未着手 |
-| 2-6 | Node 用 loader を分ける: `scalajs:client.js` と `hono/jsx` の置換、`cloudflare:workers` のスタブを別ファイルにする。`CH3S_CLIENT_JS_DIR` を中立な名前に改める | 未着手 |
-| 2-7 | `tests/islands-bridge.test.js` と `tests/islands-hydration.test.js` を、3ch の `vite.config.ts` と `bbs` のテスト用 export に依存しない形にする | 未着手 |
-| 2-8 | 汎用部分（`framework` パッケージ、切り出した TS・loader・テスト）に `io._3ch`・`ch3s`・`3ch`・`bbs` の文字列が無いことを検査するテストを足す（grep で十分）。設定値として渡す文字列は対象外 | 未着手 |
+| 2-1 | Split `RouteTable.publicPatterns` off to the 3ch side, and add the type parameter of `islands[P]` to the annotation (1-1, 1-4). The annotations themselves (`common/.../routes/Annotations.scala`) move to `hx4s.annotation.{route, islands}` in Phase 3 | Partial |
+| 2-2 | Make Env / Props of `Island` and the Hono Context facade type parameters. 3ch receives them through aliases like `HonoContext[WorkerEnv]` | In progress (working tree changes splitting into `HonoContext` / `HonoContextFacade`) |
+| 2-3 | Split annotation scanning, templates, output and `IslandComponents` generation into the `framework` package, with settings in `CodegenConfig` | Done (`875a47b`) |
+| 2-4 | Reduce 3ch's `codegen` to the DO generators and a thin main (`GenerateAppFiles`) that calls `framework` with settings | Done (`875a47b`) |
+| 2-5 | Extract `scalaProject`, the alias, `honox()`'s React settings and the client build settings from `vite.config.ts` as functions that don't depend on 3ch. Tailwind and Cloudflare settings stay in 3ch | Not started |
+| 2-6 | Split the Node loader: put the replacement of `scalajs:client.js` and `hono/jsx`, and the `cloudflare:workers` stub, in separate files. Rename `CH3S_CLIENT_JS_DIR` to a neutral name | Not started |
+| 2-7 | Make `tests/islands-bridge.test.js` and `tests/islands-hydration.test.js` independent of 3ch's `vite.config.ts` and `bbs`'s test exports | Not started |
+| 2-8 | Add a test checking that the generic parts (the `framework` package and the extracted TS, loader and tests) contain no `io._3ch`, `ch3s`, `3ch` or `bbs` strings (grep is enough). Strings passed as settings are excluded | Not started |
 
-この段階では sbt plugin は作らない。3ch の `build.sbt` から `codegen` を `runMain` で呼ぶ現行の方式を続ける。
+No sbt plugin is created at this stage. Keep the current approach of calling `codegen` with `runMain` from 3ch's `build.sbt`.
 
-検証条件:
+Verification conditions:
 
-- Phase 1 の検証条件をすべて満たす。
-- 生成物（`app/routes`・`app/islands`・`IslandComponents.scala`）が、Phase 1 完了時と同一。
-- 2-8 の検査が通る。
-- `framework` パッケージのテストが、3ch のソース（`bbs`・`bbs-client`・`common`）を参照せずに通る。
+- All Phase 1 verification conditions are met.
+- The generated files (`app/routes`, `app/islands`, `IslandComponents.scala`) are identical to those at the end of Phase 1.
+- The 2-8 check passes.
+- The tests of the `framework` package pass without referencing 3ch's sources (`bbs`, `bbs-client`, `common`).
 
-完了条件: 上の項目が済み、ローカルのビルドと全テストが通る。マージとデプロイは Phase 1 と同じく 3ch 側の判断に委ねる。
+Completion criteria: the items above are done, and the local build and all tests pass. Merging and deployment are left to 3ch's decision, as in Phase 1.
 
-### Phase 3: hx4s リポジトリへ分離
+### Phase 3: Split into the hx4s repository
 
-| # | 作業 |
+| # | Work |
 | --- | --- |
-| 3-1 | 3ch の `codegen/.../framework/` と、2-2・2-5・2-6・2-7 で切り出した Scala / TS / loader / テストを hx4s リポジトリへ移し、**同時に** パッケージを `hx4s.*` へ、設定の 3ch 既定値を hx4s の既定値へ改名する。履歴を引き継ぐか（`git filter-repo` など）は未決事項 U-5。移動対象は 3 章の対応表 |
-| 3-2 | hx4s の `build.sbt` を作る。モジュール名・organization・Scala の版（3.3 LTS）を [ADR 0001](adr/0001-name-and-coordinates.md)・[ADR 0002](adr/0002-initial-modules.md) どおりにする |
-| 3-3 | `sbt-hx4s` を作る。設定キー・`hx4sGenerate`・専用 configuration での `hx4s-codegen` 解決と fork 実行（[build-integration.md](build-integration.md) 3.2） |
-| 3-4 | `hx4s-vite` を npm パッケージにする（`package.json`、型定義、`node-loader`） |
-| 3-1a | typed export 補助の設計と実装（client の export を `@islands[P]` の `P` に結び付ける。[ADR 0003](adr/0003-typed-island-props.md)、U-24） |
-| 3-5 | `examples/minimal` を作る。静的ページと動的ルート `[id]`、POST の `@route`、island 2 つ（型付き Props。同じ island の複数インスタンス、配列・入れ子・日本語の props）。実行基盤は Cloudflare Workers（`@hono/vite-build/cloudflare-workers` + wrangler）を既定にする（下記） |
-| 3-6 | hx4s の CI: `sbt test`、`sbt publishLocal`、`examples/minimal` のビルドと互換性テスト（[compatibility.md](compatibility.md) 3 章） |
+| 3-1 | Move 3ch's `codegen/.../framework/` and the Scala / TS / loader / tests extracted in 2-2, 2-5, 2-6 and 2-7 to the hx4s repository, and **at the same time** rename the packages to `hx4s.*` and the 3ch defaults of the settings to hx4s defaults. Whether to carry over history (`git filter-repo`, etc.) is open question U-5. The files to move are in the mapping in chapter 3 |
+| 3-2 | Create hx4s's `build.sbt`. Module names, organization and Scala version (3.3 LTS) follow [ADR 0001](adr/0001-name-and-coordinates.md) and [ADR 0002](adr/0002-initial-modules.md) |
+| 3-3 | Create `sbt-hx4s`. Setting keys, `hx4sGenerate`, resolving `hx4s-codegen` through a dedicated configuration and running it in a fork ([build-integration.md](build-integration.md) 3.2) |
+| 3-4 | Make `hx4s-vite` an npm package (`package.json`, type definitions, `node-loader`) |
+| 3-1a | Design and implement the typed export helper (tying the client export to the `P` of `@islands[P]`; [ADR 0003](adr/0003-typed-island-props.md), U-24) |
+| 3-5 | Create `examples/minimal`. A static page and the dynamic route `[id]`, a POST `@route`, two islands (typed props; multiple instances of the same island, props with arrays, nesting and Japanese). The default runtime is Cloudflare Workers (`@hono/vite-build/cloudflare-workers` + wrangler) (below) |
+| 3-6 | hx4s's CI: `sbt test`, `sbt publishLocal`, building `examples/minimal` and the compatibility tests ([compatibility.md](compatibility.md) chapter 3) |
 
-3-5 の実行基盤は、Phase 0 の案（Node アダプタ）から Cloudflare Workers に変えた（Phase 3 の作業指示による）。理由: 最初の利用者（3ch）が Workers で動いており、
-同じ組み合わせ（`@hono/vite-build/cloudflare-workers`、Static Assets、workerd）を hx4s の側でも検証できる。Cloudflare に依存するのは examples の
-`vite.config.ts`・`wrangler.jsonc`・テストの起動だけで、hx4s のモジュールは Cloudflare の API を参照しない（[ADR 0005](adr/0005-core-independent-of-cloudflare.md)）。
-ビルドした Worker は Node からも `fetch` を呼べるので、SSR・POST のテストは Node で、実ブラウザの E2E は `wrangler dev` で行う。
+The runtime for 3-5 changed from the Phase 0 proposal (the Node adapter) to Cloudflare Workers (per the Phase 3 work instructions). Reason: the first user (3ch) runs on Workers,
+and the same combination (`@hono/vite-build/cloudflare-workers`, Static Assets, workerd) can be verified on the hx4s side too. Only the examples'
+`vite.config.ts`, `wrangler.jsonc` and test startup depend on Cloudflare; hx4s's modules don't reference Cloudflare APIs ([ADR 0005](adr/0005-core-independent-of-cloudflare.md)).
+The built Worker's `fetch` can also be called from Node, so SSR and POST tests run on Node, and real-browser E2E runs on `wrangler dev`.
 
-Phase 3 の実施結果（2026-11-16）: 3-1〜3-6 と 3-1a を実装した。U-5（履歴の引き継ぎ）は見送り、ファイルを移して改名したコミットとして入れた
-（移動元の履歴に秘匿値を含みうるため。移動元の commit は各コミットの本文に書いていない）。検証の結果と既知の問題は [reviews/phase3-review.md](reviews/phase3-review.md)。
+Phase 3 results (2026-11-16): 3-1 through 3-6 and 3-1a were implemented. U-5 (carrying over history) was skipped, and the files went in as commits that moved and renamed them
+(because the original history may contain secrets. The original commits are not mentioned in each commit's body). Verification results and known issues are in [reviews/phase3-review.md](reviews/phase3-review.md).
 
-検証条件:
+Verification conditions:
 
-- `examples/minimal` が、hx4s を `publishLocal` と npm の `file:` で参照してビルドでき、SSR と hydration のテストが通る。
-- `examples/minimal` と hx4s の全モジュールに 3ch への参照が無い（2-8 と同じ検査）。
-- 型付き Props の保証範囲を確かめる負のテスト（server の呼び出しで `P` 以外の引数がコンパイルエラーになる。typed export 補助を入れた場合は client の export の型違いもコンパイルエラーになる）、`validate` 失敗時の挙動、HTML と client asset の世代ずれの検証（[rendering-model.md](rendering-model.md) 2.3・2.4、[ADR 0003](adr/0003-typed-island-props.md)）。
-- 生成物の書き出しの symlink / junction に対する負のテスト（[build-integration.md](build-integration.md) 3.3）。
-- Windows と Linux の両方で `examples/minimal` のビルドが通る（CI の OS 行列。Windows は少なくとも手元で確認）。
+- `examples/minimal` builds referencing hx4s through `publishLocal` and npm `file:`, and the SSR and hydration tests pass.
+- `examples/minimal` and all hx4s modules contain no references to 3ch (the same check as 2-8).
+- Negative tests confirming the scope of typed props guarantees (arguments other than `P` in server calls are compile errors; if the typed export helper is in, type mismatches in client exports are compile errors too), behavior when `validate` fails, and verification of version skew between HTML and client assets ([rendering-model.md](rendering-model.md) 2.3 and 2.4, [ADR 0003](adr/0003-typed-island-props.md)).
+- Negative tests of output against symlinks / junctions ([build-integration.md](build-integration.md) 3.3).
+- `examples/minimal` builds on both Windows and Linux (CI OS matrix; Windows confirmed at least locally).
 
-完了条件: hx4s の `develop` に入り、ローカルで全検証（`sbt test`、`sbt sbtHx4s/scripted`、`-no-indent` の確認、`npm test`、`npm run typecheck`、
-`scripts/publish-local.mjs`、クリーンな状態からの examples/minimal の install・build・typecheck・test、`scripts/check-independence.mjs`）が通る。
-リモートの CI（Ubuntu / Windows）が通ることの確認は、push（ユーザーの判断）の後に行う。この時点で 3ch はまだ Phase 2 の内蔵版を使っている。
+Completion criteria: it is in hx4s's `develop`, and all verification passes locally (`sbt test`, `sbt sbtHx4s/scripted`, the `-no-indent` check, `npm test`, `npm run typecheck`,
+`scripts/publish-local.mjs`, install, build, typecheck and test of examples/minimal from a clean state, `scripts/check-independence.mjs`).
+Confirming that remote CI (Ubuntu / Windows) passes happens after the push (the user's decision). At this point 3ch still uses the built-in version from Phase 2.
 
-### Phase 4: 3ch を hx4s の利用側へ移行
+### Phase 4: Migrate 3ch to being a user of hx4s
 
-前提（公開は Phase 5 のままだが、再現できる検証経路は Phase 4 から要る。[ADR 0006](adr/0006-one-way-dependency-and-local-publish.md)）:
+Prerequisites (publishing stays in Phase 5, but a reproducible verification path is needed from Phase 4; [ADR 0006](adr/0006-one-way-dependency-and-local-publish.md)):
 
-- commit を固定した hx4s の checkout から、`publishLocal` と npm パッケージの準備（`npm pack` など）を行う手順をスクリプトにする。版は `0.1.0-local.N` のように明示し、手順は 3ch の docs に書く。
-- **空の依存キャッシュ**（空の coursier / ivy キャッシュと `node_modules`）から、3ch がビルドとテストを通せること。
+- Script the steps to run `publishLocal` and prepare the npm package (`npm pack`, etc.) from an hx4s checkout pinned to a commit. Versions are explicit, like `0.1.0-local.N`, and the steps are written in 3ch's docs.
+- 3ch passes its build and tests starting from **empty dependency caches** (empty coursier / ivy caches and `node_modules`).
 
-| # | 作業 |
+| # | Work |
 | --- | --- |
-| 4-0 | 上の前提の手順（スクリプト）を作り、空の依存キャッシュで 3ch のビルドとテストを通す |
-| 4-1 | 3ch の `project/plugins.sbt` に `sbt-hx4s`、`build.sbt` に `hx4s-core` / `hx4s-react` を追加。版は `publishLocal` したもの |
-| 4-2 | 3ch の `package.json` に `hx4s-vite` を `file:` で追加し、`vite.config.ts` を `hx4s()` に差し替える |
-| 4-3 | 3ch の `codegen` の `framework` パッケージと、切り出した TS・loader・テストを削除する。`npm run v6:generate` を `sbt hx4sGenerate` + 3ch の DO 生成に変える |
-| 4-4 | 3ch の AGENTS.md・docs を更新する（構成、開発コマンド、hx4s 側の文書への参照） |
+| 4-0 | Create the steps (scripts) for the prerequisites above, and pass 3ch's build and tests with empty dependency caches |
+| 4-1 | Add `sbt-hx4s` to 3ch's `project/plugins.sbt`, and `hx4s-core` / `hx4s-react` to `build.sbt`. Versions are the ones published with `publishLocal` |
+| 4-2 | Add `hx4s-vite` to 3ch's `package.json` with `file:`, and replace `vite.config.ts` with `hx4s()` |
+| 4-3 | Delete the `framework` package of 3ch's `codegen` and the extracted TS, loader and tests. Change `npm run v6:generate` to `sbt hx4sGenerate` + 3ch's DO generation |
+| 4-4 | Update 3ch's AGENTS.md and docs (structure, development commands, references to hx4s's documents) |
 
-検証条件: Phase 1 の検証条件をすべて満たし、生成物が Phase 2 完了時と同一（バナーを除く）。上の前提（空の依存キャッシュからのビルド）を満たす。
+Verification conditions: all Phase 1 verification conditions are met, and the generated files are identical to those at the end of Phase 2 (except for the banner). The prerequisites above (building from empty dependency caches) are met.
 
-完了条件: 3ch の `develop` に入り、ローカルのビルドと全テストが通る（デプロイは 3ch 側の判断）。
+Completion criteria: it is in 3ch's `develop`, and the local build and all tests pass (deployment is 3ch's decision).
 
-### Phase 5: 公開の準備
+### Phase 5: Prepare for publishing
 
-| # | 作業 |
+| # | Work |
 | --- | --- |
-| 5-1 | 公開を伴う CI での依存解決方式を決める（[ADR 0006](adr/0006-one-way-dependency-and-local-publish.md) の比較、U-3） |
-| 5-2 | ライセンスを決め、LICENSE / NOTICE を置く（U-4）。3ch から移したコードの権利を確認する（U-21） |
-| 5-3 | 名前の衝突を確認する（Maven Central・npm・GitHub 上の `hx4s`）（U-20）。npm のスコープを決める（U-1） |
-| 5-4 | 版付けの方針（0.x の間の互換性の約束、honox の検証版の明記） |
-| 5-5 | Maven Central / npm へ公開する（公開するかどうか自体も、この時点で判断する） |
+| 5-1 | Decide the dependency resolution method in CI that involves publishing (comparison in [ADR 0006](adr/0006-one-way-dependency-and-local-publish.md), U-3) |
+| 5-2 | Decide the license and add LICENSE / NOTICE (U-4). Confirm rights to the code moved from 3ch (U-21) |
+| 5-3 | Check for name collisions (`hx4s` on Maven Central, npm and GitHub) (U-20). Decide the npm scope (U-1) |
+| 5-4 | Versioning policy (compatibility promises during 0.x, stating the verified honox version) |
+| 5-5 | Publish to Maven Central / npm (whether to publish at all is also decided at this point) |
 
-完了条件: 3ch の CI がローカルの `publishLocal` なしで hx4s を解決できる。
+Completion criteria: 3ch's CI can resolve hx4s without a local `publishLocal`.
 
-## 3. 移動するファイルの対応表
+## 3. Mapping of moved files
 
-分類の理由は [module-boundaries.md](module-boundaries.md) を参照。パスは 3CH のリポジトリルートからの相対。調査基準は `875a47b` で、Phase 1 / 2 の進行に伴い 3ch 側のファイル名は変わりうる。
-「Phase」は 3ch 内での整理（2）と、hx4s への移動（3）の時期を示す。パッケージは Phase 3 で `io._3ch.codegen.framework` から `hx4s.codegen` へ改名する。
+See [module-boundaries.md](module-boundaries.md) for the reasons behind the classification. Paths are relative to the 3CH repository root. The reference is `875a47b`, and 3ch's file names may change as Phases 1 / 2 progress.
+"Phase" shows when the file is organized within 3ch (2) and moved to hx4s (3). Packages are renamed from `io._3ch.codegen.framework` to `hx4s.codegen` in Phase 3.
 
-| 3CH のファイル | 移す先（モジュール / パス案） | Phase |
+| 3CH file | Destination (module / proposed path) | Phase |
 | --- | --- | --- |
-| `common/src/main/scala/io/_3ch/common/routes/Annotations.scala` | hx4s-core `core/src/main/scala/hx4s/annotation/{route,islands}.scala` | 2（`islands[P]`）→ 3 |
-| `common/.../routes/RouteTable.scala` の `publicPatterns` | 3ch に残す（`common` の domain か `bbs` の handler） | 1〜2 |
-| `common/src/test/.../routes/RouteTableSuite.scala` | `publicPatterns` の検査は 3ch に残す。テンプレートの検査は `framework` のテストにある | 2 |
+| `common/src/main/scala/io/_3ch/common/routes/Annotations.scala` | hx4s-core `core/src/main/scala/hx4s/annotation/{route,islands}.scala` | 2 (`islands[P]`) → 3 |
+| `publicPatterns` in `common/.../routes/RouteTable.scala` | Stays in 3ch (`common`'s domain or `bbs`'s handler) | 1–2 |
+| `common/src/test/.../routes/RouteTableSuite.scala` | Checks of `publicPatterns` stay in 3ch. Template checks are in the `framework` tests | 2 |
 | `codegen/.../framework/AnnotationScanner.scala` | hx4s-codegen `hx4s/codegen/AnnotationScanner.scala` | 3 |
-| `codegen/.../framework/AppEntries.scala`（`HttpMethod`・`RouteEntry`・`IslandEntry`） | hx4s-codegen `hx4s/codegen/AppEntries.scala` | 3 |
-| `codegen/.../framework/AppFileRenderer.scala` | hx4s-codegen `hx4s/codegen/AppFileRenderer.scala`（route / island / `IslandComponents` のテンプレート） | 3 |
+| `codegen/.../framework/AppEntries.scala` (`HttpMethod`, `RouteEntry`, `IslandEntry`) | hx4s-codegen `hx4s/codegen/AppEntries.scala` | 3 |
+| `codegen/.../framework/AppFileRenderer.scala` | hx4s-codegen `hx4s/codegen/AppFileRenderer.scala` (templates for route / island / `IslandComponents`) | 3 |
 | `codegen/.../framework/Codegen.scala` | hx4s-codegen `hx4s/codegen/Codegen.scala` | 3 |
-| `codegen/.../framework/CodegenConfig.scala` | hx4s-codegen `hx4s/codegen/CodegenConfig.scala`（公開 API の設定 case class。名前は Phase 3 で確定） | 3 |
+| `codegen/.../framework/CodegenConfig.scala` | hx4s-codegen `hx4s/codegen/CodegenConfig.scala` (the public settings case class; the name is fixed in Phase 3) | 3 |
 | `codegen/.../framework/{CodegenError,CodegenReport}.scala` | hx4s-codegen `hx4s/codegen/` | 3 |
-| `codegen/.../framework/OutputPath.scala`・`OutputWriter.scala` | hx4s-codegen `hx4s/codegen/{OutputPath,OutputWriter}.scala` | 3 |
-| `codegen/.../GenerateAppFiles.scala` の `config` と `main` | 3ch に残す（`framework` を呼ぶ薄い main）。sbt-hx4s の `hx4sGenerate` が置き換える | 4 |
-| `codegen/src/test/.../framework/{AnnotationScannerSuite,AppFileRendererSuite,OutputWriterSuite,TestConfig}.scala` | hx4s-codegen のテスト | 3 |
-| `codegen/src/test/.../GenerateAppFilesSuite.scala` | 3ch の設定を使うテスト。汎用部分は `framework` のテストに寄せて移す | 3 |
+| `codegen/.../framework/OutputPath.scala`, `OutputWriter.scala` | hx4s-codegen `hx4s/codegen/{OutputPath,OutputWriter}.scala` | 3 |
+| `config` and `main` of `codegen/.../GenerateAppFiles.scala` | Stay in 3ch (a thin main calling `framework`). Replaced by sbt-hx4s's `hx4sGenerate` | 4 |
+| `codegen/src/test/.../framework/{AnnotationScannerSuite,AppFileRendererSuite,OutputWriterSuite,TestConfig}.scala` | Tests of hx4s-codegen | 3 |
+| `codegen/src/test/.../GenerateAppFilesSuite.scala` | Tests using 3ch's settings. Generic parts are moved into the `framework` tests | 3 |
 | `bbs/.../external/honox/Island.scala` | hx4s-react `react/src/main/scala/hx4s/react/Island.scala` | 2 → 3 |
-| `bbs/.../external/hono/HonoContext.scala`・`HonoContextFacade.scala`（`RenderProps` 以外） | hx4s-react `hx4s/hono/Context.scala`（Env を型引数に）。3ch 固有の `RenderProps` と `WorkerEnv` の別名は残す | 2 → 3 |
-| `bbs/src/test/.../IslandTestExports.scala` の `renderIslandTest` | hx4s-react のテスト用 export | 2 → 3 |
-| `vite.config.ts` の `scalaProject`・alias・`honox()` の React 設定・client 設定 | hx4s-vite `vite/src/index.ts` | 2 → 3 |
-| `bbs/test-stubs/cloudflare-workers-loader.mjs` の `scalajs:client.js` / `hono/jsx` 部分、`register.mjs` | hx4s-vite `vite/node-loader.mjs` / `vite/node-register.mjs` | 2 → 3 |
-| `tests/islands-bridge.test.js` | hx4s-vite のテスト（`examples/minimal` を対象に） | 2 → 3 |
-| `tests/islands-hydration.test.js` | hx4s-react / hx4s-vite のテスト | 2 → 3 |
-| `build.sbt` の `codegen` プロジェクト、`generateIslandComponents` の `sourceGenerators` 配線 | sbt-hx4s（`hx4sGenerate` と `sourceGenerators`） | 3 |
-| `build.sbt` の `Test / jsEnv` の仕組み | sbt-hx4s の補助（P1） | 3 以降 |
-| `app/client.ts` の内容 | `examples/minimal/app/client.ts`（雛形として複製。3ch 側は残す） | 3 |
+| `bbs/.../external/hono/HonoContext.scala`, `HonoContextFacade.scala` (except `RenderProps`) | hx4s-react `hx4s/hono/Context.scala` (Env as a type parameter). The 3ch-specific `RenderProps` and the `WorkerEnv` alias stay | 2 → 3 |
+| `renderIslandTest` in `bbs/src/test/.../IslandTestExports.scala` | Test exports of hx4s-react | 2 → 3 |
+| `scalaProject`, the alias, `honox()`'s React settings and client settings in `vite.config.ts` | hx4s-vite `vite/src/index.ts` | 2 → 3 |
+| The `scalajs:client.js` / `hono/jsx` parts of `bbs/test-stubs/cloudflare-workers-loader.mjs`, and `register.mjs` | hx4s-vite `vite/node-loader.mjs` / `vite/node-register.mjs` | 2 → 3 |
+| `tests/islands-bridge.test.js` | Tests of hx4s-vite (targeting `examples/minimal`) | 2 → 3 |
+| `tests/islands-hydration.test.js` | Tests of hx4s-react / hx4s-vite | 2 → 3 |
+| The `codegen` project and the `sourceGenerators` wiring of `generateIslandComponents` in `build.sbt` | sbt-hx4s (`hx4sGenerate` and `sourceGenerators`) | 3 |
+| The `Test / jsEnv` mechanism in `build.sbt` | A helper in sbt-hx4s (P1) | 3 or later |
+| The content of `app/client.ts` | `examples/minimal/app/client.ts` (copied as a template; 3ch keeps its own) | 3 |
 
-## 4. 3ch に残すもの
+## 4. What stays in 3ch
 
-| 対象 | 理由 |
+| Target | Reason |
 | --- | --- |
-| `bbs.Main` / `bbsclient.Main` の宣言、`bbs-client/islands/*`、`bbs/components/*`、`RendererShell` | 掲示板の機能そのもの |
-| `app/server.ts`、`app/routes/_renderer.tsx`、手書きルート、`app/renderer.d.ts`、`app/scalajs-server.d.ts` | 3ch のミドルウェア・認証 API・LegacyDispatch・renderer の Props |
-| `RouteTable.publicPatterns` | v5 互換の公開 URL |
-| DO の TS 型・RPC スタブ生成（`DurableObjectSources`、`GenerateDurableObject*`）と `generateDurableObjectStubs` タスク | Cloudflare 固有。将来 `hx4s-cloudflare` 候補（[ADR 0005](adr/0005-core-independent-of-cloudflare.md)） |
-| `external/cloudflare/Bindings.scala`、`external/web/WebFacade.scala` | 実行基盤固有 / 3ch の手書き facade |
-| `vite.config.ts` の Tailwind、`@hono/vite-build/cloudflare-workers`、DO の `entryContentAfterHooks` | CSS と実行基盤の選択は利用側 |
-| `bbs/test-stubs/cloudflare-workers-stub.mjs` と、その差し替え | Cloudflare 固有 |
-| Shift_JIS（`SjisEncoding`）、`createSjisResponse` | 専ブラ互換 |
-| `tests/{board-islands,board-top-hydration,client-bundle,worker-bundle}.test.js`、統合テスト | 掲示板の UI・DO・KB-27 のマーカー文字列 |
+| The declarations in `bbs.Main` / `bbsclient.Main`, `bbs-client/islands/*`, `bbs/components/*`, `RendererShell` | The bulletin board's features themselves |
+| `app/server.ts`, `app/routes/_renderer.tsx`, hand-written routes, `app/renderer.d.ts`, `app/scalajs-server.d.ts` | 3ch's middleware, auth API, LegacyDispatch, renderer props |
+| `RouteTable.publicPatterns` | v5-compatible public URLs |
+| Generation of DO TS types and RPC stubs (`DurableObjectSources`, `GenerateDurableObject*`) and the `generateDurableObjectStubs` task | Cloudflare-specific. A future `hx4s-cloudflare` candidate ([ADR 0005](adr/0005-core-independent-of-cloudflare.md)) |
+| `external/cloudflare/Bindings.scala`, `external/web/WebFacade.scala` | Runtime-specific / 3ch's hand-written facade |
+| Tailwind, `@hono/vite-build/cloudflare-workers` and the DO `entryContentAfterHooks` in `vite.config.ts` | The choice of CSS and runtime belongs to the user |
+| `bbs/test-stubs/cloudflare-workers-stub.mjs` and its replacement | Cloudflare-specific |
+| Shift_JIS (`SjisEncoding`), `createSjisResponse` | Compatibility with dedicated browsers |
+| `tests/{board-islands,board-top-hydration,client-bundle,worker-bundle}.test.js`, integration tests | Bulletin board UI, DOs, the KB-27 marker strings |

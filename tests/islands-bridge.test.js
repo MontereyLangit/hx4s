@@ -12,25 +12,25 @@ const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const scalaPlugins = (plugins) => plugins.flat(Infinity).filter((plugin) => plugin?.name === 'scalajs:sbt-scalajs-plugin');
 const named = (plugins, name) => plugins.flat(Infinity).find((plugin) => plugin?.name === name);
 
-test('server モードは client の export を別の接頭辞で解決し、2 つの Scala.js プロジェクトを順にリンクする', () => {
+test('server mode resolves the client export under another prefix and links the two Scala.js projects in order', () => {
   const plugins = hx4s({ mode: 'production', sbt: { cwd: root } });
   const scala = scalaPlugins(plugins);
   assert.equal(scala.length, 2);
   for (const plugin of scala) assert.equal(plugin.buildStart.sequential, true);
   assert.deepEqual(named(plugins, 'hx4s:client-alias').config().resolve.alias, { 'scalajs:client.js': 'scalajs-client:client.js' });
-  assert.ok(plugins.flat(Infinity).some((plugin) => plugin?.name?.startsWith('honox')), 'honox() のプラグインを含む');
+  assert.ok(plugins.flat(Infinity).some((plugin) => plugin?.name?.startsWith('honox')), 'includes the honox() plugins');
 });
 
-test('server モードの moduleID・接頭辞・honox の設定は上書きできる', () => {
+test('moduleIDs, prefixes and honox settings of server mode can be overridden', () => {
   const plugins = hx4s({ mode: 'production', client: { module: 'browser', uriPrefix: 'scalajs-browser' } });
   assert.deepEqual(named(plugins, 'hx4s:client-alias').config().resolve.alias, { 'scalajs:browser.js': 'scalajs-browser:browser.js' });
 });
 
-test('client モードは client の Scala.js だけをリンクし、既定では static/ 配下へ出す。出力名は上書きできる', () => {
+test('client mode links only the client Scala.js and outputs under static/ by default; output names can be overridden', () => {
   const plugins = hx4s({ mode: 'client', sbt: { cwd: root }, client: { entry: './app/main.ts' } });
   assert.equal(scalaPlugins(plugins).length, 1);
   assert.equal(named(plugins, 'hx4s:client-alias'), undefined);
-  assert.ok(!plugins.flat(Infinity).some((plugin) => plugin?.name?.startsWith('honox')), 'client ビルドは honox() を使わない');
+  assert.ok(!plugins.flat(Infinity).some((plugin) => plugin?.name?.startsWith('honox')), 'the client build does not use honox()');
   const build = named(plugins, 'hx4s:client-build').config().build;
   assert.deepEqual(build.rollupOptions.input, ['./app/main.ts']);
   assert.equal(build.rollupOptions.output.entryFileNames, 'static/client.js');
@@ -42,26 +42,26 @@ test('client モードは client の Scala.js だけをリンクし、既定で�
   });
 });
 
-test('client: false は server だけをリンクし、client の別名と React の設定を足さない。client モードとは組み合わせられない', () => {
+test('client: false links only the server and adds neither the client alias nor React settings; it cannot be combined with client mode', () => {
   const plugins = hx4s({ mode: 'production', sbt: { cwd: root }, client: false });
   assert.equal(scalaPlugins(plugins).length, 1);
   assert.equal(named(plugins, 'hx4s:client-alias'), undefined);
   assert.equal(named(plugins, 'hx4s:client-build'), undefined);
-  assert.ok(plugins.flat(Infinity).some((plugin) => plugin?.name?.startsWith('honox')), 'honox() のプラグインを含む');
+  assert.ok(plugins.flat(Infinity).some((plugin) => plugin?.name?.startsWith('honox')), 'includes the honox() plugins');
   assert.throws(() => hx4s({ mode: 'client', client: false }), /client: false.*--mode client/);
 });
 
-test('scalaProject は関数形式の buildStart も直列にする', () => {
+test('scalaProject serializes function-style buildStart too', () => {
   const plugin = scalaProject(root, 'client', 'scalajs-x');
   assert.equal(plugin.buildStart.sequential, true);
   assert.equal(typeof plugin.buildStart.handler, 'function');
 });
 
-test('HonoX は island を React SSR で包み、props をシリアライズする', async () => {
+test('HonoX wraps islands in React SSR and serializes props', async () => {
   const fixture = await mkdtemp(path.join(root, 'tests', '.islands-bridge-'));
   try {
     await mkdir(path.join(fixture, 'app/islands'), { recursive: true });
-    // リンク済みの Scala の client export の代わり（Scala コンパイラのテストではない）
+    // A stand-in for the linked Scala client export (not a Scala compiler test)
     await writeFile(path.join(fixture, 'client.js'), `import { createElement } from 'react';
 export const Probe = ({ label }) => createElement('button', null, label);
 `);
@@ -94,7 +94,7 @@ export const rawHtml = renderToString(createElement(RawProbe, { label: 'from Sca
     assert.match(html, /component-name="\/app\/islands\/probe.tsx"/);
     assert.match(html, /data-serialized-props="\{&quot;label&quot;:&quot;from Scala&quot;\}"/);
     assert.match(html, /<button>from Scala<\/button>/);
-    // 同じ React 要素でも、HonoX の island 変換を通らなければ境界は付かない
+    // The same React element gets no boundary unless it goes through HonoX's island transform
     assert.equal(rawHtml, '<button>from Scala</button>');
     assert.doesNotMatch(rawHtml, /honox-island|component-name|data-serialized-props/);
   } finally {

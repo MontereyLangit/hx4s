@@ -1,44 +1,44 @@
-# ADR 0005: Core は Cloudflare 固有 API に依存しない
+# ADR 0005: Core does not depend on Cloudflare-specific APIs
 
-- 状態: 承認（2026-11-16、Phase 0）
-- 更新（2026-11-16、Phase 3）: `examples/minimal` は Node アダプタではなく Cloudflare Workers（`@hono/vite-build/cloudflare-workers` と wrangler）で動かすことにした
-  （[extraction-plan.md](../extraction-plan.md) 3-5）。Cloudflare に依存するのは examples の設定とテストの起動だけで、hx4s のモジュールが Cloudflare に依存しないという決定は変わらない
-- 関連: [module-boundaries.md](../module-boundaries.md) 2 章、[extraction-plan.md](../extraction-plan.md) 4 章
+- Status: Accepted (2026-11-16, Phase 0)
+- Updated (2026-11-16, Phase 3): `examples/minimal` now runs on Cloudflare Workers (`@hono/vite-build/cloudflare-workers` and wrangler) instead of the Node adapter
+  ([extraction-plan.md](../extraction-plan.md) 3-5). Only the examples' settings and test startup depend on Cloudflare; the decision that hx4s's modules don't depend on Cloudflare is unchanged
+- Related: [module-boundaries.md](../module-boundaries.md) chapter 2, [extraction-plan.md](../extraction-plan.md) chapter 4
 
-## 背景
+## Context
 
-3ch は Cloudflare Workers / Durable Objects / R2 / KV の上で動く。連携基盤の中にも Cloudflare 固有の部分が混ざっている。
+3ch runs on Cloudflare Workers / Durable Objects / R2 / KV. Cloudflare-specific parts are mixed into the integration layer too.
 
-- `HonoContextFacade.env` の型が `WorkerEnv`（Bindings）。
-- `vite.config.ts` が `@hono/vite-build/cloudflare-workers` を使い、`entryContentAfterHooks` で DO クラスを再 export する。
-- テスト用 loader が `cloudflare:workers` をスタブに差し替える。
-- `codegen` が DO の公開メソッドから TS 型（`GenerateDurableObjectTypes`）と RPC スタブ（`GenerateDurableObjectStubs`）を生成する。
+- The type of `HonoContextFacade.env` is `WorkerEnv` (Bindings).
+- `vite.config.ts` uses `@hono/vite-build/cloudflare-workers` and re-exports DO classes through `entryContentAfterHooks`.
+- The test loader replaces `cloudflare:workers` with a stub.
+- `codegen` generates TS types (`GenerateDurableObjectTypes`) and RPC stubs (`GenerateDurableObjectStubs`) from the public methods of DOs.
 
-Hono と HonoX は Node・Deno・Bun・Cloudflare など複数の実行基盤で動く。hx4s が Cloudflare に縛られると、利用者の範囲が狭まり、
-`examples/minimal` のテストにも Cloudflare の環境が要る。
+Hono and HonoX run on several runtimes, including Node, Deno, Bun and Cloudflare. If hx4s were tied to Cloudflare, it would narrow the range of users,
+and the tests of `examples/minimal` would also need a Cloudflare environment.
 
-## 決定
+## Decision
 
-hx4s の P0 のモジュール（core / react / codegen / sbt-hx4s / hx4s-vite）は Cloudflare 固有 API に依存しない。次は 3ch に残す。
+hx4s's P0 modules (core / react / codegen / sbt-hx4s / hx4s-vite) don't depend on Cloudflare-specific APIs. The following stay in 3ch:
 
-- Durable Object の export（`entryContentAfterHooks`）と `@hono/vite-build/cloudflare-workers` の設定
-- Bindings の型（`WorkerEnv` など）
-- `cloudflare:workers` のテスト用スタブ
-- DO の RPC スタブ / TS 型の生成（`DurableObjectSources`、`GenerateDurableObject*`）
-- Tailwind と Shift_JIS（実行基盤ではないが掲示板固有）
+- Durable Object exports (`entryContentAfterHooks`) and the settings of `@hono/vite-build/cloudflare-workers`
+- Bindings types (`WorkerEnv`, etc.)
+- The test stub for `cloudflare:workers`
+- Generation of DO RPC stubs / TS types (`DurableObjectSources`, `GenerateDurableObject*`)
+- Tailwind and Shift_JIS (not the runtime, but specific to the bulletin board)
 
-将来の `hx4s-cloudflare` アダプタ（P2）の候補としてロードマップに書くだけにする。
+A future `hx4s-cloudflare` adapter (P2) is only listed on the roadmap as a candidate.
 
-## 却下案
+## Rejected alternatives
 
-| 案 | 理由 |
+| Alternative | Reason |
 | --- | --- |
-| DO の生成器を最初から hx4s に入れる | DO の RPC 境界の規則（使える型、`DurableObject` を直接継承すること）は 3ch の実装に強く結び付いており、汎用化の検証に Cloudflare の環境が要る |
-| Context facade の Env を `WorkerEnv` 固定のまま移す | Node 等で使えない。型引数にしても 3ch 側は型の別名を 1 行置くだけで済む |
-| 実行基盤の抽象層（アダプタ trait）を hx4s に作る | 実行基盤の差は Hono と `@hono/vite-build` の各アダプタが既に吸収している。hx4s が重ねると二重になる |
+| Put the DO generators into hx4s from the start | The rules for DO RPC boundaries (usable types, extending `DurableObject` directly) are tightly tied to 3ch's implementation, and verifying a generalization requires a Cloudflare environment |
+| Move the Context facade with Env fixed to `WorkerEnv` | Unusable on Node, etc. With a type parameter, 3ch only needs a one-line type alias |
+| Create a runtime abstraction layer (adapter trait) in hx4s | Runtime differences are already absorbed by Hono and the `@hono/vite-build` adapters. Adding another layer in hx4s would duplicate it |
 
-## 影響
+## Consequences
 
-- `examples/minimal` は Node の Hono アダプタで動かし、CI に Cloudflare の環境を要しない。
-- 3ch は Phase 4 以降も DO 関連の生成器とビルド設定を自前で持つ。`hx4s-vite` の `hx4s()` と `@hono/vite-build/cloudflare-workers` を並べて使う。
-- `hx4s-cloudflare` を作るときは、3ch の `GenerateDurableObject*` と `docs/durable-object-stubs.md` を出発点にする。
+- `examples/minimal` runs with Hono's Node adapter, and CI doesn't need a Cloudflare environment.
+- 3ch keeps its own DO generators and build settings from Phase 4 on. It uses `hx4s()` of `hx4s-vite` alongside `@hono/vite-build/cloudflare-workers`.
+- When creating `hx4s-cloudflare`, start from 3ch's `GenerateDurableObject*` and `docs/durable-object-stubs.md`.

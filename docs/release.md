@@ -1,43 +1,43 @@
-# リリース
+# Release
 
-**Maven Central と npm への公開の手順は整備していない。** この文書は、リリースの前に行う版付け・変更履歴・検証と、公開の前に決める必要があることを書く。
-公開の操作（署名・アップロード・`npm publish`）は書かない。
+**The procedure for publishing to Maven Central and npm has not been set up.** This document covers the versioning, changelog and verification done before a release, and what needs to be decided before publishing.
+It does not cover the publishing operations themselves (signing, uploading, `npm publish`).
 
-## 現在の状態
+## Current state
 
-| 項目 | 状態 |
+| Item | State |
 | --- | --- |
-| リリース済みの版 | なし。`0.1.0` は未公開 |
-| 版の定義 | リポジトリ直下の `version.txt`（次に出す版。今は `0.1.0`） |
-| ビルドの既定の版 | `<version.txt>-SNAPSHOT`（`build.sbt` の `hx4s.version` のシステムプロパティを省いたとき）。`vite/package.json` の版は `version.txt` と同じ `0.1.0` |
-| ローカル公開の版 | `<version.txt>-local.g<commit>`（`scripts/publish-local.mjs`。[installation.md](installation.md)） |
-| 利用者の入手方法 | ローカル公開だけ |
+| Released versions | None. `0.1.0` is not published |
+| Version definition | `version.txt` at the repository root (the next version to release; currently `0.1.0`) |
+| Default build version | `<version.txt>-SNAPSHOT` (when the `hx4s.version` system property of `build.sbt` is omitted). The version in `vite/package.json` is `0.1.0`, the same as `version.txt` |
+| Local publish version | `<version.txt>-local.g<commit>` (`scripts/publish-local.mjs`; [installation.md](installation.md)) |
+| How users get it | Local publish only |
 
-## 版付けの方針
+## Versioning policy
 
-- [Semantic Versioning](https://semver.org/lang/ja/) に従う。`0.x` の間は、マイナー版で API・設定・生成物の形式が変わりうる
-- sbt-hx4s・`hx4s-core`・`hx4s-react`・`hx4s-codegen` と、npm の `hx4s-vite` は**同じ版**にそろえる。sbt-hx4s の `hx4sVersion` が、プラグインとライブラリの版をそろえる
-- リリースごとに、検証した HonoX・Hono・Vite・React などの版を明記する（[README](../README.md) の対応バージョン）。`hx4s-vite` の peerDependencies は検証した版だけにする
-- 公開した版は書き換えない。誤りがあれば次の版で直す
-- 版の定義は `version.txt` の 1 か所（`X.Y.Z` だけ）。ほかはそこから作る
+- Follow [Semantic Versioning](https://semver.org/). During `0.x`, a minor version may change the API, settings and the format of generated files
+- sbt-hx4s, `hx4s-core`, `hx4s-react`, `hx4s-codegen` and the npm package `hx4s-vite` share **the same version**. `hx4sVersion` of sbt-hx4s keeps the plugin and library versions aligned
+- Each release states the verified versions of HonoX, Hono, Vite, React, etc. (supported versions in the [README](../README.md)). The peerDependencies of `hx4s-vite` list only verified versions
+- Published versions are never rewritten. Mistakes are fixed in the next version
+- The version is defined in one place, `version.txt` (just `X.Y.Z`). Everything else derives from it
 
-  | 使う場所 | 版 |
+  | Where | Version |
   | --- | --- |
-  | `build.sbt`（sbt の既定） | `<version.txt>-SNAPSHOT`。`-Dhx4s.version=<版>` で上書きできる |
-  | `scripts/publish-local.mjs` の既定 | `<version.txt>-local.g<commit>`（`scripts/lib/version.mjs`） |
-  | `vite/package.json` の `version` | `version.txt` と同じ。npm には `-SNAPSHOT` を使わない（semver の書式としては通るが、npm に「書き換わる開発版」の意味は無く、`0.1.0` より前の版として並ぶだけなので） |
+  | `build.sbt` (sbt default) | `<version.txt>-SNAPSHOT`. Can be overridden with `-Dhx4s.version=<version>` |
+  | Default of `scripts/publish-local.mjs` | `<version.txt>-local.g<commit>` (`scripts/lib/version.mjs`) |
+  | `version` in `vite/package.json` | Same as `version.txt`. npm doesn't use `-SNAPSHOT` (it passes as semver syntax, but npm has no notion of a "mutable development version"; it would just sort before `0.1.0`) |
 
-- `vite/package.json` は npm の作業領域の都合で版を持つので、手で合わせる。食い違いは `tests/version.test.js`（`npm test`）が検出する
-- `publish-local.mjs` は公開する成果物の版を上書きする（`--version` を省けば上の既定）
+- `vite/package.json` holds a version because of the npm workspace, so keep it in sync by hand. `tests/version.test.js` (`npm test`) detects mismatches
+- `publish-local.mjs` overrides the version of the published artifacts (the default above if `--version` is omitted)
 
-## リリースの手順
+## Release steps
 
-公開の方式が決まるまでの、版を確定するところまでの手順。
+Steps up to fixing the version, until the publishing method is decided.
 
-1. **変更履歴を整える**: [CHANGELOG.md](../CHANGELOG.md) の `[Unreleased]` を新しい版の節にし、日付を入れる。`[Unreleased]` を空で残し、比較用のリンクを更新する
-2. **版を決める**: 変更の内容（API の破壊的変更・機能追加・修正）から、SemVer に沿って決め、`version.txt` に書く。
-   `vite/package.json` の `version` を同じ値にし、`npm install --package-lock-only` で `package-lock.json` を合わせる
-3. **検証する**: 次をすべて通す。CI（Ubuntu と Windows）でも通ること。
+1. **Prepare the changelog**: turn `[Unreleased]` in [CHANGELOG.md](../CHANGELOG.md) into a section for the new version and add the date. Leave an empty `[Unreleased]` and update the comparison links
+2. **Decide the version**: decide it per SemVer from the changes (breaking API changes, features, fixes) and write it to `version.txt`.
+   Set `version` in `vite/package.json` to the same value, and update `package-lock.json` with `npm install --package-lock-only`
+3. **Verify**: pass all of the following, in CI (Ubuntu and Windows) as well.
 
    ```bash
    npm ci
@@ -46,28 +46,28 @@
    sbt sbtHx4s/scripted
    sbt 'set ThisBuild / scalacOptions += "-no-indent"' Test/compile
    npm test
-   node scripts/publish-local.mjs --version <版> && node scripts/publish-local.mjs --verify --version <版> --commit <40 桁の SHA>
+   node scripts/publish-local.mjs --version <version> && node scripts/publish-local.mjs --verify --version <version> --commit <40-character SHA>
    node scripts/setup-example.mjs minimal && (cd examples/minimal && npm run build && npm run typecheck && npm test)
    node scripts/setup-example.mjs api-only && (cd examples/api-only && npm run build && npm run typecheck && npm test)
    ```
 
-4. **文書を確かめる**: README と `docs/` の版・コード例・リンクが実物と合っていること。`node scripts/check-independence.mjs` が通ること
-5. **タグを付ける**: 検証した commit に `v<版>` の注釈付きタグを付ける
-6. 公開（下の「未整備」）
+4. **Check the documentation**: versions, code examples and links in the README and `docs/` match reality. `node scripts/check-independence.mjs` passes
+5. **Tag**: add an annotated tag `v<version>` to the verified commit
+6. Publish (see "Not yet set up" below)
 
-## 未整備と未決事項
+## Not yet set up and open questions
 
-Maven Central と npm へ公開するには、次を決める必要がある。決めるまでは公開しない。
+Publishing to Maven Central and npm requires deciding the following. Nothing is published until they are decided.
 
-| 項目 | 状態 | 参照 |
+| Item | State | Reference |
 | --- | --- | --- |
-| Maven の organization | 仮に `io.github.montereylangit`。独自ドメインを持つなら変える。変えると利用者のビルド定義が変わる（Scala のパッケージ名 `hx4s.*` は変わらない） | [roadmap.md](hx4s/roadmap.md) U-2、[ADR 0001](hx4s/adr/0001-name-and-coordinates.md) |
-| npm のスコープ | `hx4s-vite` か `@hx4s/vite` か。スコープが取れるかを確かめる | U-1 |
-| 名前の衝突 | `hx4s` が Maven Central・npm・GitHub で既に使われていないかの確認 | U-20 |
-| 成果物の署名 | Maven Central は署名が要る。鍵の管理の方法は未決 | — |
-| CI での公開 | 公開を伴う CI での依存解決と、公開の自動化の方式 | U-3、[ADR 0006](hx4s/adr/0006-one-way-dependency-and-local-publish.md) |
-| POM / package.json のメタデータ | 開発者・SCM・説明などの項目（Maven Central の要件）。ライセンスは Apache-2.0 で設定済み | — |
-| 移したコードの権利の確認 | 移動元のコードの権利者の同意 | U-21 |
-| 公開するかどうか | 公開の判断自体が未決 | [extraction-plan.md](hx4s/extraction-plan.md) Phase 5 |
+| Maven organization | Provisionally `io.github.montereylangit`. Change it if a custom domain is acquired. Changing it changes users' build definitions (the Scala package name `hx4s.*` stays) | [roadmap.md](hx4s/roadmap.md) U-2, [ADR 0001](hx4s/adr/0001-name-and-coordinates.md) |
+| npm scope | `hx4s-vite` or `@hx4s/vite`. Check whether the scope is available | U-1 |
+| Name collisions | Check whether `hx4s` is already used on Maven Central, npm or GitHub | U-20 |
+| Artifact signing | Maven Central requires signing. Key management is undecided | — |
+| Publishing from CI | Dependency resolution in CI that publishes, and how to automate publishing | U-3, [ADR 0006](hx4s/adr/0006-one-way-dependency-and-local-publish.md) |
+| POM / package.json metadata | Developers, SCM, description and other fields (Maven Central requirements). The license is already set to Apache-2.0 | — |
+| Confirming rights to the moved code | Consent from the rights holders of the original code | U-21 |
+| Whether to publish at all | The decision to publish itself is open | [extraction-plan.md](hx4s/extraction-plan.md) Phase 5 |
 
-これらが決まったら、この文書に公開の手順（署名・アップロード・タグからの自動化）を足す。
+Once these are decided, add the publishing steps (signing, uploading, automation from tags) to this document.

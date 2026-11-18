@@ -7,7 +7,7 @@ import { build } from 'vite';
 import { JSDOM } from 'jsdom';
 import { linkedClientModule, root, workerFetch } from './support.js';
 
-/** 条件が満たされるまで待つ */
+/** Waits until the condition holds */
 async function waitFor(condition, message) {
   for (let i = 0; i < 200; i++) {
     if (condition()) return;
@@ -16,8 +16,8 @@ async function waitFor(condition, message) {
   assert.fail(message);
 }
 
-test('jsdom 上で app/client.ts が Scala.js の island を hydrate し、props が合わない island は SSR の markup のまま残す', async () => {
-  // app/client.ts を Node で読み込めるよう、本番と同じ island の探索のまま SSR 形式でビルドし直す
+test('on jsdom, app/client.ts hydrates Scala.js islands and leaves islands with mismatched props as SSR markup', async () => {
+  // Rebuild app/client.ts in SSR format, keeping the same island discovery as production, so that Node can load it
   const out = await mkdtemp(path.join(root, 'tests', '.hydration-'));
   const previous = new Map();
   const consoleErrors = [];
@@ -34,7 +34,7 @@ test('jsdom 上で app/client.ts が Scala.js の island を hydrate し、props
     const html = await (await workerFetch('/')).text();
     dom = new JSDOM(html);
     const document = dom.window.document;
-    // 3 つ目の island（B のカウンター）は、古い世代の HTML のように props の形が違うものにする
+    // Give the third island (counter B) props of a different shape, like HTML from an older version
     const counters = [...document.querySelectorAll('honox-island[component-name="/app/islands/counter.tsx"]')];
     counters[1].setAttribute('data-serialized-props', JSON.stringify({ label: 'B' }));
     const globals = { window: dom.window, document, Node: dom.window.Node, HTMLElement: dom.window.HTMLElement };
@@ -58,7 +58,7 @@ test('jsdom 上で app/client.ts が Scala.js の island を hydrate し、props
 
     const firstItem = document.querySelector('.item-list li button');
     firstItem.click();
-    await waitFor(() => document.querySelector('.selected-name').textContent === '選択中: りんご', 'item list did not update');
+    await waitFor(() => document.querySelector('.selected-name').textContent === 'Selected: apple', 'item list did not update');
     assert.ok(document.querySelector('.item-list li').classList.contains('selected'));
 
     assert.deepEqual(consoleErrors.filter((message) => !message.includes('skipped hydration')), [], 'no hydration errors');
