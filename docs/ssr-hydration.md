@@ -82,7 +82,7 @@ Body text is escaped by React as usual. If you use `dangerouslySetInnerHTML`, th
 
 Two mechanisms keep server handlers and secrets out of the browser bundle.
 
-1. **Project split**: server and client are separate sbt projects, and the client doesn't depend on the server. The server uses the client only through Vite's virtual module `scalajs:client.js` (the island code).
+1. **Project split**: server and client are separate sbt projects, and the client doesn't depend on the server. The server uses the client only through Vite's virtual Island modules `scalajs:<module>.js` (the island code).
    Scala.js builds the client as a separate link output.
 2. **`hx4sCheckDependencies`**: checks the sbt dependency graph. `hx4sGenerate` and `hx4sIslandComponents` call it first, so a violation fails at generation time.
 
@@ -107,12 +107,12 @@ Test-only dependencies such as `dependsOn(x % "test")` are excluded.
 
 ### Running Scala.js tests on Node
 
-Server tests can run on Node all the way through SSR (`ReactDOMServer.renderToStaticMarkup`). Run as-is, Node can't resolve `scalajs:client.js` in the link output or `hono/jsx` inside HonoX.
+Server tests can run on Node all the way through SSR (`ReactDOMServer.renderToStaticMarkup`). Run as-is, Node can't resolve `scalajs:<module>.js` in the link output or `hono/jsx` inside HonoX.
 `hx4s-vite` provides a loader using Node's module hooks.
 
 | Specifier | Resolves to |
 | --- | --- |
-| `scalajs:client.js` | `$HX4S_CLIENT_JS_DIR/client.js` (output directory of the client's `fastLinkJS`) |
+| `scalajs:<module>.js` | `$HX4S_CLIENT_JS_DIR/<module>.js` (output directory of the client's `fastLinkJS`) |
 | `hono/jsx` and `hono/jsx/jsx-runtime` inside HonoX | `react` and `react/jsx-runtime` (the same replacement `hx4s()` does in production builds) |
 
 ```scala

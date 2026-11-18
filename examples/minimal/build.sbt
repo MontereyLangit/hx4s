@@ -1,3 +1,4 @@
+import org.scalajs.linker.interface.ModuleSplitStyle
 import org.scalajs.jsenv.nodejs.NodeJSEnv
 
 ThisBuild / scalaVersion := "3.3.8"
@@ -13,7 +14,7 @@ lazy val shared = project
   .enablePlugins(ScalaJSPlugin)
   .settings(commonSettings)
 
-// @route handlers and SSR. Does not depend on the client (client islands are loaded through Vite's virtual module scalajs:client.js)
+// @route handlers and SSR. Does not depend on the client (client islands are loaded through Vite's virtual modules scalajs:<module>.js)
 lazy val server = project
   .enablePlugins(ScalaJSPlugin, Hx4sPlugin)
   .dependsOn(shared)
@@ -21,7 +22,7 @@ lazy val server = project
   .settings(
     hx4sClientProject := client,
     libraryDependencies += "org.scalameta" %%% "munit" % "1.0.0" % Test,
-    // Resolve scalajs:client.js imported by the test link output, and hono/jsx inside HonoX, with hx4s-vite's loader
+    // Resolve scalajs:<module>.js imported by the test link output, and hono/jsx inside HonoX, with hx4s-vite's loader
     Test / jsEnv := {
       val clientDir = (client / Compile / fastLinkJS / scalaJSLinkerOutputDirectory).value
       (client / Compile / fastLinkJS).value
@@ -38,3 +39,6 @@ lazy val client = project
   .enablePlugins(ScalaJSPlugin)
   .dependsOn(shared)
   .settings(commonSettings)
+  .settings(
+    scalaJSLinkerConfig ~= { _.withModuleSplitStyle(ModuleSplitStyle.SmallModulesFor(List("example.client"))) }
+  )

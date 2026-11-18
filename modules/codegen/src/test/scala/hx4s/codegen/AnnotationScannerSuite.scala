@@ -182,6 +182,25 @@ class AnnotationScannerSuite extends FunSuite {
     assert(islands("""@islands[pkg.ViewProps]("v.tsx") @JSExportTopLevel("View", "client") def view: IslandExport[pkg.OtherProps] = ???""").isLeft)
   }
 
+  test("each island keeps its module in both the browser entry and the SSR import") {
+    val entries = islands("""
+      @islands[pkg.CounterProps]("counter.tsx") @JSExportTopLevel("Counter", "island-counter") def counter(): IslandExport[CounterProps] = ???
+      @islands("list.tsx") @JSExportTopLevel(name = "ListView", moduleID = "island-list") val list = ???
+      @islands("old.tsx") @JSExportTopLevel("Legacy", "client") val legacy = ???
+    """).toOption.get
+    assertEquals(entries.map(_.sourceModule), List("island-counter.js", "island-list.js", "client.js"))
+    assertEquals(entries.map(_.factory), List(true, false, false))
+    assert(AppFileRenderer.island(entries.head, config).contains("export default __hx4s_island();"))
+    val ssr = AppFileRenderer.islandComponents(entries, config)
+    assert(ssr.contains("lazy val component0 = _root_.example.generated.IslandComponent0()"))
+    entries.foreach { entry =>
+      val specifier = s"${config.virtualModulePrefix}${entry.sourceModule}"
+      assert(AppFileRenderer.island(entry, config).contains(s"""from "$specifier";"""))
+      assert(ssr.contains(s"""@JSImport("$specifier", "${entry.exportedName}")"""))
+    }
+    assert(islands("""@islands("x.tsx") @JSExportTopLevel("X", "../x") val x = 1""").isLeft)
+  }
+
   test("duplicate route methods, island paths and export names are rejected") {
     assert(routes("""
       @route("x.ts") @JSExportTopLevel("x", "server") def x() = 1
@@ -193,11 +212,11 @@ class AnnotationScannerSuite extends FunSuite {
     """).isLeft)
     assert(islands("""
       @islands("x.tsx") @JSExportTopLevel("X", "client") val x = 1
-      @islands("X.tsx") @JSExportTopLevel("Y", "client") val y = 1
+      @islands("X.tsx") @JSExportTopLevel("Y", "island-y") val y = 1
     """).isLeft)
     val sameExport = errors(islands("""
       @islands("first.tsx") @JSExportTopLevel("Widget", "client") val first = 1
-      @islands("second.tsx") @JSExportTopLevel("Widget", "client") val second = 1
+      @islands("second.tsx") @JSExportTopLevel("Widget", "island-second") val second = 1
     """))
     assertEquals(sameExport.map(_.line), List(Some(3), Some(4)))
     assert(AnnotationScanner.routes(List(

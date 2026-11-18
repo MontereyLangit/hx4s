@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { build } from 'vite';
 import { JSDOM } from 'jsdom';
-import { linkedClientModule, root, workerFetch } from './support.js';
+import { linkedClientDirectory, root, workerFetch } from './support.js';
 
 /** Waits until the condition holds */
 async function waitFor(condition, message) {
@@ -26,7 +26,7 @@ test('on jsdom, app/client.ts hydrates Scala.js islands and leaves islands with 
   try {
     await build({
       configFile: false, root, logLevel: 'silent',
-      resolve: { alias: { 'scalajs:client.js': linkedClientModule() } },
+      resolve: { alias: [{ find: /^scalajs:/, replacement: linkedClientDirectory().replaceAll('\\', '/') + '/' }] },
       ssr: { noExternal: ['honox'] },
       build: { ssr: path.join(root, 'app/client.ts'), outDir: out, emptyOutDir: true,
         rollupOptions: { output: { entryFileNames: 'client.mjs', chunkFileNames: '[name]-[hash].mjs' } } },

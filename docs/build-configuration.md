@@ -23,7 +23,7 @@ Enable `Hx4sPlugin` in the server project (its `trigger` is `noTrigger`). The on
 | `hx4sIslandDir` | `File` | `<hx4sProjectRoot>/app/islands` | Output directory for islands |
 | `hx4sIslandIdPrefix` | `String` | `/app/islands/` | Prefix of the island identifier (`component-name`) passed to HonoX during SSR |
 | `hx4sServerModule` | `String` | `server` | moduleID of the server's `@JSExportTopLevel` |
-| `hx4sClientModule` | `String` | `client` | moduleID of the client |
+| `hx4sClientModule` | `String` | `client` | Legacy client module setting retained for configuration compatibility. The Island module ID comes from its annotation |
 | `hx4sVirtualModulePrefix` | `String` | `scalajs:` | Prefix of the virtual module pointing to the Scala.js link output |
 | `hx4sIslandComponentsPackage` | `String` | `hx4s.generated` | Package of the generated Scala |
 | `hx4sIslandComponentsObject` | `String` | `IslandComponents` | Name of the generated object |
@@ -60,7 +60,7 @@ const plugins = hx4s({ mode, sbt: { cwd: import.meta.dirname } });
 | `server.projectID` | `"server"` | ID of the sbt project with `@route` |
 | `client` | `{}` | Client settings. `false` means a setup without a client (API only, SSR without islands). Use it when `hx4sClientProject` is not set |
 | `client.projectID` | `"client"` | ID of the sbt project with `@islands` |
-| `client.module` | `"client"` | moduleID of the client link output (match `hx4sClientModule`) |
+| `client.module` | `"client"` | Client module given priority during SSR resolution. Other module IDs are resolved from the client link output if absent from the server output |
 | `client.entry` | `"./app/client.ts"` | Entry of the client build (a string or an array) |
 | `client.uriPrefix` | `"scalajs-client"` | Prefix of the virtual module that reads the client link output in the server build |
 | `client.output.entryFileNames` | `"static/client.js"` | Output name of the client entry |
@@ -84,7 +84,7 @@ Other exports:
 | --- | --- |
 | `scalaProject(cwd, projectID, uriPrefix?)` (`hx4s-vite`) | Wraps `@scala-js/vite-plugin-scalajs` and serializes `buildStart`, so that sbt isn't started for several projects at once. Use it directly in setups that don't use `hx4s()` |
 | `islandPropsProblem(element)` (`hx4s-vite/client`) | Props validation before hydration. Returns a reason string, or `undefined` if none ([ssr-hydration.md](ssr-hydration.md)) |
-| `hx4s-vite/node-register` | Pass it to Node's `--import`. Registers a loader that resolves `scalajs:client.js` and `hono/jsx` inside honox |
+| `hx4s-vite/node-register` | Pass it to Node's `--import`. Registers a loader that resolves `scalajs:<module>.js` from the client link output and `hono/jsx` inside honox |
 | `hx4s-vite/node-loader` | The loader itself. For registering it alongside your own loader |
 
 `node-loader` reads the environment variable `HX4S_CLIENT_JS_DIR` (the output directory of the client's `fastLinkJS`).

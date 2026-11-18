@@ -24,7 +24,7 @@ object AnnotationScanner {
    * Checks duplicates and conflicts among the remaining declarations without errors too, and returns every error found in one pass
    */
   def routes(sources: List[(String, String)], config: CodegenConfig): Result[List[RouteEntry]] = {
-    val (errors, scanned) = scanAll(sources, config.serverModule, config)
+    val (errors, scanned) = scanAll(sources, client = false, config)
     val found = scanned.flatMap(s => s.found.collect { case r: Found.Route => s.source -> r })
     val entries = found.map(_._2).groupBy(_.file).toList.sortBy(_._1).map { case (file, handlers) =>
       RouteEntry(file, handlers.map(h => RouteHandler(h.method, h.exportName)).sortBy(_.method.ordinal))
@@ -34,7 +34,7 @@ object AnnotationScanner {
 
   /** Reads islands from the client sources. Export names are unique per member, and a member has at most one @islands, so they are unique per island too */
   def islands(sources: List[(String, String)], config: CodegenConfig): Result[List[IslandEntry]] = {
-    val (errors, scanned) = scanAll(sources, config.clientModule, config)
+    val (errors, scanned) = scanAll(sources, client = true, config)
     val found = scanned.flatMap(s => s.found.collect { case i: Found.Island => s.source -> i })
     val conflicts = duplicates(found.map { case (source, i) => (source, i.tree, i.entry.filePath.toLowerCase(Locale.ROOT)) },
       key => s"duplicate island path (case-insensitive) $key")
@@ -42,19 +42,19 @@ object AnnotationScanner {
   }
 
   /** Reads all sources and splits them into errors and results for members without errors. Duplicate export names are checked on the latter */
-  private def scanAll(sources: List[(String, String)], module: String, config: CodegenConfig): (List[CodegenError], List[Scanned]) = {
-    val results = sources.map { case (path, source) => scan(path, source, module, config) }
+  private def scanAll(sources: List[(String, String)], client: Boolean, config: CodegenConfig): (List[CodegenError], List[Scanned]) = {
+    val results = sources.map { case (path, source) => scan(path, source, client, config) }
     val scanned = results.map(_._2)
     val exports = scanned.flatMap(s => s.exports.map { case (name, tree) => (s.source, tree, name) })
     (results.flatMap(_._1) ++ duplicates(exports, name => s"export name $name is declared more than once"), scanned)
   }
 
-  private def scan(path: String, source: String, module: String, config: CodegenConfig): (List[CodegenError], Scanned) =
+  private def scan(path: String, source: String, client: Boolean, config: CodegenConfig): (List[CodegenError], Scanned) =
     dialects.Scala3(Input.VirtualFile(path, source)).parse[Source] match {
       case error: Parsed.Error => (List(CodegenError.position(path, error.pos, error.message)), Scanned(path, Nil, Nil))
       case Parsed.Success(tree) =>
         val members = topLevelObjects(tree).flatMap(_.templ.body.stats)
-        val (errors, results) = CodegenError.partition(members.map(member => scanMember(path, member, module, config)))
+        val (errors, results) = CodegenError.partition(members.map(member => scanMember(path, member, client, config)))
         (errors, Scanned(path, results.flatMap(_._1), results.flatMap(_._2)))
     }
 
@@ -67,7 +67,7 @@ object AnnotationScanner {
     walk(tree.stats)
   }
 
-  private def scanMember(path: String, member: Stat, module: String, config: CodegenConfig): Result[(List[Found], List[(String, Tree)])] = {
+  private def scanMember(path: String, member: Stat, client: Boolean, config: CodegenConfig): Result[(List[Found], List[(String, Tree)])] = {
     val annotations = member match {
       case d: Defn.Def => d.mods.collect { case a: Mod.Annot => a }
       case v: Defn.Val => v.mods.collect { case a: Mod.Annot => a }
@@ -80,16 +80,31 @@ object AnnotationScanner {
     val markers = annotations.filter(a => named(a, "route") || named(a, "islands"))
     if (markers.isEmpty) Right((Nil, Nil))
     else if (markers.count(named(_, "islands")) > 1) Left(List(at(path, member, "a member can have at most one @islands")))
-    else exportName(path, member, annotations, module).flatMap { name =>
+    else readExport(path, member, annotations).flatMap { case (name, module) =>
       CodegenError.sequence(markers.map { marker =>
-        if (named(marker, "route")) route(path, marker, name, module, config)
-        else island(path, marker, name, module, config).flatMap(found => exportTypeMatches(path, member, found, config).map(_ => found))
+        if (named(marker, "route")) {
+          check(!client, at(path, marker, "@route belongs in the server sources"))
+            .flatMap(_ => route(path, marker, name, module, config))
+        } else {
+          for {
+            _ <- check(client, at(path, marker, "@islands belongs in the client sources"))
+            _ <- check(module.matches(Codegen.ModuleId), at(path, marker, s"invalid island moduleID $module"))
+            _ <- check(!module.equalsIgnoreCase(config.serverModule),
+              at(path, marker, s"island moduleID $module conflicts with the server module"))
+            typedExport = islandExportType(member, config)
+            entry <- island(path, marker, name, module)
+            _ <- exportTypeMatches(path, typedExport, entry.propsType)
+            factory = member match {
+              case d: Defn.Def => typedExport.nonEmpty && d.paramClauses.map(_.values) == List(Nil)
+              case _ => false
+            }
+          } yield Found.Island(entry.copy(factory = factory), marker)
+        }
       }).map(found => (found, List(name -> member)))
     }
   }
 
-  /** If the declared type is islandExportType[T], checks syntactically that T has the same type name as the P of @islands[P] */
-  private def exportTypeMatches(path: String, member: Stat, found: Found, config: CodegenConfig): Result[Unit] = {
+  private def islandExportType(member: Stat, config: CodegenConfig): Option[Type.Apply] = {
     val declared = member match {
       case d: Defn.Def => d.decltpe
       case v: Defn.Val => v.decltpe
@@ -97,12 +112,15 @@ object AnnotationScanner {
     }
     val exportType = config.islandExportType
     val simpleName = exportType.split('.').last
-    val propsType = found match {
-      case Found.Island(entry, _) => entry.propsType
-      case _ => None
+    declared.collect {
+      case applied: Type.Apply if Set(simpleName, exportType, s"_root_.$exportType")(applied.tpe.syntax) => applied
     }
-    declared match {
-      case Some(applied: Type.Apply) if Set(simpleName, exportType, s"_root_.$exportType")(applied.tpe.syntax) =>
+  }
+
+  /** Checks syntactically that the declared IslandExport[T] and @islands[P] use the same props type */
+  private def exportTypeMatches(path: String, typedExport: Option[Type.Apply], propsType: Option[String]): Result[Unit] =
+    typedExport match {
+      case Some(applied) =>
         val base = applied.tpe
         (applied.argClause.values, propsType) match {
           case (List(arg), None) =>
@@ -118,18 +136,15 @@ object AnnotationScanner {
         }
       case _ => Right(())
     }
-  }
 
-  private def exportName(path: String, member: Stat, annotations: List[Mod.Annot], module: String): Result[String] = {
+  private def readExport(path: String, member: Stat, annotations: List[Mod.Annot]): Result[(String, String)] = {
     annotations.filter(a => ExportAnnotations(a.init.tpe.syntax)) match {
       case List(exported) =>
         literalArgs(path, exported, List("name", "moduleID")).flatMap {
           case List(name, exportModule) =>
-            for {
-              _ <- check(exportModule == module, at(path, exported, s"expected @JSExportTopLevel moduleID $module, found $exportModule"))
-              _ <- check(name.matches(IdentifierPattern), at(path, exported, s"invalid export identifier $name"))
-            } yield name
-          case _ => Left(List(at(path, exported, s"@JSExportTopLevel needs a literal name and moduleID $module")))
+            check(name.matches(IdentifierPattern), at(path, exported, s"invalid export identifier $name"))
+              .map(_ => (name, exportModule))
+          case _ => Left(List(at(path, exported, "@JSExportTopLevel needs a literal name and moduleID")))
         }
       case _ => Left(List(at(path, member, "annotated member needs exactly one @JSExportTopLevel")))
     }
@@ -137,7 +152,7 @@ object AnnotationScanner {
 
   private def route(path: String, marker: Mod.Annot, name: String, module: String, config: CodegenConfig): Result[Found] = {
     for {
-      _ <- check(module == config.serverModule, at(path, marker, s"@route belongs to members exported to ${config.serverModule}"))
+      _ <- check(module == config.serverModule, at(path, marker, s"expected @JSExportTopLevel moduleID ${config.serverModule}, found $module"))
       _ <- check(typeArgs(marker).isEmpty, at(path, marker, "@route takes no type argument"))
       args <- literalArgs(path, marker, List("filePath", "method"))
       _ <- check(args.nonEmpty && args.sizeIs <= 2, at(path, marker, "@route needs filePath and an optional method"))
@@ -171,9 +186,8 @@ object AnnotationScanner {
         (segment.startsWith(".") && !(allowWellKnown && index == 0 && segment == ".well-known" && segments.sizeIs > 1)) => segment
     }
 
-  private def island(path: String, marker: Mod.Annot, name: String, module: String, config: CodegenConfig): Result[Found] = {
+  private def island(path: String, marker: Mod.Annot, name: String, module: String): Result[IslandEntry] = {
     for {
-      _ <- check(module == config.clientModule, at(path, marker, s"@islands belongs to members exported to ${config.clientModule}"))
       args <- literalArgs(path, marker, List("filePath"))
       _ <- check(args.sizeIs == 1, at(path, marker, "@islands needs filePath"))
       file <- outputPath(path, marker, args.head, ".tsx")
@@ -181,7 +195,7 @@ object AnnotationScanner {
       _ <- hiddenSegment(file.split("/").toList, allowWellKnown = false).toLeft(()).left.map(segment =>
         List(at(path, marker, s"island path $file is not discovered by import.meta.glob ($segment)")))
       propsType <- islandPropsType(path, marker)
-    } yield Found.Island(IslandEntry(file, name, s"$module.js", propsType), marker)
+    } yield IslandEntry(file, name, s"$module.js", propsType)
   }
 
   private def islandPropsType(path: String, marker: Mod.Annot): Result[Option[String]] = typeArgs(marker) match {

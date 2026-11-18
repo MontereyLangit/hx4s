@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import type { Plugin, PluginOption } from "vite";
 import honox from "honox/vite";
 import scalaJSPlugin from "@scala-js/vite-plugin-scalajs";
@@ -8,7 +9,7 @@ type HonoxOptions = NonNullable<Parameters<typeof honox>[0]>;
 export interface Hx4sClientOptions {
   /** ID of the sbt project with @islands. Defaults to "client" */
   projectID?: string;
-  /** @JSExportTopLevel moduleID of the client link output. Defaults to "client" */
+  /** Client moduleID given priority over the server link output during SSR. Defaults to "client" */
   module?: string;
   /** Entry of the client build. Defaults to "./app/client.ts" */
   entry?: string | string[];
@@ -80,9 +81,26 @@ export default function hx4s(options: Hx4sOptions): PluginOption[] {
     name: "hx4s:client-alias",
     config: () => ({ resolve: { alias: { [`scalajs:${clientModule}`]: `${clientUriPrefix}:${clientModule}` } } }),
   };
+  const serverPlugin = scalaProject(cwd, serverProjectID);
+  const resolveServer = serverPlugin.resolveId;
+  // The upstream resolver constructs a path without checking whether the server emitted that file.
+  if (typeof resolveServer !== "function") {
+    throw new Error("Expected a resolveId function from @scala-js/vite-plugin-scalajs");
+  }
+  serverPlugin.resolveId = async function (source, importer, resolveOptions) {
+    const serverFile = await resolveServer.call(this, source, importer, resolveOptions);
+    const module = /^scalajs:([A-Za-z0-9_][A-Za-z0-9_.-]*\.js)$/.exec(source)?.[1];
+    if (!module || typeof serverFile !== "string") return serverFile;
+    try {
+      if ((await stat(serverFile)).isFile()) return serverFile;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    return this.resolve(`${clientUriPrefix}:${module}`, importer, { ...resolveOptions, skipSelf: true });
+  };
   return [
     honox(honoxOptions),
-    scalaProject(cwd, serverProjectID),
+    serverPlugin,
     scalaProject(cwd, client.projectID ?? "client", clientUriPrefix),
     clientAlias,
   ];

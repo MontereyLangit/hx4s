@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
+import { brotliCompressSync, gzipSync } from 'node:zlib';
+import { JSDOM } from 'jsdom';
 import { root } from './support.js';
 
 const port = Number(process.env.HX4S_E2E_PORT ?? 8791);
@@ -62,8 +64,48 @@ test('opening the SSR page in a real browser and clicking islands changes state 
     page.on('console', (message) => { if (message.type() === 'error' || message.type() === 'warning') problems.push(`${message.type()}: ${message.text()}`); });
     page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
 
-    await page.goto(`${origin}/`);
-    await page.waitForSelector('html[data-hx4s-ready]');
+    const scriptResponses = new Map();
+    page.on('response', (response) => {
+      if (new URL(response.url()).pathname.endsWith('.js')) scriptResponses.set(response.url(), response);
+    });
+    const scriptsFor = async (pathname) => {
+      scriptResponses.clear();
+      await page.goto(`${origin}${pathname}`);
+      await page.waitForSelector('html[data-hx4s-ready]');
+      return new Map(await Promise.all([...scriptResponses].map(async ([url, response]) => [url, await response.body()])));
+    };
+    // Routing disables the HTTP cache. Keep one kind of Island on each copy of the production SSR page.
+    await page.route(new RegExp(`^${origin}/\\?(counter|item-list)-only$`), async (route) => {
+      const response = await route.fetch();
+      const dom = new JSDOM(await response.text());
+      const keep = new URL(response.url()).search.slice(1).replace('-only', '');
+      const islands = dom.window.document.querySelectorAll('honox-island');
+      for (const island of islands) {
+        if (island.getAttribute('component-name') !== `/app/islands/${keep}.tsx`) island.remove();
+      }
+      await route.fulfill({ response, body: dom.serialize() });
+      dom.window.close();
+    });
+    const withoutIslands = await scriptsFor('/items/2');
+    const countersOnly = await scriptsFor('/?counter-only');
+    await page.locator('button.counter').first().click();
+    await page.waitForFunction(() => document.querySelector('button.counter').textContent === 'A: 1');
+
+    const itemsOnly = await scriptsFor('/?item-list-only');
+    const allIslands = await scriptsFor('/');
+    const implementations = (scripts) => ['CounterJs', 'Selected: '].filter((marker) =>
+      [...scripts.values()].some((body) => body.includes(marker)));
+    assert.deepEqual(implementations(withoutIslands), []);
+    assert.deepEqual(implementations(countersOnly), ['CounterJs']);
+    assert.deepEqual(implementations(itemsOnly), ['Selected: ']);
+    assert.deepEqual(implementations(allIslands), ['CounterJs', 'Selected: ']);
+    assert.ok([...countersOnly.keys()].some((url) => itemsOnly.has(url) && !withoutIslands.has(url)),
+      'both Islands use a common chunk that the SSR-only page does not request');
+    for (const compress of [gzipSync, brotliCompressSync]) {
+      const bytes = (scripts) => [...scripts.values()].reduce((total, body) => total + compress(body).length, 0);
+      assert.ok(bytes(withoutIslands) < bytes(countersOnly), 'loading a counter adds JavaScript');
+      assert.ok(bytes(countersOnly) < bytes(allIslands), 'loading the list adds JavaScript');
+    }
     const counters = page.locator('button.counter');
     await counters.nth(0).click();
     await counters.nth(0).click();

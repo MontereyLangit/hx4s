@@ -72,7 +72,7 @@ val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps
 | 対象 | 設定したソース（client プロジェクト）のトップレベル object の `def` / `val` |
 | 型引数 `P` | props の型の**完全修飾名**。import した短い名前は書けない（`must be a fully qualified class name`）。省くと `js.Object` |
 | `filePath` | `app/islands` からの相対パスで `.tsx` で終わる文字列リテラル |
-| `@JSExportTopLevel` | ちょうど 1 つ。moduleID は `"client"`。export 名は JS の識別子で、プロジェクトの中で一意 |
+| `@JSExportTopLevel` | ちょうど 1 つ。moduleID は文字列リテラル。export 名は `IslandComponents` のメソッド名にもなるため、全 Island で一意な JS 識別子 |
 | 1 つのメンバの `@islands` | 1 つまで |
 
 ### ファイル名の規則
@@ -85,6 +85,34 @@ HonoX の `createClient` は basename が `[A-Za-z0-9-]+\.tsx` のファイル�
 | `foo_bar.tsx`、`foo.bar.tsx`、`foo bar.tsx`、`foo.island.tsx`、`$foo.tsx` | 拒否: `island basename of bad_name.tsx must match [A-Za-z0-9-]+\.tsx for HonoX discovery` |
 
 `.` で始まるディレクトリと `node_modules` を含むパスも拒否される。大文字小文字だけ違うパスは重複として拒否される。
+
+## Island のコード分割
+
+`"client"` を使い続けると、従来どおり 1 つの export モジュールを共有する。独立して遅延読み込みしたい Island には個別の moduleID を付け、明示的に `IslandExport[P]` を返す引数なしのメソッドで公開する。Scala.js のトップレベルな `val` export は、別々のオブジェクトに置いても複数の公開モジュールからまとめて初期化される場合がある。従来の `val` などによるコンポーネントの直接 export も引き続き使える。
+
+```scala
+object CounterEntry {
+  @islands[example.shared.CounterProps]("counter.tsx")
+  @JSExportTopLevel("CounterJs", "island-counter")
+  def counter(): IslandExport[CounterProps] =
+    IslandExport("CounterJs", CounterProps.fields)(props => Counter.Component(props))
+}
+```
+
+ブラウザーの生成エントリーは HonoX が読み込んだ時点でメソッドを一度呼び出す。SSR は対象の Island を初めて描画するときに呼び出し、コンポーネントをキャッシュする。どちらも `scalajs:island-counter.js` を参照し、戻り値のコンポーネントに付いた props 検証を利用する。独立して読み込むメソッドは別々のトップレベルオブジェクトに置き、無関係な Island を共有の初期化処理から参照しないようにする。moduleID は `[A-Za-z0-9_][A-Za-z0-9_.-]*` に合わせ、サーバー側のリンク成果物と名前が重ならないようにする。同じページでよく使う Island は、同じ moduleID にまとめられる。
+
+分割方法は、対象パッケージに合わせてクライアントの sbt プロジェクトで設定する。
+
+```scala
+import org.scalajs.linker.interface.ModuleSplitStyle
+
+scalaJSLinkerConfig ~= {
+  _.withModuleKind(ModuleKind.ESModule)
+    .withModuleSplitStyle(ModuleSplitStyle.SmallModulesFor(List("example.client")))
+}
+```
+
+Scala.js は `fastLinkJS` と `fullLinkJS` の両方で moduleID ごとに公開モジュールを生成する。既定の `FewestModules` でも、エントリーから到達可能なコードの分割と共有依存の抽出が行われる。`SmallModulesFor` では指定したアプリケーションのパッケージをさらに細かく分割できる。HonoX はページで使う Island を動的に読み込み、Vite は共通のチャンクを再利用できる。別の Island の実装を静的に参照していれば、その実装も読み込まれる。詳細は [Scala.js のモジュール分割ガイド](https://www.scala-js.org/doc/project/module.html) と [最小例](../../examples/minimal) を参照。
 
 ## `IslandExport[P]`
 

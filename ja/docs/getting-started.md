@@ -366,7 +366,7 @@ object Main {
 ```
 
 - `IslandComponents` は `hx4sIslandComponents` が `Compile / sourceGenerators` で生成する（`server/target/.../src_managed`）。コミットしない。
-- `@JSExportTopLevel` の 2 つ目の引数（moduleID）は、`@route` なら `"server"`、`@islands` なら `"client"` に固定。
+- `@JSExportTopLevel` の 2 つ目の引数（moduleID）は、`@route` では server の設定と合わせる。`@islands` では Island ごとに指定できる。[Island のコード分割](islands.md#island-のコード分割)を参照。
 - client の script は island の有無にかかわらず読み込む（シェルの `<script>`）。
 
 ### 6. Worker の設定

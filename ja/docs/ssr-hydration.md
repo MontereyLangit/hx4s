@@ -82,7 +82,7 @@ props を `<script type="application/json">` に置く方式は採っていな�
 
 server のハンドラや秘匿値がブラウザのバンドルに入らないように、次の 2 つで守る。
 
-1. **プロジェクトの分割**: server と client を別の sbt プロジェクトにし、client は server に依存しない。server が client を使うのは、Vite の仮想モジュール `scalajs:client.js`（island の実体）だけ。
+1. **プロジェクトの分割**: server と client を別の sbt プロジェクトにし、client は server に依存しない。server は Vite の仮想モジュール `scalajs:<module>.js` を通じて client の Island を参照する。
    Scala.js は client を別のリンク成果物として作る。
 2. **`hx4sCheckDependencies`**: sbt の依存グラフを検査する。`hx4sGenerate` と `hx4sIslandComponents` が先に呼ぶので、違反があると生成の時点で失敗する。
 
@@ -107,12 +107,12 @@ hx4s: the client project client must not depend on the server project server (cl
 
 ### Node 上で Scala.js のテストを動かす
 
-server のテストは Node 上で、SSR（`ReactDOMServer.renderToStaticMarkup`）まで動かせる。そのまま動かすと、リンク成果物の `scalajs:client.js` と HonoX 内の `hono/jsx` を Node が解決できない。
+server のテストは Node 上で、SSR（`ReactDOMServer.renderToStaticMarkup`）まで動かせる。そのまま動かすと、リンク成果物の `scalajs:<module>.js` と HonoX 内の `hono/jsx` を Node が解決できない。
 `hx4s-vite` が Node の module hooks の loader を提供する。
 
 | 指定子 | 解決先 |
 | --- | --- |
-| `scalajs:client.js` | `$HX4S_CLIENT_JS_DIR/client.js`（client の `fastLinkJS` の出力ディレクトリ） |
+| `scalajs:<module>.js` | `$HX4S_CLIENT_JS_DIR/<module>.js`（client の `fastLinkJS` の出力ディレクトリ） |
 | HonoX 内の `hono/jsx`・`hono/jsx/jsx-runtime` | `react`・`react/jsx-runtime`（`hx4s()` が本番ビルドでしている置換と同じ） |
 
 ```scala

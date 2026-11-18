@@ -23,7 +23,7 @@ hx4s のビルドは 3 つの部品でできている。
 | `hx4sIslandDir` | `File` | `<hx4sProjectRoot>/app/islands` | island の出力先 |
 | `hx4sIslandIdPrefix` | `String` | `/app/islands/` | SSR で HonoX に渡す island 識別子（`component-name`）の接頭辞 |
 | `hx4sServerModule` | `String` | `server` | server の `@JSExportTopLevel` の moduleID |
-| `hx4sClientModule` | `String` | `client` | client の moduleID |
+| `hx4sClientModule` | `String` | `client` | 既存設定との互換性のために残っている。Island の moduleID はアノテーションから取得する |
 | `hx4sVirtualModulePrefix` | `String` | `scalajs:` | Scala.js のリンク成果物を指す仮想モジュールの接頭辞 |
 | `hx4sIslandComponentsPackage` | `String` | `hx4s.generated` | 生成する Scala のパッケージ |
 | `hx4sIslandComponentsObject` | `String` | `IslandComponents` | 生成する object の名前 |
@@ -60,7 +60,7 @@ const plugins = hx4s({ mode, sbt: { cwd: import.meta.dirname } });
 | `server.projectID` | `"server"` | `@route` を持つ sbt プロジェクトの ID |
 | `client` | `{}` | client の設定。`false` なら client を持たない構成（API だけ・island の無い SSR）。`hx4sClientProject` を設定しないときに使う |
 | `client.projectID` | `"client"` | `@islands` を持つ sbt プロジェクトの ID |
-| `client.module` | `"client"` | client のリンク成果物の moduleID（`hx4sClientModule` と合わせる） |
+| `client.module` | `"client"` | SSR で優先して client 側に解決する moduleID。他の moduleID は server の出力にファイルがなければ client の出力から解決する |
 | `client.entry` | `"./app/client.ts"` | client ビルドの入口（文字列または配列） |
 | `client.uriPrefix` | `"scalajs-client"` | server ビルドで client のリンク成果物を読む仮想モジュールの接頭辞 |
 | `client.output.entryFileNames` | `"static/client.js"` | client の入口の出力名 |
@@ -73,7 +73,7 @@ const plugins = hx4s({ mode, sbt: { cwd: import.meta.dirname } });
 | `mode` | 返すプラグイン |
 | --- | --- |
 | `"client"` | client の Scala.js プロジェクト、出力名と `emptyOutDir: false` を設定するプラグイン |
-| それ以外 | `honox()`、server と client の Scala.js プロジェクト、`scalajs:client.js` → `scalajs-client:client.js` の別名 |
+| それ以外 | `honox()`、server と client の Scala.js プロジェクト、SSR 時の Island モジュール解決 |
 | それ以外（`client: false`） | `honox()` と server の Scala.js プロジェクトだけ |
 
 `client: false` と `mode: "client"` を組み合わせると、`hx4s()` がエラーを投げる（client ビルドが無いため）。例は `examples/api-only`（[api.md](api.md)）。
@@ -84,7 +84,7 @@ const plugins = hx4s({ mode, sbt: { cwd: import.meta.dirname } });
 | --- | --- |
 | `scalaProject(cwd, projectID, uriPrefix?)`（`hx4s-vite`） | `@scala-js/vite-plugin-scalajs` を包み、`buildStart` を直列にする。複数のプロジェクトで同時に sbt を起動しないため。`hx4s()` を使わない構成で直接使う |
 | `islandPropsProblem(element)`（`hx4s-vite/client`） | hydrate の前の props の検証。理由があれば文字列、なければ `undefined`（[ssr-hydration.md](ssr-hydration.md)） |
-| `hx4s-vite/node-register` | Node の `--import` に渡す。`scalajs:client.js` と honox 内の `hono/jsx` を解決する loader を登録する |
+| `hx4s-vite/node-register` | Node の `--import` に渡す。client 側の `scalajs:<module>.js` と honox 内の `hono/jsx` を解決する loader を登録する |
 | `hx4s-vite/node-loader` | 上の loader 本体。利用側の loader と並べて登録するとき用 |
 
 `node-loader` は環境変数 `HX4S_CLIENT_JS_DIR`（client の `fastLinkJS` の出力ディレクトリ）を読む。

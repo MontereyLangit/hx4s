@@ -68,7 +68,7 @@ object Codegen {
     )).map(_ => ())
   }
 
-  private val ModuleId = "[A-Za-z0-9_][A-Za-z0-9_.-]*"
+  private[codegen] val ModuleId = "[A-Za-z0-9_][A-Za-z0-9_.-]*"
   private val ModulePrefix = "[A-Za-z0-9_@./:-]+"
   private val UrlPrefix = "[A-Za-z0-9_@./:~-]*"
   private[codegen] val LineTerminators: Set[Char] = Set('\n', '\r', '\u2028', '\u2029')

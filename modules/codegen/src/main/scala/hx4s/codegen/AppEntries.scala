@@ -25,7 +25,8 @@ final case class RouteEntry(filePath: String, handlers: List[RouteHandler]) {
  * @param exportedName name of the `@JSExportTopLevel`
  * @param sourceModule virtual module name imported from (e.g. `"client.js"`)
  * @param propsType    fully qualified name of the props type (with `_root_.`). None if there is no type argument
+ * @param factory      whether the export must be called once to obtain the island component
  */
-final case class IslandEntry(filePath: String, exportedName: String, sourceModule: String, propsType: Option[String] = None)
+final case class IslandEntry(filePath: String, exportedName: String, sourceModule: String, propsType: Option[String] = None, factory: Boolean = false)
 
 final case class AppEntries(routes: List[RouteEntry], islands: List[IslandEntry])

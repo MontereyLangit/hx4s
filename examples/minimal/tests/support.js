@@ -23,9 +23,9 @@ export async function workerFetch(pathname, init) {
 }
 
 /** The client's Scala.js link output (built by vite build --mode client via sbt's fullLinkJS) */
-export function linkedClientModule() {
+export function linkedClientDirectory() {
   const target = path.join(root, 'client', 'target');
   const scalaDir = readdirSync(target).find((name) => name.startsWith('scala-'));
   if (!scalaDir) throw new Error('client is not linked. Run npm run build first.');
-  return path.join(target, scalaDir, 'client-opt', 'client.js');
+  return path.join(target, scalaDir, 'client-opt');
 }

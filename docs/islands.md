@@ -72,7 +72,7 @@ val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps
 | Target | A `def` / `val` in a top-level object of the configured sources (the client project) |
 | Type argument `P` | The **fully qualified name** of the props type. An imported short name can't be used (`must be a fully qualified class name`). If omitted, `js.Object` |
 | `filePath` | A string literal relative to `app/islands`, ending in `.tsx` |
-| `@JSExportTopLevel` | Exactly one. The moduleID is `"client"`. The export name is a JS identifier, unique within the project |
+| `@JSExportTopLevel` | Exactly one, with a literal moduleID. The export name is a JS identifier and must be unique across all Islands because it also names an `IslandComponents` method |
 | `@islands` per member | At most one |
 
 ### File name rules
@@ -85,6 +85,34 @@ HonoX's `createClient` hydrates only files whose basename matches `[A-Za-z0-9-]+
 | `foo_bar.tsx`, `foo.bar.tsx`, `foo bar.tsx`, `foo.island.tsx`, `$foo.tsx` | Rejected: `island basename of bad_name.tsx must match [A-Za-z0-9-]+\.tsx for HonoX discovery` |
 
 Paths containing directories starting with `.` or `node_modules` are also rejected. Paths that differ only in case are rejected as duplicates.
+
+## Splitting Island code
+
+Keep `"client"` to share one export module, or give independently loaded Islands separate module IDs. For lazy loading, declare each export as a no-argument method with an explicit `IslandExport[P]` return type. Scala.js can eagerly initialize top-level exported fields across public modules, even when the fields live in separate Scala objects. Direct component exports, including existing `val` declarations, are still supported.
+
+```scala
+object CounterEntry {
+  @islands[example.shared.CounterProps]("counter.tsx")
+  @JSExportTopLevel("CounterJs", "island-counter")
+  def counter(): IslandExport[CounterProps] =
+    IslandExport("CounterJs", CounterProps.fields)(props => Counter.Component(props))
+}
+```
+
+The browser entry calls the factory once when HonoX imports the entry. SSR caches the component on first render. Both import the factory from `scalajs:island-counter.js` and use the returned component with its props validator intact. Use separate top-level objects for independently loaded factories and avoid shared initializers that reference unrelated implementations. Use module IDs matching `[A-Za-z0-9_][A-Za-z0-9_.-]*` and choose names distinct from the server's linker output. Islands that usually appear together can share a module ID.
+
+Configure the split style in the client sbt project. The package list is application-specific, so sbt-hx4s leaves this setting to the application.
+
+```scala
+import org.scalajs.linker.interface.ModuleSplitStyle
+
+scalaJSLinkerConfig ~= {
+  _.withModuleKind(ModuleKind.ESModule)
+    .withModuleSplitStyle(ModuleSplitStyle.SmallModulesFor(List("example.client")))
+}
+```
+
+Scala.js creates public modules for the distinct export IDs in both `fastLinkJS` and `fullLinkJS`. Its default `FewestModules` already uses entry-point reachability to split code and share common dependencies. `SmallModulesFor` gives application classes finer boundaries while keeping library modules coarser. HonoX dynamically imports the entries used on the page, and Vite can reuse chunks shared by multiple entries. A static dependency from one Island to another still causes both implementations to load. See the [Scala.js module splitting guide](https://www.scala-js.org/doc/project/module.html) and the [minimal example](../examples/minimal).
 
 ## `IslandExport[P]`
 

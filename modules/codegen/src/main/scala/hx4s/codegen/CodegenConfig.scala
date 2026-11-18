@@ -7,7 +7,7 @@ import java.nio.file.Path
  * @param serverSources       source files searched for `@route`
  * @param clientSources       source files searched for `@islands`
  * @param serverModule        moduleID of server-side `@JSExportTopLevel`
- * @param clientModule        moduleID of client-side `@JSExportTopLevel`
+ * @param clientModule        legacy client module setting kept for compatibility. Island module IDs come from their exports
  * @param routeDir            output directory for route files
  * @param islandDir           output directory for island files
  * @param islandIdPrefix      prefix of the island identifier passed to HonoX during SSR
