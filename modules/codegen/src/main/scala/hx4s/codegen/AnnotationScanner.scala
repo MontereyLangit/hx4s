@@ -4,10 +4,10 @@ import hx4s.codegen.CodegenError.{Result, at, check}
 import scala.meta.*
 import java.util.Locale
 
-/** Reads `@route` / `@islands` and `@JSExportTopLevel` on members of top-level objects */
+/** Scans Scala 3 syntax for route and island annotations on `def` and `val` members of top-level objects. */
 object AnnotationScanner {
 
-  /** One output read from one annotation. The position is used to report duplicates */
+  /** One output read from one annotation. The position is used to report duplicates. */
   private enum Found {
     case Route(file: String, method: HttpMethod, exportName: String, tree: Tree)
     case Island(entry: IslandEntry, tree: Tree)
@@ -20,8 +20,11 @@ object AnnotationScanner {
   private val IslandBasename = "[A-Za-z0-9-]+\\.tsx"
 
   /**
-   * Reads routes from the server sources. sources are (display path, content)
-   * Checks duplicates and conflicts among the remaining declarations without errors too, and returns every error found in one pass
+   * Groups server route exports by output file and checks for duplicate methods, case conflicts and equivalent URL patterns.
+   *
+   * @param sources Pairs of diagnostic source path and Scala source text.
+   * @param config Expected annotation package and server export module ID.
+   * @return Routes ordered by file path, with handlers ordered by HTTP method, or the collected diagnostics.
    */
   def routes(sources: List[(String, String)], config: CodegenConfig): Result[List[RouteEntry]] = {
     val (errors, scanned) = scanAll(sources, client = false, config)
@@ -32,7 +35,13 @@ object AnnotationScanner {
     CodegenError.combine(errors ++ routeConflicts(found), Right(entries))
   }
 
-  /** Reads islands from the client sources. Export names are unique per member, and a member has at most one @islands, so they are unique per island too */
+  /**
+   * Scans client island exports and checks export names and case-insensitive output paths for duplicates.
+   *
+   * @param sources Pairs of diagnostic source path and Scala source text.
+   * @param config Annotation, export type and server module settings used by the scanner.
+   * @return Islands ordered by file path, or the collected diagnostics.
+   */
   def islands(sources: List[(String, String)], config: CodegenConfig): Result[List[IslandEntry]] = {
     val (errors, scanned) = scanAll(sources, client = true, config)
     val found = scanned.flatMap(s => s.found.collect { case i: Found.Island => s.source -> i })
@@ -41,7 +50,7 @@ object AnnotationScanner {
     CodegenError.combine(errors ++ conflicts, Right(found.map(_._2.entry).sortBy(_.filePath)))
   }
 
-  /** Reads all sources and splits them into errors and results for members without errors. Duplicate export names are checked on the latter */
+  /** Reads all sources and splits them into errors and results for members without errors. Duplicate export names are checked on the latter. */
   private def scanAll(sources: List[(String, String)], client: Boolean, config: CodegenConfig): (List[CodegenError], List[Scanned]) = {
     val results = sources.map { case (path, source) => scan(path, source, client, config) }
     val scanned = results.map(_._2)
@@ -117,7 +126,7 @@ object AnnotationScanner {
     }
   }
 
-  /** Checks syntactically that the declared IslandExport[T] and @islands[P] use the same props type */
+  /** Compares a recognized export type argument with `@islands` using syntax alone. An unqualified name is compared with the final segment. */
   private def exportTypeMatches(path: String, typedExport: Option[Type.Apply], propsType: Option[String]): Result[Unit] =
     typedExport match {
       case Some(applied) =>
@@ -162,13 +171,13 @@ object AnnotationScanner {
     } yield Found.Route(file, method, name, marker)
   }
 
-  /** Methods HonoX createApp does not register are silently ignored, so reject them */
+  /** Methods HonoX createApp does not register are silently ignored, so reject them. */
   private def routeMethod(path: String, marker: Mod.Annot, name: String): Result[HttpMethod] = name match {
     case "HEAD" => Left(List(at(path, marker, "HEAD is not registered by HonoX createApp (GET handlers also answer HEAD)")))
     case other => HttpMethod.parse(other).toRight(List(at(path, marker, s"unsupported HTTP method $other")))
   }
 
-  /** Returns a reason if HonoX's default route glob (with-defaults.js) or Vite's import.meta.glob does not pick up the file name */
+  /** Returns a reason if HonoX's default route glob (with-defaults.js) or Vite's import.meta.glob does not pick up the file name. */
   private def routeFileProblem(file: String): Option[String] = {
     val segments = file.split("/").toList
     val basename = segments.last
@@ -179,7 +188,7 @@ object AnnotationScanner {
     else hiddenSegment(segments, allowWellKnown = true).map(segment => s"route path $file is not discovered by import.meta.glob ($segment)")
   }
 
-  /** import.meta.glob skips names starting with a dot and node_modules by default. HonoX picks up only a leading .well-known in routes separately */
+  /** import.meta.glob skips names starting with a dot and node_modules by default. HonoX picks up only a leading .well-known in routes separately. */
   private def hiddenSegment(segments: List[String], allowWellKnown: Boolean): Option[String] =
     segments.zipWithIndex.collectFirst {
       case (segment, index) if segment == "node_modules" ||

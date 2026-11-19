@@ -11,22 +11,25 @@ import scala.scalajs.js
 import scala.scalajs.js.JSConverters.*
 import scala.scalajs.js.annotation.JSExportTopLevel
 
-/** Props received by app/routes/_renderer.tsx */
+/** Renderer props consumed by `app/routes/_renderer.tsx`. */
 trait RenderProps extends js.Object {
   val title: js.UndefOr[String]
 }
 
-/** Exports called from HonoX. hx4sGenerate wires members with @route into app/routes */
+/** Exports page, JSON and renderer entry points for the HonoX example. */
 object Main {
+  /** Hono context whose renderer accepts `RenderProps`. */
   type AppContext = Context[js.Object, RenderProps]
 
   private def titled(text: String): RenderProps = new RenderProps { val title = s"$text | hx4s minimal" }
 
+  /** Renders the home page through the configured Hono renderer. */
   @route("index.ts")
   @JSExportTopLevel("indexPage", "server")
   def indexPage(c: AppContext): js.Promise[Response] =
     c.renderPromise(Pages.index().rawElement, titled("Home"))
 
+  /** Renders the requested item or a `404` page if its ID is unknown. */
   @route("items/[id].ts")
   @JSExportTopLevel("itemPage", "server")
   def itemPage(c: AppContext): js.Promise[Response] = {
@@ -39,6 +42,7 @@ object Main {
     }
   }
 
+  /** Reads a submitted name from form data and renders the result. Unknown IDs and invalid names produce `400`. */
   @route("items/[id].ts", "POST")
   @JSExportTopLevel("itemUpdate", "server")
   def itemUpdate(c: AppContext): js.Promise[Response] = {
@@ -61,7 +65,7 @@ object Main {
     }.toJSPromise
   }
 
-  /** JSON of the items. Repeating ?tag= narrows to items that have all those tags */
+  /** Returns a JSON array of items containing every supplied `tag` query value. */
   @route("api/items.ts")
   @JSExportTopLevel("itemsApi", "server")
   def itemsApi(c: AppContext): Response = {
@@ -71,7 +75,7 @@ object Main {
     }.toJSArray)
   }
 
-  /** The HTML shell. Called by app/routes/_renderer.tsx */
+  /** Builds the HTML shell for the HonoX renderer, defaulting its title to `hx4s minimal`. */
   @JSExportTopLevel("renderShell", "server")
   def renderShell(children: React.Node, title: js.UndefOr[String], clientScriptSrc: String): React.Element =
     Shell(children, title.getOrElse("hx4s minimal"), clientScriptSrc).rawElement

@@ -6,16 +6,26 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import scala.util.Try
 
-/** Reads sources according to the settings and generates route / island TS files and the Scala API for SSR */
+/** Reads annotated Scala sources and orchestrates HonoX file generation. */
 object Codegen {
 
-  /** Writes route and island TS files and deletes stale generated files. Empty sources produce empty output */
+  /**
+   * Writes route and island files and removes stale generated files under both configured output roots.
+   *
+   * @param config Settings and input sources for both sides. Empty source lists still allow stale files to be removed.
+   * @return File write summary or diagnostics from validation, scanning or output handling.
+   */
   def appFiles(config: CodegenConfig): Result[WriteSummary] =
     appOutputs(config).flatMap { files =>
       OutputWriter.write(files, List(config.routeRoot, config.islandRoot), config.generatedMarker, config.projectRoot)
     }
 
-  /** Contents of the route and island TS files */
+  /**
+   * Reads and scans both source sets and renders the TypeScript outputs in memory.
+   *
+   * @param config Settings and input sources for both sides.
+   * @return Route outputs followed by island outputs, or diagnostics.
+   */
   def appOutputs(config: CodegenConfig): Result[List[GeneratedFile]] =
     validate(config).flatMap { _ =>
       // Return server and client errors together
@@ -29,7 +39,12 @@ object Codegen {
       }
     }
 
-  /** The Scala API for SSR. Its only input is the client sources */
+  /**
+   * Writes the Scala SSR API from client sources, including an empty object when there are no islands.
+   *
+   * @param config Settings and client sources. `scalaOutput` must be defined.
+   * @return File write summary or diagnostics from validation, scanning or output handling.
+   */
   def islandComponents(config: CodegenConfig): Result[WriteSummary] =
     for {
       _ <- validate(config)
@@ -40,7 +55,12 @@ object Codegen {
       summary <- OutputWriter.write(List(file), Nil, config.generatedMarker, config.projectRoot)
     } yield summary
 
-  /** Validates the settings. Values embedded in generated sources are limited to characters usable in identifiers and paths. Errors are returned together */
+  /**
+   * Checks generated identifiers, module IDs, prefixes and banner configuration.
+   *
+   * @param config Settings to check before scanning sources.
+   * @return `Right(())` on success or all detected configuration errors.
+   */
   def validate(config: CodegenConfig): Result[Unit] = {
     val identifier = "[A-Za-z_][A-Za-z0-9_]*"
     def scalaName(value: String): Boolean = value.matches(identifier) && !ScalaKeywords(value)
@@ -73,14 +93,14 @@ object Codegen {
   private val UrlPrefix = "[A-Za-z0-9_@./:~-]*"
   private[codegen] val LineTerminators: Set[Char] = Set('\n', '\r', '\u2028', '\u2029')
 
-  /** Scala 3 reserved words. Not allowed in the generated package and object names or in any part of fully qualified names the generated code references */
+  /** Scala 3 reserved words. Not allowed in the generated package and object names or in any part of fully qualified names the generated code references. */
   private val ScalaKeywords = Set(
     "abstract", "case", "catch", "class", "def", "do", "else", "enum", "export", "extends", "false", "final", "finally", "for",
     "given", "if", "implicit", "import", "lazy", "match", "new", "null", "object", "override", "package", "private", "protected",
     "return", "sealed", "super", "then", "throw", "trait", "true", "try", "type", "val", "var", "while", "with", "yield"
   )
 
-  /** Passes the readable sources to the scanner and returns the result together with errors for unreadable sources */
+  /** Passes the readable sources to the scanner and returns the result together with errors for unreadable sources. */
   private def scan[A](config: CodegenConfig, sources: List[String], scanner: (List[(String, String)], CodegenConfig) => Result[A]): Result[A] = {
     val (errors, texts) = CodegenError.partition(sources.map { source =>
       Try(Files.readString(config.projectRoot.resolve(source), StandardCharsets.UTF_8)).toEither

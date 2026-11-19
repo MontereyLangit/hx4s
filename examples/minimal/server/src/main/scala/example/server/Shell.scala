@@ -4,8 +4,9 @@ import japgolly.scalajs.react.facade.React
 import japgolly.scalajs.react.vdom.VdomNode
 import japgolly.scalajs.react.vdom.html_<^.*
 
-/** The whole HTML. The client script is loaded whether or not there are islands */
+/** Renders the full document shell for the HonoX renderer. */
 object Shell {
+  /** Renders the document with the supplied body and title. Always emits a module script using `clientScriptSrc`. */
   def apply(children: React.Node, title: String, clientScriptSrc: String): VdomElement =
     <.html(^.lang := "ja",
       <.head(

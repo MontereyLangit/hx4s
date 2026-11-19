@@ -11,13 +11,14 @@ import scala.scalajs.js.JSConverters.*
 import scala.scalajs.js.annotation.JSExportTopLevel
 import scala.scalajs.js.|
 
-/** Body of POST /api/notes */
+/** Validated JSON object expected by `POST /api/notes`. */
 trait NoteInput extends js.Object {
   val text: String
 }
 
-/** A JSON API. hx4sGenerate wires members with @route into app/routes */
+/** Exports JSON handlers registered by the generated HonoX route files. */
 object Main {
+  /** Hono context used by the sample JSON API. */
   type ApiContext = Context[js.Object, js.Object]
 
   private val noteInput = List(JsShape.required("text", JsKind.Str))
@@ -26,11 +27,12 @@ object Main {
 
   private def error(c: ApiContext, message: String, status: Int): Response = c.json(js.Dynamic.literal(error = message), status)
 
+  /** Returns the sample notes as a JSON array. */
   @route("api/notes.ts")
   @JSExportTopLevel("notesList", "server")
   def notesList(c: ApiContext): Response = c.json(Notes.all.map(toJs).toJSArray)
 
-  /** Validates the body and returns the created note with 201 (nothing is saved) */
+  /** Returns `201` with a sample note for valid input or `400` for invalid input. Leaves the sample collection unchanged. */
   @route("api/notes.ts", "POST")
   @JSExportTopLevel("notesCreate", "server")
   def notesCreate(c: ApiContext): js.Promise[Response] =
@@ -41,12 +43,13 @@ object Main {
       )
     }.recover { case _: js.JavaScriptException => error(c, "The body is not JSON", 400) }.toJSPromise
 
+  /** Returns a note as JSON or invokes Hono's not-found handler. */
   @route("api/notes/[id].ts")
   @JSExportTopLevel("noteGet", "server")
   def noteGet(c: ApiContext): Response | js.Promise[Response] =
     Notes.find(c.req.param("id").getOrElse("")).fold(c.notFound())(note => c.json(toJs(note)))
 
-  /** Returns 204 without a body (nothing is saved, so it only checks that the note exists) */
+  /** Returns an empty `204` if the note exists or a JSON `404` otherwise. Leaves the sample collection unchanged. */
   @route("api/notes/[id].ts", "DELETE")
   @JSExportTopLevel("noteDelete", "server")
   def noteDelete(c: ApiContext): Response = {

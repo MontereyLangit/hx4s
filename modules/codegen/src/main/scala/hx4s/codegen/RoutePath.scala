@@ -1,19 +1,19 @@
 package hx4s.codegen
 
-/** Converts route file paths into the URL patterns HonoX createApp registers. Rules in docs/hx4s/routing-design.md 2.2 */
+/** Converts generated route filenames to HonoX URL patterns for conflict detection. */
 object RoutePath {
 
-  /** URL pattern (e.g. `/items/:id`) of a path relative to the route output directory (e.g. `items/[id].ts`) */
+  /** Converts a validated route path relative to the route output directory, such as `items/[id].ts`, into a URL pattern such as `/items/:id`. */
   def pattern(file: String): String = {
     val segments = file.split("/").toList
     val directory = segments.init.mkString("/")
     merge(filePathToPath(if (directory.isEmpty) "" else s"/$directory"), filePathToPath(segments.last))
   }
 
-  /** Shape for comparison without parameter names. HonoX maps patterns of the same shape to the same URL regardless of names */
+  /** Removes parameter names from a URL pattern for comparisons while preserving the remaining pattern syntax. */
   def shape(pattern: String): String = pattern.replaceAll(":[^/{]+", ":")
 
-  /** Applies the same replacements in the same order as filePathToPath in honox's server/utils/file.js */
+  /** Applies the same replacements in the same order as filePathToPath in honox's server/utils/file.js. */
   private def filePathToPath(path: String): String = {
     val replaced = path
       .replaceAll("\\.tsx?$", "")
@@ -27,7 +27,7 @@ object RoutePath {
     if (replaced.startsWith("/")) replaced else s"/$replaced"
   }
 
-  /** Path when a per-directory sub app is mounted with app.route(dir, sub) (hono's mergePath) */
+  /** Path when a per-directory sub app is mounted with app.route(dir, sub) (hono's mergePath). */
   private def merge(base: String, sub: String): String =
     if (sub == "/") base
     else if (base.endsWith("/")) s"$base${sub.stripPrefix("/")}"

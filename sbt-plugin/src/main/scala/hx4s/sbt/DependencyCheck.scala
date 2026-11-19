@@ -4,10 +4,10 @@ import sbt.{ClasspathDep, ProjectRef}
 
 import scala.annotation.tailrec
 
-/** Finds forbidden dependencies between client and server by following the projects' classpath dependencies (those affecting Compile) transitively */
+/** Checks forbidden transitive project dependencies using compile- and runtime-scoped classpath edges. */
 private[sbt] object DependencyCheck {
 
-  /** Returns a message including the path for each forbidden dependency. Empty if there are no problems */
+  /** Reports paths from the client to any server and from the current server to the client. An absent client produces no diagnostics. */
   def problems(server: ProjectRef, client: Option[ProjectRef], servers: Set[ProjectRef],
                graph: Map[ProjectRef, Seq[ClasspathDep[ProjectRef]]]): List[String] = {
     client.toList.flatMap { clientRef =>
@@ -23,7 +23,7 @@ private[sbt] object DependencyCheck {
 
   private def render(route: List[ProjectRef]): String = route.map(_.project).mkString(" -> ")
 
-  /** The shortest path from from to to (including both ends). Not searched if from and to are the same */
+  /** Returns the shortest eligible dependency path including both endpoints, or `None` for identical or unreachable endpoints. */
   def path(from: ProjectRef, to: ProjectRef, graph: Map[ProjectRef, Seq[ClasspathDep[ProjectRef]]]): Option[List[ProjectRef]] = {
     @tailrec
     def search(queue: List[List[ProjectRef]], seen: Set[ProjectRef]): Option[List[ProjectRef]] = queue match {
@@ -38,7 +38,7 @@ private[sbt] object DependencyCheck {
     if (from == to) None else search(List(List(from)), Set(from))
   }
 
-  /** True if the dependsOn configuration (e.g. "compile->compile;test->test") depends from Compile or Runtime. Compile if no configuration is given */
+  /** Checks whether a `dependsOn` mapping includes a `compile`, `runtime` or empty source scope. An absent mapping is eligible. */
   def compileScoped(configuration: Option[String]): Boolean =
     configuration.forall(_.split(";").exists { mapping =>
       Set("compile", "runtime", "")(mapping.split("->").headOption.getOrElse("").trim)

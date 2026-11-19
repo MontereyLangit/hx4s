@@ -6,42 +6,64 @@ import sbt.internal.util.FeedbackProvidedException
 
 import scala.collection.mutable.ListBuffer
 
-/**
- * Generates HonoX routes and islands and IslandComponents for SSR from route / islands annotations. Enable it on the server project
- * hx4s-codegen (Scala 3) is resolved in a dedicated configuration and run in a forked JVM
- */
+/** Generates HonoX TypeScript wrappers and the managed Scala SSR API. Enable it on the server project to run codegen in a forked JVM. */
 object Hx4sPlugin extends AutoPlugin {
   override def trigger = noTrigger
   override def requires = plugins.JvmPlugin
 
+  /** Exposes the settings, tasks and configuration available in sbt builds. */
   object autoImport {
+    /** Hidden configuration used to resolve the code generator and its runtime dependencies. */
     val Hx4sCodegen = config("hx4s-codegen").hide
 
-    /** This plugin's version. Use the same version for the hx4s-core / hx4s-react dependencies */
+    /** Version of this plugin, used as the default code generator version. */
     val hx4sVersion: String = Hx4sBuildInfo.version
 
+    /** Client project supplying island sources. An unset project gives an empty default client source list. */
     val hx4sClientProject = settingKey[ProjectReference]("The client project with @islands. Default source of hx4sClientSources. If unset, there is no client (SSR only)")
+    /** Route inputs, defaulting to the server project's unmanaged Scala compile sources. */
     val hx4sServerSources = taskKey[Seq[File]]("Source files searched for @route. Defaults to this project's Compile Scala sources")
+    /** Island inputs, defaulting to the configured client's unmanaged Scala compile sources. */
     val hx4sClientSources = taskKey[Seq[File]]("Source files searched for @islands. Defaults to hx4sClientProject's Compile Scala sources")
+    /** Base directory for relative generation paths, defaulting to the build root. */
     val hx4sProjectRoot = settingKey[File]("Base directory for generation (Vite's root). Defaults to the build root")
+    /** Route output directory, defaulting to `app/routes` under the generation root. */
     val hx4sRouteDir = settingKey[File]("Output directory for route files. Defaults to <hx4sProjectRoot>/app/routes")
+    /** Island output directory, defaulting to `app/islands` under the generation root. */
     val hx4sIslandDir = settingKey[File]("Output directory for island files. Defaults to <hx4sProjectRoot>/app/islands")
+    /** Prefix added to each island path to form the hydration identifier, defaulting to `/app/islands/`. */
     val hx4sIslandIdPrefix = settingKey[String]("Prefix of the island identifier passed to HonoX during SSR. Defaults to /app/islands/")
+    /** Required Scala.js module ID of route exports, defaulting to `server`. */
     val hx4sServerModule = settingKey[String]("moduleID of the server's @JSExportTopLevel. Defaults to server")
+    /** Compatibility module ID setting, defaulting to `client`. Island imports use the module IDs on their exports. */
     val hx4sClientModule = settingKey[String]("moduleID of the client's @JSExportTopLevel. Defaults to client")
+    /** Package of the generated Scala SSR object, defaulting to `hx4s.generated`. */
     val hx4sIslandComponentsPackage = settingKey[String]("Package of the generated IslandComponents. Defaults to hx4s.generated")
+    /** Name of the generated Scala SSR object, defaulting to `IslandComponents`. */
     val hx4sIslandComponentsObject = settingKey[String]("Name of the generated object. Defaults to IslandComponents")
+    /** Fully qualified name called by generated SSR methods, defaulting to `hx4s.react.Island`. */
     val hx4sIslandBridge = settingKey[String]("Fully qualified name of the function that marks island boundaries. Defaults to hx4s.react.Island")
+    /** Fully qualified name used to recognize typed exports, defaulting to `hx4s.react.IslandExport`. */
     val hx4sIslandExportType = settingKey[String]("Type of client exports matched against @islands[P]. Defaults to hx4s.react.IslandExport")
+    /** Package used to recognize qualified route and island annotations, defaulting to `hx4s.annotation`. */
     val hx4sAnnotationPackage = settingKey[String]("Package of the route / islands annotations. Defaults to hx4s.annotation")
+    /** Prefix prepended to Scala.js module filenames in generated imports, defaulting to `scalajs:`. */
     val hx4sVirtualModulePrefix = settingKey[String]("Prefix of the virtual module pointing to the Scala.js link output. Defaults to scalajs:")
+    /** Leading `//` comment lines in generated sources. An empty sequence delegates to the code generator's default. */
     val hx4sBanner = settingKey[Seq[String]]("First lines of generated files. hx4s-codegen's default if empty")
+    /** First-line prefix used to identify generated files. `None` delegates to the code generator's default. */
     val hx4sGeneratedMarker = settingKey[Option[String]]("Prefix of the first line that identifies generated files. hx4s-codegen's default if None")
+    /** Version of the code generator to resolve, defaulting to `hx4sVersion`. */
     val hx4sCodegenVersion = settingKey[String]("Version of hx4s-codegen to run. Defaults to the same version as this plugin")
+    /** Additional JVM options for the code generator process, defaulting to an empty sequence. */
     val hx4sCodegenJavaOptions = settingKey[Seq[String]]("Options for the JVM that runs hx4s-codegen")
+    /** Resolved runtime classpath for the forked code generator. */
     val hx4sCodegenClasspath = taskKey[Seq[File]]("Runtime classpath of hx4s-codegen")
+    /** Fails if the client depends on a server or this server depends on the client through compile or runtime project edges. */
     val hx4sCheckDependencies = taskKey[Unit]("Checks that the client does not depend on a project with Hx4sPlugin enabled, and that this project does not depend on the client")
+    /** Checks dependencies and generates route and island wrappers. Returns the written and unchanged output paths. */
     val hx4sGenerate = taskKey[Seq[File]]("Generates route / island TS files and returns the files generated (or kept because their content was identical)")
+    /** Checks dependencies and generates the Scala SSR object as a managed compile source from client sources. */
     val hx4sIslandComponents = taskKey[Seq[File]]("Generates IslandComponents for SSR from the client's @islands")
   }
 
@@ -103,7 +125,7 @@ object Hx4sPlugin extends AutoPlugin {
     }
   }
 
-  /** Builds the --key value arguments of hx4s-codegen from the setting keys. Paths under root become /-separated relative paths */
+  /** Builds the --key value arguments of hx4s-codegen from the setting keys. Paths under root become /-separated relative paths. */
   private lazy val sharedArguments: Def.Initialize[Task[Seq[String]]] = Def.task {
     val root = hx4sProjectRoot.value
     def path(file: File): String = IO.relativize(root, file).fold(file.getAbsolutePath)(_.replace(java.io.File.separatorChar, '/'))
@@ -158,7 +180,7 @@ object Hx4sPlugin extends AutoPlugin {
     run((hx4sClientSources.value ++ classpathFiles :+ argumentsFile).toSet).toSeq
   }
 
-  /** Runs hx4s-codegen in a forked JVM. On failure, logs codegen's error lines once and fails the task with an exception carrying a summary */
+  /** Runs hx4s-codegen in a forked JVM. On failure, logs codegen's error lines once and fails the task with an exception carrying a summary. */
   private def runCodegen(classpath: Seq[File], arguments: Seq[String], root: File, javaHomeDir: Option[File], javaOptions: Seq[String],
                          log: Logger): Unit = {
     if (classpath.isEmpty) throw new MessageOnlyException("hx4s-codegen could not be resolved (check hx4sCodegenVersion and resolvers)")
@@ -178,7 +200,7 @@ object Hx4sPlugin extends AutoPlugin {
     }
   }
 
-  /** Only records codegen's error lines, drops the line of the exit exception, and passes other lines to the original logger */
+  /** Only records codegen's error lines, drops the line of the exit exception, and passes other lines to the original logger. */
   private final class CodegenOutput(underlying: Logger) extends Logger {
     private val errorLines: ListBuffer[String] = ListBuffer.empty
 
@@ -198,7 +220,7 @@ object Hx4sPlugin extends AutoPlugin {
   private val CodegenErrorPrefix = "[hx4s-codegen] error: "
   private val CodegenExitLine = "Exception in thread \"main\" hx4s.codegen.CodegenFailure"
 
-  /** Codegen failure. The error lines are already logged, so sbt prints only the summary (toString) on the last line. getMessage includes the error lines */
+  /** Codegen failure. The error lines are already logged, so sbt prints only the summary (toString) on the last line. getMessage includes the error lines. */
   private final class CodegenFailed(summary: String, errors: Seq[String])
     extends RuntimeException((summary +: errors).mkString("\n"), null, false, false) with FeedbackProvidedException {
     override def toString: String = summary

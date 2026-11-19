@@ -8,13 +8,30 @@ import japgolly.scalajs.react.vdom.html_<^.*
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters.*
 
-/** An island component the client publishes with @JSExportTopLevel. P must be the same props type as @islands[P] on the same declaration */
+/**
+ * JavaScript component published as a client island with `@JSExportTopLevel`.
+ *
+ * @tparam P Props facade corresponding to the type argument of `@islands` on the export.
+ */
 @js.native
 sealed trait IslandExport[P <: js.Object] extends js.Object
 
+/** Creates JavaScript React components for client island exports. */
 object IslandExport {
 
-  /** Creates an island that checks props with fields and then renders with render. With invalid props it logs console.error and renders nothing */
+  /**
+   * Creates a component that validates before rendering and exposes a validator for hydration.
+   *
+   * Both validation paths use the same field descriptors. The hydration hook
+   * returns a diagnostic before React hydrates an island with invalid props.
+   * During rendering, validation failure is logged and produces empty output.
+   *
+   * @tparam P Props facade corresponding to `fields`.
+   * @param label React display name and prefix for validation diagnostics.
+   * @param fields Properties checked during rendering and before hydration.
+   * @param render Renders props that passed validation.
+   * @return React component suitable for publication via `@JSExportTopLevel`.
+   */
   def apply[P <: js.Object](label: String, fields: List[JsField])(render: P => VdomNode): IslandExport[P] = {
     val component = ScalaFnComponent.withDisplayName(label)[js.Object] { raw =>
       JsShape.read[P](label, raw, fields).fold[VdomNode](EmptyVdom)(render)
@@ -24,12 +41,20 @@ object IslandExport {
     exported.asInstanceOf[IslandExport[P]]
   }
 
-  /** Creates an island that renders without validation. The shape of props is kept only by the agreement between server and client */
+  /**
+   * Creates a component that passes incoming props directly to the renderer.
+   *
+   * @tparam P Props facade shared by the server and client.
+   * @param label React display name.
+   * @param render Renders the incoming props.
+   * @return Exportable component without an attached hydration validator.
+   */
   def unchecked[P <: js.Object](label: String)(render: P => VdomNode): IslandExport[P] =
     ScalaFnComponent.withDisplayName(label)[P](props => render(props)).toJsComponent.raw.asInstanceOf[IslandExport[P]]
 }
 
-/** A validation function attached to the exported function so props can be checked before hydration. Returns a reason if invalid */
+/** Facade for the pre-hydration hook attached to a validated export. */
 private trait ValidatedComponent extends js.Object {
+  /** Returns a diagnostic for invalid props or `undefined` when validation succeeds. */
   var hx4sValidate: js.Function1[js.Any, js.UndefOr[String]]
 }

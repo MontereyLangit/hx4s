@@ -1,15 +1,15 @@
 package hx4s.codegen
 
-/** Renders route / island TS files and the Scala API for SSR */
+/** Renders generated TypeScript files and the Scala SSR API from scanned entries. */
 object AppFileRenderer {
-  /** Aliases for imported names, so that export names do not collide with identifiers in generated code (createRoute, POST, etc.) */
+  /** Aliases for imported names, so that export names do not collide with identifiers in generated code (createRoute, POST, etc.). */
   private val CreateRoute = "__hx4s_createRoute"
   private val HandlerPrefix = "__hx4s_handler_"
   private val IslandLocal = "__hx4s_island"
 
   private def lines(values: List[String]): String = values.mkString("", "\n", "\n")
 
-  /** A double-quoted string literal with the same value in both TS and Scala */
+  /** A double-quoted string literal with the same value in both TS and Scala. */
   private[codegen] def quote(text: String): String = {
     val escaped = text.flatMap {
       case '"' => "\\\""
@@ -20,7 +20,7 @@ object AppFileRenderer {
     s"\"$escaped\""
   }
 
-  /** GET becomes `export default`, others `export const <METHOD>` */
+  /** Renders TypeScript that wraps Scala.js handlers with `createRoute`. `GET` is the default export and other methods are named exports. */
   def route(entry: RouteEntry, config: CodegenConfig): String = {
     val module = config.virtualModule(config.serverModule)
     val handlers = entry.sortedHandlers
@@ -38,7 +38,7 @@ object AppFileRenderer {
     ) ++ exportLines)
   }
 
-  /** Re-exports the client export as a default export HonoX can discover */
+  /** Renders a TypeScript default export for HonoX discovery, invoking the client export first if it is a factory. */
   def island(entry: IslandEntry, config: CodegenConfig): String = {
     val module = s"${config.virtualModulePrefix}${entry.sourceModule}"
     val component = if (entry.factory) s"$IslandLocal()" else IslandLocal
@@ -49,7 +49,7 @@ object AppFileRenderer {
     ))
   }
 
-  /** Outputs an object with one SSR method per island that ties the client export to the HonoX identifier. Ordered by file path */
+  /** Renders a Scala object with one typed SSR method per island, ordered by file path. Factory results are cached lazily. */
   def islandComponents(entries: List[IslandEntry], config: CodegenConfig): String = {
     val sorted = entries.sortBy(_.filePath)
     val header = lines(config.banner :+ s"package ${config.scalaPackage}")

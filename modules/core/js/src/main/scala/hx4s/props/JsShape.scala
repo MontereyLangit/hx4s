@@ -3,14 +3,22 @@ package hx4s.props
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
 
-/** Kinds of values that can be passed through JSON. Num is a finite number, Int an integer in the Int range */
+/** Supported JavaScript value shapes. `Num` accepts finite numbers and `Int` accepts whole numbers in the signed 32-bit range. */
 enum JsKind {
   case Str, Num, Int, Bool
+  /** Validates the supplied field descriptors on a non-null, non-array JavaScript object. */
   case Obj(fields: List[JsField])
+  /** Validates every element of a JavaScript array against the supplied element shape. */
   case Arr(element: JsKind)
 }
 
-/** One key of an object. optional allows undefined (an omitted key) */
+/**
+ * Describes a property checked by `JsShape`.
+ *
+ * @param name JavaScript property name.
+ * @param kind Expected shape of a defined value.
+ * @param optional Whether a missing or `undefined` property is allowed. `null` still fails validation.
+ */
 final case class JsField(name: String, kind: JsKind, optional: Boolean = false)
 
 @js.native
@@ -19,19 +27,36 @@ private object Console extends js.Object {
   def error(message: String): Unit = js.native
 }
 
-/** Checks that a JS value received at a boundary has the expected keys and types, and turns it into a typed value */
+/** Checks JavaScript values against field descriptors and casts successful values to the caller's props type. */
 object JsShape {
+  /** Creates a required property descriptor for the given name and shape. */
   def required(name: String, kind: JsKind): JsField = JsField(name, kind)
+  /** Creates a property descriptor that permits an absent or `undefined` value. */
   def optional(name: String, kind: JsKind): JsField = JsField(name, kind, optional = true)
 
-  /** Checks every key, and returns the list of errors as one string if any */
+  /**
+   * Checks the listed properties recursively and ignores other properties.
+   *
+   * @tparam P Props facade corresponding to `fields`. The caller supplies this correspondence.
+   * @param raw JavaScript value to validate.
+   * @param fields Properties to validate on the root object.
+   * @return The original value cast to `P` or all detected problems in a semicolon-separated string.
+   */
   def validate[P <: js.Object](raw: js.Any, fields: List[JsField]): Either[String, P] =
     problems(raw, JsKind.Obj(fields), "props") match {
       case Nil => Right(raw.asInstanceOf[P])
       case found => Left(found.mkString("; "))
     }
 
-  /** On validation failure, logs to console.error and returns None. Does not throw */
+  /**
+   * Validates props using `validate` and logs failures to `console.error`.
+   *
+   * @tparam P Props facade corresponding to `fields`.
+   * @param label Label prefixed to the diagnostic.
+   * @param raw JavaScript value to validate.
+   * @param fields Properties to validate on the root object.
+   * @return The original value cast to `P` on success, or `None` on validation failure.
+   */
   def read[P <: js.Object](label: String, raw: js.Any, fields: List[JsField]): Option[P] =
     validate[P](raw, fields) match {
       case Right(value) => Some(value)
