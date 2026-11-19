@@ -7,9 +7,9 @@ import japgolly.scalajs.react.vdom.html_<^.*
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters.*
 
-/** Page SSR. Islands are placed with the generated IslandComponents */
+/** Renders SSR pages and creates hydration boundaries through the generated `IslandComponents`. */
 object Pages {
-  /** A server-only string used to check that it is not in the client bundle */
+  /** Marker used by the example to check that server-only content stays out of the client bundle. */
   val ServerOnlyMarker = "hx4s-minimal-server-only-marker"
 
   private def counter(text: String, initial: Int): VdomElement =
@@ -27,6 +27,7 @@ object Pages {
     })
   }
 
+  /** Renders the home page with counter and item-list islands. */
   def index(): VdomElement =
     <.main(
       <.h1("hx4s minimal"),
@@ -37,6 +38,7 @@ object Pages {
       <.footer(ServerOnlyMarker)
     )
 
+  /** Renders the item and its rename form, with optional submitted name and validation error. */
   def item(item: Item, saved: Option[String], error: Option[String] = None): VdomElement =
     <.main(
       <.h1(^.className := "item-name", item.name),
@@ -50,6 +52,7 @@ object Pages {
       <.a(^.href := "/", "Back to home")
     )
 
+  /** Renders a page naming the missing item ID. */
   def notFound(id: String): VdomElement =
     <.main(<.h1("No such item"), <.p(s"Item $id does not exist"), <.a(^.href := "/", "Back to home"))
 }

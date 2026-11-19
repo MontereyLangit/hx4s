@@ -4,8 +4,9 @@ import example.shared.CounterProps
 import japgolly.scalajs.react.*
 import japgolly.scalajs.react.vdom.html_<^.*
 
-/** A counter that increases on click */
+/** Renders a button that increments its local counter on each click. */
 object Counter {
+  /** Counter component initialized from the `start` prop. */
   final val Component = ScalaFnComponent[CounterProps] { props =>
     for {
       count <- useState(props.start)

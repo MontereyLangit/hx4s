@@ -3,12 +3,12 @@ package hx4s.codegen
 import java.nio.file.Path
 import java.util.Locale
 
-/** Rules for relative paths of generated files, so that nothing is written outside the output root or to reserved names on any OS */
+/** Validates relative output path syntax before filesystem checks. */
 object OutputPath {
   private val SegmentPattern = "[A-Za-z0-9_.$\\[\\]-]+"
   private val Reserved = Set("CON", "PRN", "AUX", "NUL") ++ (1 to 9).flatMap(n => List(s"COM$n", s"LPT$n"))
 
-  /** Checks a `/`-separated relative path segment by segment. Returns the reason on error */
+  /** Validates `/`-separated path segments, rejecting empty and relative segments, unsupported characters, trailing dots and reserved device names. */
   def segments(relative: String): Either[String, List[String]] = {
     val parts = relative.split("/", -1).toList
     parts.collectFirst(Function.unlift(problem)) match {
@@ -26,7 +26,7 @@ object OutputPath {
     else None
   }
 
-  /** Resolves under root. An error if the normalized path leaves root */
+  /** Resolves a validated relative path to a normalized absolute descendant of `root`, or returns a diagnostic for an invalid path. */
   def resolve(root: Path, relative: String): Either[String, Path] = {
     segments(relative).flatMap { parts =>
       val base = root.toAbsolutePath.normalize()

@@ -1,15 +1,17 @@
 package example.api
 
-/** One note */
+/** A sample note with its lookup ID and display text. */
 final case class Note(id: String, text: String)
 
-/** Sample notes. Nothing is saved; only input is validated */
+/** Provides a fixed set of notes and validates text for the create handler. */
 object Notes {
+  /** Sample notes in response order. */
   val all: List[Note] = List(Note("1", "Buy milk 🥛"), Note("2", "Return the book"))
 
+  /** Returns the note with the given ID, or `None`. */
   def find(id: String): Option[Note] = all.find(_.id == id)
 
-  /** Validates the text of a new note. Returns a reason for empty or too long text */
+  /** Trims the input and returns the result or a diagnostic if it is empty or longer than 100 UTF-16 code units. */
   def validate(text: String): Either[String, String] = {
     val trimmed = text.trim
     if (trimmed.isEmpty) Left("Enter the note text")

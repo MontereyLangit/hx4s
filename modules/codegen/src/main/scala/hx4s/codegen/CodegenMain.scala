@@ -5,16 +5,20 @@ import hx4s.codegen.CodegenError.Result
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 
-/**
- * Entry point that takes settings as `--key value` arguments
- * `app` generates route / island TS files, and `island-components` the Scala API for SSR. See docs/hx4s/codegen.md for the keys
- */
+/** CLI entry point for `app` TypeScript generation and `island-components` Scala SSR generation. */
 object CodegenMain {
+  /** Available generation modes. */
   enum Command {
     case App, IslandComponents
   }
 
-  /** Settings, and where to write the list of generated files (`--output-list`) */
+  /**
+   * Parsed CLI command and its output settings.
+   *
+   * @param command Generation mode selected by the first CLI argument.
+   * @param config Validated code generation settings.
+   * @param outputList Optional path for the UTF-8 list of written and unchanged files.
+   */
   final case class Invocation(command: Command, config: CodegenConfig, outputList: Option[Path])
 
   private val Repeatable = Set("server-sources", "client-sources", "banner")
@@ -24,6 +28,12 @@ object CodegenMain {
     "virtual-module-prefix", "banner", "generated-marker", "output-list"
   )
 
+  /**
+   * Runs generation and reports diagnostics. Writes the optional output list after generation succeeds.
+   *
+   * @param args Command followed by `--key value` pairs.
+   * @throws CodegenFailure If argument parsing returns diagnostics or generation returns errors.
+   */
   def main(args: Array[String]): Unit = {
     parse(args.toList) match {
       case Left(errors) =>
@@ -44,8 +54,11 @@ object CodegenMain {
   }
 
   /**
-   * Parses the arguments and validates the settings. Omitted keys take the values of CodegenConfig.default
-   * `server-sources` / `client-sources` repeat once per file and are empty if omitted. `banner` repeats once per line
+   * Parses the command and options and validates the resulting settings. Only source and banner options may repeat.
+   *
+   * @param args Command followed by `--key value` pairs.
+   * @param workingDirectory Default project root when `--project-root` is omitted.
+   * @return Parsed invocation using default settings for omitted options, or diagnostics for invalid arguments or settings.
    */
   def parse(args: List[String], workingDirectory: Path = Paths.get(System.getProperty("user.dir"))): Result[Invocation] = {
     def error(message: String) = CodegenError("<args>", None, message)

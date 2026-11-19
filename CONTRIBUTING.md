@@ -81,7 +81,8 @@ The generated files in `examples/minimal/app/routes`, `app/islands` and `example
 - Make scalajs-react components function components (`ScalaFnComponent`), and make `val`s holding components `final val`
 - Prefer Scala.js libraries, when they exist, over facades for npm packages
 - Avoid TypeScript's `any` and Scala's untyped structural types. Fix compiler and lint warnings instead of suppressing them
-- **Keep Scaladoc / JSDoc short**: in one or two lines, state what it does and the constraints users need to know. Write them in English, without a trailing period. History, rejected alternatives and measurements go in `docs/hx4s/`
+- **Document public Scala APIs with Scaladoc.** Start with a concise English summary sentence. End the summary, prose paragraphs and tag descriptions with periods. A single sentence is enough for a simple member. For APIs with more involved contracts, use additional paragraphs to explain caller-visible constraints, defaults, side effects and failure behavior. Include a short usage example when it clarifies how to call the API. Use `@param` and `@tparam` to explain arguments, `@return` for non-obvious outcomes, and `@throws` for exceptions callers may need to handle. Keep tags in sync with the signature and verify the claims against the implementation when reviewing changes. Run `sbt doc` when changing Scaladoc.
+- Keep JSDoc to one or two lines in English without a trailing period. Record history, rejected alternatives and measurements in `docs/hx4s/`
 - Don't add unnecessary comments or excessive abstraction
 - Don't put secrets (keys, tokens, passwords) in code, logs or commit messages
 

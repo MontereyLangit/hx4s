@@ -2,5 +2,10 @@ package hx4s.annotation
 
 import scala.annotation.StaticAnnotation
 
-/** Publishes the JSExportTopLevel of the same declaration to filePath under app/islands. P is the fully qualified name of the props type, js.Object if omitted */
+/**
+ * Declares a HonoX island for the `@JSExportTopLevel` on the same top-level object member.
+ *
+ * @tparam P Fully qualified props type in the annotation. When the type argument is omitted, codegen uses `scala.scalajs.js.Object` for SSR.
+ * @param filePath Literal `/`-separated path relative to the island output directory, with a basename matching `[A-Za-z0-9-]+\.tsx`.
+ */
 final class islands[P](val filePath: String) extends StaticAnnotation
