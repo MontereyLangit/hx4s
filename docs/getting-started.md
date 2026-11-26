@@ -310,7 +310,7 @@ object Main {
     } yield <.button(^.`type` := "button", ^.onClick --> count.modState(_ + 1), s"${props.label}: ${count.value}")
   }
 
-  @islands[app.shared.CounterProps]("counter.tsx")
+  @islands[app.shared.CounterProps]("counter")
   @JSExportTopLevel("CounterJs", "client")
   val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps.fields)(props => Counter(props))
 }
@@ -341,7 +341,7 @@ trait RenderProps extends js.Object {
 object Main {
   type AppContext = Context[js.Object, RenderProps]
 
-  @route("index.ts")
+  @route("index")
   @JSExportTopLevel("indexPage", "server")
   def indexPage(c: AppContext): js.Promise[Response] = {
     val page = <.main(

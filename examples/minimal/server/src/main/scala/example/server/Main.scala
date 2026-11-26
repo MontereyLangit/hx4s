@@ -24,13 +24,13 @@ object Main {
   private def titled(text: String): RenderProps = new RenderProps { val title = s"$text | hx4s minimal" }
 
   /** Renders the home page through the configured Hono renderer. */
-  @route("index.ts")
+  @route("index")
   @JSExportTopLevel("indexPage", "server")
   def indexPage(c: AppContext): js.Promise[Response] =
     c.renderPromise(Pages.index().rawElement, titled("Home"))
 
   /** Renders the requested item or a `404` page if its ID is unknown. */
-  @route("items/[id].ts")
+  @route("items/[id]")
   @JSExportTopLevel("itemPage", "server")
   def itemPage(c: AppContext): js.Promise[Response] = {
     val id = c.req.param("id").getOrElse("")
@@ -43,7 +43,7 @@ object Main {
   }
 
   /** Reads a submitted name from form data and renders the result. Unknown IDs and invalid names produce `400`. */
-  @route("items/[id].ts", "POST")
+  @route("items/[id]", "POST")
   @JSExportTopLevel("itemUpdate", "server")
   def itemUpdate(c: AppContext): js.Promise[Response] = {
     val id = c.req.param("id").getOrElse("")
@@ -66,7 +66,7 @@ object Main {
   }
 
   /** Returns a JSON array of items containing every supplied `tag` query value. */
-  @route("api/items.ts")
+  @route("api/items")
   @JSExportTopLevel("itemsApi", "server")
   def itemsApi(c: AppContext): Response = {
     val tags = c.req.queries("tag").fold(List.empty[String])(_.toList)

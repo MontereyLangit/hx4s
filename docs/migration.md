@@ -10,6 +10,8 @@ A typical starting point looks like this:
 
 Migrate in stages, and make the build and tests pass at each stage.
 
+Existing hx4s projects can drop the final `.ts` from `@route` and `.tsx` from `@islands`. Both forms remain supported and generate the same files and island IDs.
+
 ## 1. Dependencies and sbt setup
 
 1. Publish hx4s locally and add `sbt-hx4s` and `hx4s-react` ([installation.md](installation.md))
@@ -44,7 +46,7 @@ If your generator put a different line (banner) at the top, hx4s sees those file
 
 ## 3. Islands and props
 
-1. Export the client islands as `IslandExport[P]` and add `@islands[P]("<basename>.tsx")`. `P` is a fully qualified name. The basename is `[A-Za-z0-9-]+\.tsx`
+1. Export the client islands as `IslandExport[P]` and add `@islands[P]("<basename>")`. `P` is a fully qualified name. The basename is `[A-Za-z0-9-]+\.tsx`
 2. Replace props built from `js.Dynamic` / `js.Object` with JS traits in shared. Write a list of `JsField`s together with each trait ([islands.md](islands.md))
 3. Replace the server's own island calls with the generated `IslandComponents.<export name>(props)`. The method name is exactly the `@JSExportTopLevel` name
 4. Your own `HonoXIsland` facade is replaced by `hx4s.react.Island`, which `IslandComponents` uses, so it is no longer needed

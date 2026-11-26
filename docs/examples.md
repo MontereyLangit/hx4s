@@ -10,8 +10,8 @@ See [getting-started.md](getting-started.md) for how to run it.
 | URL | Content | Features used |
 | --- | --- | --- |
 | `/` | A static SSR page with two counter islands (with different props) and one list island with arrays, nesting and optional keys | `IslandComponents`, `IslandExport`, `JsShape` |
-| `/items/:id` | A dynamic route. Unknown IDs return 404. Has a form for renaming | `@route("items/[id].ts")`, `c.req.param`, `c.status` |
-| `POST /items/:id` | Validates the form values and renders the saved name or an error (nothing is saved) | `@route("items/[id].ts", "POST")`, `c.req.formData()` |
+| `/items/:id` | A dynamic route. Unknown IDs return 404. Has a form for renaming | `@route("items/[id]")`, `c.req.param`, `c.status` |
+| `POST /items/:id` | Validates the form values and renders the saved name or an error (nothing is saved) | `@route("items/[id]", "POST")`, `c.req.formData()` |
 | `/api/items` | JSON of the items. Repeating `?tag=` narrows to items that have all those tags | `c.json`, `c.req.queries` |
 
 ### Role of each file

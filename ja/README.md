@@ -15,8 +15,8 @@ hx4s は、Scala.js から HonoX と React を使うためのメタフレーム�
 
 ## 特徴
 
-- **Scala で書く route**: `@route("items/[id].ts", "POST")` を付けた関数が HonoX のファイルルートになる。URL への対応は HonoX の規約のまま
-- **型付き island**: `@islands[P]("counter.tsx")` の `P`（props の trait）を、server の呼び出し `IslandComponents.CounterJs(props)` と client の export の両方がコンパイル時に照合する
+- **Scala で書く route**: `@route("items/[id]", "POST")` を付けた関数が HonoX のファイルルートになる。URL への対応は HonoX の規約のまま
+- **型付き island**: `@islands[P]("counter")` の `P`（props の trait）を、server の呼び出し `IslandComponents.CounterJs(props)` と client の export の両方がコンパイル時に照合する
 - **hydrate 前の props の検証**: HTML と client の世代がずれて props が合わないとき、hydrate せず SSR の HTML を残す
 - **server と client の分離**: 依存の向きを sbt の依存グラフで検査する（`hx4sCheckDependencies`）
 - **安全な生成**: 手書きファイルを上書きしない、全検査を済ませてから書く、リンクを辿らない
@@ -42,7 +42,7 @@ client は island を `IslandExport[P]` として export し、`@islands[P]` で
 
 ```scala
 // client
-@islands[app.shared.CounterProps]("counter.tsx")
+@islands[app.shared.CounterProps]("counter")
 @JSExportTopLevel("CounterJs", "client")
 val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps.fields)(props => Counter(props))
 ```
@@ -51,7 +51,7 @@ server のハンドラは `@route` で HonoX の route になり、生成され�
 
 ```scala
 // server
-@route("index.ts")
+@route("index")
 @JSExportTopLevel("indexPage", "server")
 def indexPage(c: AppContext): js.Promise[Response] = {
   val page = <.main(

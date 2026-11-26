@@ -116,7 +116,7 @@ class AnnotationScannerSuite extends FunSuite {
   }
 
   test("dangerous paths cannot escape the generated directory") {
-    List("../x.ts", "/x.ts", "C:/x.ts", "a//x.ts", "a/./x.ts", "x.tsx", "a\\x.ts", "x\".ts", "CON.ts", "nul/x.ts", "a./x.ts", "a /x.ts", "com1.d.ts")
+    List("../x.ts", "/x.ts", "C:/x.ts", "a//x.ts", "a/./x.ts", "", ".", "..", "a/", "x.", "a\\x.ts", "x\".ts", "CON.ts", "nul/x.ts", "a./x.ts", "a /x.ts", "com1.d.ts")
       .foreach { path =>
         val literal = "\"" + path.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
         assert(routes(s"@route($literal) @JSExportTopLevel(\"x\", \"server\") def x() = 1").isLeft, path)
@@ -127,7 +127,7 @@ class AnnotationScannerSuite extends FunSuite {
     List("_renderer.ts", "a/_middleware.ts").foreach { path =>
       assert(routes(s"@route(\"$path\") @JSExportTopLevel(\"x\", \"server\") def x() = 1").isLeft, path)
     }
-    List("_hidden.tsx", "item.view.tsx", "[id].tsx").foreach { path =>
+    List("_hidden", "item.view", "[id].tsx", "item.ts", "", "ui/", "ui/..").foreach { path =>
       assert(islands(s"@islands(\"$path\") @JSExportTopLevel(\"X\", \"client\") val x = 1").isLeft, path)
     }
   }
@@ -139,12 +139,12 @@ class AnnotationScannerSuite extends FunSuite {
 
   test("file names HonoX's route glob and import.meta.glob skip are rejected, and a leading .well-known is allowed") {
     def route(path: String) = routes(s"@route(\"$path\") @JSExportTopLevel(\"x\", \"server\") def x() = 1")
-    List("-draft.ts", "$param.ts", "a/-x.ts", "page.test.ts", "a/page.spec.ts", "-private/page.ts", "a/-private/page.ts",
+    List("-draft.ts", "$param.ts", "a/-x.ts", "page.test", "a/page.spec.ts", "-private/page.ts", "a/-private/page.ts",
       ".hidden/page.ts", "a/.hidden/page.ts", ".page.ts", "node_modules/page.ts", "a/.well-known/x.ts", ".well-known.ts").foreach { path =>
       assert(route(path).isLeft, path)
     }
     assert(errors(route("-draft.ts")).head.message.contains("ignored by HonoX"))
-    assertEquals(route(".well-known/security.txt.ts").map(_.map(_.filePath)), Right(List(".well-known/security.txt.ts")))
+    assertEquals(route(".well-known/security.txt").map(_.map(_.filePath)), Right(List(".well-known/security.txt.ts")))
     List(".hidden/view.tsx", "node_modules/view.tsx").foreach { path =>
       assert(islands(s"@islands(\"$path\") @JSExportTopLevel(\"X\", \"client\") val x = 1").isLeft, path)
     }
@@ -203,17 +203,23 @@ class AnnotationScannerSuite extends FunSuite {
 
   test("duplicate route methods, island paths and export names are rejected") {
     assert(routes("""
-      @route("x.ts") @JSExportTopLevel("x", "server") def x() = 1
+      @route("x") @JSExportTopLevel("x", "server") def x() = 1
       @route("X.ts", "POST") @JSExportTopLevel("y", "server") def y() = 1
     """).isLeft)
     assert(routes("""
-      @route("x.ts") @JSExportTopLevel("x", "server") def x() = 1
+      @route("x") @JSExportTopLevel("x", "server") def x() = 1
       @route("x.ts", "GET") @JSExportTopLevel("y", "server") def y() = 1
     """).isLeft)
     assert(islands("""
-      @islands("x.tsx") @JSExportTopLevel("X", "client") val x = 1
+      @islands("x") @JSExportTopLevel("X", "client") val x = 1
       @islands("X.tsx") @JSExportTopLevel("Y", "island-y") val y = 1
     """).isLeft)
+    val samePath = errors(islands("""
+      @islands("ui/x") @JSExportTopLevel("X", "client") val x = 1
+      @islands("ui/x.tsx") @JSExportTopLevel("Y", "island-y") val y = 1
+    """))
+    assertEquals(samePath.size, 2)
+    assert(samePath.forall(_.message.contains("ui/x.tsx")))
     val sameExport = errors(islands("""
       @islands("first.tsx") @JSExportTopLevel("Widget", "client") val first = 1
       @islands("second.tsx") @JSExportTopLevel("Widget", "island-second") val second = 1
@@ -229,7 +235,7 @@ class AnnotationScannerSuite extends FunSuite {
     def pair(first: String, second: String, method: String = "GET") = routes(
       s"""@route("$first") @JSExportTopLevel("first", "server") def first() = 1
          |@route("$second", "$method") @JSExportTopLevel("second", "server") def second() = 1""".stripMargin)
-    List("foo.ts" -> "foo/index.ts", "items/[a].ts" -> "items/[b].ts", "index.ts" -> "index/index.ts", "page.ts" -> "page.md.ts",
+    List("foo.ts" -> "foo/index.ts", "items/[a]" -> "items/[b].ts", "index.ts" -> "index/index.ts", "page.ts" -> "page.md",
       "docs/[...a].ts" -> "docs/[...b].ts").foreach { case (first, second) =>
       val found = errors(pair(first, second))
       assert(found.forall(_.message.startsWith("route files map GET to the same URL:")), found)
@@ -274,7 +280,7 @@ class AnnotationScannerSuite extends FunSuite {
     assertEquals(found.map(_.line), List(Some(3), Some(4), Some(6)))
     assert(found.forall(error => !error.message.contains("same URL") && !error.message.contains("more than once")), found)
     val islandErrors = errors(islands("""
-      @islands("x.tsx") @JSExportTopLevel("X", "client") val x = 1
+      @islands("x") @JSExportTopLevel("X", "client") val x = 1
       @islands("X.tsx") @JSExportTopLevel("Y", "server") val y = 1
       @islands("a/z.tsx") @JSExportTopLevel("Z", "client") val z = 1
       @islands("a/Z.tsx") @JSExportTopLevel("W", "client") val w = 1

@@ -7,7 +7,7 @@
 final class route(val filePath: String, val method: String = "GET") extends StaticAnnotation
 
 // bbs/.../Main.scala
-@route("[bbs]/index.ts")
+@route("[bbs]/index")
 @JSExportTopLevel("boardIndexHandler", "server")
 def boardIndexHandler(c: js.Any): js.Promise[Response] = BoardHandler.index(c.asInstanceOf[HonoContextFacade])
 ```
@@ -40,7 +40,7 @@ Checks in `framework/AnnotationScanner`, `OutputPath` and `OutputWriter` (refere
 | Export | Annotated declarations have exactly one `@JSExportTopLevel`. Its arguments are two string literals, and the moduleID is `server` (`@route`) / `client` (`@islands`) |
 | Export name | Valid as a JS identifier (`[A-Za-z_$][A-Za-z0-9_$]*`) |
 | Arguments | String literals only. Named arguments allowed only in declaration order |
-| Path | Ends with `.ts`. Each segment is non-empty, not `.` or `..`, and matches `[A-Za-z0-9_.$\[\]-]+` |
+| Path | The `.ts` suffix is optional. Each segment is non-empty, not `.` or `..`, and matches `[A-Za-z0-9_.$\[\]-]+` |
 | Method | `GET` / `POST` / `PUT` / `DELETE` / `PATCH` / `OPTIONS` / `HEAD` |
 | Conflicts | Paths that differ only in case, duplicates with the same path and the same method |
 | Route file names | Rejected if the basename starts with `_` (because HonoX's `ROUTES` excludes it). A leading `-` / `$`, `.test.ts` / `.spec.ts` and directories starting with `-` pass (1.2) |

@@ -10,11 +10,11 @@ import hx4s.annotation.route
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 object Main {
-  @route("items/[id].ts")                      // GET
+  @route("items/[id]")                      // GET
   @JSExportTopLevel("itemPage", "server")
   def itemPage(c: AppContext): js.Promise[Response] = ...
 
-  @route("items/[id].ts", "POST")
+  @route("items/[id]", "POST")
   @JSExportTopLevel("itemUpdate", "server")
   def itemUpdate(c: AppContext): js.Promise[Response] = ...
 }
@@ -23,7 +23,7 @@ object Main {
 | Item | Rule |
 | --- | --- |
 | Target | A `def` / `val` in a top-level object of the configured sources (including inside packages; nested objects are not targets). The object's name doesn't matter |
-| `filePath` | Path relative to `app/routes`. A string literal ending in `.ts` |
+| `filePath` | Path relative to `app/routes`. A string literal with an optional `.ts` suffix |
 | `method` | `GET` (default), `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`. A string literal |
 | `@JSExportTopLevel` | Exactly one. The name and moduleID are literals, and the moduleID is `"server"` |
 | Multiple `@route` | A member can have several (assigning the same function to several paths and methods) |
@@ -31,7 +31,7 @@ object Main {
 
 `@route` is recognized by name (`hx4s.annotation.route`), not by type, so import aliases can't be used. The fully qualified name (`@hx4s.annotation.route(...)`) works.
 
-Several methods for the same `filePath` are combined into one TS file. GET becomes `export default` and the others become `export const POST = ...` (see `examples/minimal/app/routes/items/[id].ts`).
+Several methods for the same generated path, such as `items/[id]` and `items/[id].ts`, are combined into one TS file. GET becomes `export default` and the others become `export const POST = ...` (see `examples/minimal/app/routes/items/[id].ts`).
 
 ## File paths and URLs
 
@@ -98,7 +98,7 @@ trait Bindings extends js.Object {
   val GREETING: js.UndefOr[String]
 }
 
-@route("hello.ts")
+@route("hello")
 @JSExportTopLevel("helloPage", "server")
 def helloPage(c: Context[Bindings, js.Object]): Response =
   c.html(s"<p>${c.env.GREETING.getOrElse("hello")}</p>")
@@ -155,7 +155,7 @@ export default createRoute(async (c, next) => {
 ```scala
 val RequestId: ContextVariable[String] = ContextVariable("requestId")
 
-@route("api/whoami.ts")
+@route("api/whoami")
 @JSExportTopLevel("whoami", "server")
 def whoami(c: ApiContext): Response =
   c.json(js.Dynamic.literal(requestId = c.getVariable(RequestId).orUndefined))

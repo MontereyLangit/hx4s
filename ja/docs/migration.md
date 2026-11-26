@@ -10,6 +10,8 @@ Scala.js と HonoX を手書きでつないでいるプロジェクトを、hx4s
 
 移行は段階に分けて、各段階でビルドとテストを通す。
 
+既存の hx4s プロジェクトでは、`@route` の末尾の `.ts` と `@islands` の末尾の `.tsx` を省略できる。従来の書き方も引き続き使え、生成ファイルと island ID は同じになる。
+
 ## 1. 依存と sbt の構成
 
 1. hx4s をローカル公開し、`sbt-hx4s` と `hx4s-react` を入れる（[installation.md](installation.md)）
@@ -44,7 +46,7 @@ Scala.js と HonoX を手書きでつないでいるプロジェクトを、hx4s
 
 ## 3. island と props
 
-1. client の island を `IslandExport[P]` として export し、`@islands[P]("<basename>.tsx")` を付ける。`P` は完全修飾名。basename は `[A-Za-z0-9-]+\.tsx`
+1. client の island を `IslandExport[P]` として export し、`@islands[P]("<basename>")` を付ける。`P` は完全修飾名。basename は `[A-Za-z0-9-]+\.tsx`
 2. props を `js.Dynamic` / `js.Object` から、shared の JS trait に置き換える。trait と一緒に `JsField` のリストを書く（[islands.md](islands.md)）
 3. server の呼び出しを、自前の island 呼び出しから生成された `IslandComponents.<export 名>(props)` に替える。メソッド名は `@JSExportTopLevel` の名前そのまま
 4. 自前の `HonoXIsland` の facade は、`IslandComponents` が使う `hx4s.react.Island` に置き換わるので、使わなくなる

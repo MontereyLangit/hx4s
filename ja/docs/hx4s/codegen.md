@@ -18,9 +18,9 @@
 
 - 設定したソースファイルの、トップレベル object（パッケージ内を含む。入れ子の object は対象外）の `def` / `val` に付いたアノテーションを読む。object の名前は問わない。
 - `@route` / `@islands` を付けたメンバには、リテラルの名前と moduleID を持つ `@JSExportTopLevel` がちょうど 1 つ必要。`@route` は server の moduleID、`@islands` は client の moduleID でなければならない。
-- `@route("x.ts")` は GET、`@route("x.ts", "POST")` は named export。同じメンバに複数の `@route` を付けられ、同じパスのメソッドは 1 ファイルにまとまる。
+- `@route("x")` は GET、`@route("x", "POST")` は named export。同じメンバに複数の `@route` を付けられ、同じパスのメソッドは 1 ファイルにまとまる。
   メソッドは GET, POST, PUT, DELETE, PATCH, OPTIONS。HonoX の `createApp` はこの 6 つしか登録しないので `HEAD` は誤り（GET のハンドラが HEAD にも答える）。
-- `@islands[P]("x.tsx")` の P は props の型の完全修飾名。省くと `js.Object`。1 つのメンバに付けられる `@islands` は 1 つまで。
+- `@islands[P]("x")` の P は props の型の完全修飾名。省くと `js.Object`。1 つのメンバに付けられる `@islands` は 1 つまで。
 - export の宣言型が `IslandExport[T]`（設定 `islandExportType`）なら、`T` が `P` と同じ型名でなければならない（[ADR 0007](adr/0007-props-validation-and-typed-export.md)）。
 - 引数はすべて文字列リテラル。名前付き引数は宣言の順に限る。
 

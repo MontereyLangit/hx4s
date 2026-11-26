@@ -55,7 +55,7 @@ How to avoid double maintenance of client-side routing and server routes is cove
 HonoX's `createClient` collects island candidates with `import.meta.glob('/app/islands/**/*.tsx')`, and hydrates only those whose basename matches `/\/[a-zA-Z0-9-]+\.tsx$/`
 (`client/client.js`, 0.1.62). A file that doesn't match gets a `<honox-island>` in SSR but is never hydrated, because the client doesn't discover it.
 
-hx4s makes the following a **P0 public rule**: the basename of `filePath` in `@islands` must match `[A-Za-z0-9-]+\.tsx`.
+hx4s makes the following a **P0 public rule**: the generated basename for `@islands` must match `[A-Za-z0-9-]+\.tsx`.
 3ch's `AnnotationScanner` already checks this as `IslandBasename` (`875a47b`).
 
 | Example | Result |

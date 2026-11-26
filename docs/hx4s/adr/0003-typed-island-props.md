@@ -13,7 +13,7 @@ HonoX runs `JSON.stringify` on props and puts them in an HTML attribute, so they
 
 - Island props are placed as **non-native JS traits** (`trait XxxProps extends js.Object`) in a shared Scala.js module referenced by both server and client.
 - The annotation becomes `final class islands[P](val filePath: String) extends StaticAnnotation`. `P` has no bound (`hx4s-core` is also compiled for the JVM, where there is no `js.Object`).
-- Codegen reads the **syntax** of the type argument of `@islands[a.b.XxxProps]("x.tsx")` and generates `IslandComponents.XxxJs(props: a.b.XxxProps): VdomElement`. If the type argument is omitted, it is `js.Object` as before.
+- Codegen reads the **syntax** of the type argument of `@islands[a.b.XxxProps]("x")` and generates `IslandComponents.XxxJs(props: a.b.XxxProps): VdomElement`. If the type argument is omitted, it is `js.Object` as before.
 - In P0, `P` is limited to a fully qualified name (U-11).
 - The client receives it with `raw.asInstanceOf[P]`, and validation of required keys (`validate(raw): Either[String, P]`) is hand-written in shared.
 

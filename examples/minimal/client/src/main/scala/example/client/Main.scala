@@ -10,7 +10,7 @@ import scala.scalajs.js.annotation.JSExportTopLevel
 object CounterEntry {
 
   /** Creates a counter component with the shared props validator. */
-  @islands[example.shared.CounterProps]("counter.tsx")
+  @islands[example.shared.CounterProps]("counter")
   @JSExportTopLevel("CounterJs", "island-counter")
   def counter(): IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps.fields)(props => Counter.Component(props))
 }
@@ -18,7 +18,7 @@ object CounterEntry {
 /** Exposes the item-list island factory to HonoX. */
 object ItemListEntry {
   /** Creates an item-list component with the shared props validator. */
-  @islands[example.shared.ItemListProps]("item-list.tsx")
+  @islands[example.shared.ItemListProps]("item-list")
   @JSExportTopLevel("ItemListJs", "island-item-list")
   def itemList(): IslandExport[ItemListProps] = IslandExport("ItemListJs", ItemListProps.fields)(props => ItemList.Component(props))
 }

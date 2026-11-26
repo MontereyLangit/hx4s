@@ -239,8 +239,9 @@ object AnnotationScanner {
     })
 
   private def outputPath(path: String, tree: Tree, value: String, extension: String): Result[String] = {
-    if (!value.endsWith(extension)) Left(List(at(path, tree, s"output path $value must end with $extension")))
-    else OutputPath.segments(value).left.map(reason => List(at(path, tree, reason))).map(_ => value)
+    val file = if (value.endsWith(extension)) value else s"$value$extension"
+    // Validate the declaration before an appended suffix can hide an invalid final segment.
+    OutputPath.segments(value).left.map(reason => List(at(path, tree, reason))).map(_ => file)
   }
 
   private def routeConflicts(found: List[(String, Found.Route)]): List[CodegenError] = {

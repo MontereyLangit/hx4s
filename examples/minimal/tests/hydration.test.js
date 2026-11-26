@@ -34,6 +34,11 @@ test('on jsdom, app/client.ts hydrates Scala.js islands and leaves islands with 
     const html = await (await workerFetch('/')).text();
     dom = new JSDOM(html);
     const document = dom.window.document;
+    assert.deepEqual([...document.querySelectorAll('honox-island')].map((island) => island.getAttribute('component-name')).sort(), [
+      '/app/islands/counter.tsx',
+      '/app/islands/counter.tsx',
+      '/app/islands/item-list.tsx',
+    ]);
     // Give the third island (counter B) props of a different shape, like HTML from an older version
     const counters = [...document.querySelectorAll('honox-island[component-name="/app/islands/counter.tsx"]')];
     counters[1].setAttribute('data-serialized-props', JSON.stringify({ label: 'B' }));

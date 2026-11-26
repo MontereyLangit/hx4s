@@ -55,7 +55,7 @@ Full Hydration を正式に扱う場合は、props を `<script type="applicatio
 HonoX の `createClient` は island の候補を `import.meta.glob('/app/islands/**/*.tsx')` で集め、さらに basename が `/\/[a-zA-Z0-9-]+\.tsx$/` に一致するものだけを hydrate 対象にする
 （`client/client.js`、0.1.62）。一致しないファイルは SSR で `<honox-island>` が出ても、クライアントが探索しないので hydrate されない。
 
-hx4s は次を **P0 の公開規則** とする。`@islands` の `filePath` の basename は `[A-Za-z0-9-]+\.tsx` に一致すること。
+hx4s は次を **P0 の公開規則** とする。`@islands` から生成するファイルの basename は `[A-Za-z0-9-]+\.tsx` に一致すること。
 3ch の `AnnotationScanner` は `IslandBasename` としてすでに検査している（`875a47b`）。
 
 | 例 | 結果 |

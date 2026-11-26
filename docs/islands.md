@@ -62,7 +62,7 @@ Unsupported types and what happens.
 import hx4s.annotation.islands
 import hx4s.react.IslandExport
 
-@islands[example.shared.CounterProps]("counter.tsx")
+@islands[example.shared.CounterProps]("counter")
 @JSExportTopLevel("CounterJs", "client")
 val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps.fields)(props => Counter.Component(props))
 ```
@@ -71,7 +71,7 @@ val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps
 | --- | --- |
 | Target | A `def` / `val` in a top-level object of the configured sources (the client project) |
 | Type argument `P` | The **fully qualified name** of the props type. An imported short name can't be used (`must be a fully qualified class name`). If omitted, `js.Object` |
-| `filePath` | A string literal relative to `app/islands`, ending in `.tsx` |
+| `filePath` | A string literal relative to `app/islands`, with an optional `.tsx` suffix |
 | `@JSExportTopLevel` | Exactly one, with a literal moduleID. The export name is a JS identifier and must be unique across all Islands because it also names an `IslandComponents` method |
 | `@islands` per member | At most one |
 
@@ -81,7 +81,7 @@ HonoX's `createClient` hydrates only files whose basename matches `[A-Za-z0-9-]+
 
 | Example | Result |
 | --- | --- |
-| `thread-view.tsx`, `Foo2.tsx`, `a/b-c.tsx` | Allowed |
+| `thread-view`, `Foo2`, `a/b-c` | Allowed |
 | `foo_bar.tsx`, `foo.bar.tsx`, `foo bar.tsx`, `foo.island.tsx`, `$foo.tsx` | Rejected: `island basename of bad_name.tsx must match [A-Za-z0-9-]+\.tsx for HonoX discovery` |
 
 Paths containing directories starting with `.` or `node_modules` are also rejected. Paths that differ only in case are rejected as duplicates.
@@ -92,7 +92,7 @@ Keep `"client"` to share one export module, or give independently loaded Islands
 
 ```scala
 object CounterEntry {
-  @islands[example.shared.CounterProps]("counter.tsx")
+  @islands[example.shared.CounterProps]("counter")
   @JSExportTopLevel("CounterJs", "island-counter")
   def counter(): IslandExport[CounterProps] =
     IslandExport("CounterJs", CounterProps.fields)(props => Counter.Component(props))

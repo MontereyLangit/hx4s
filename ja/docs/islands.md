@@ -62,7 +62,7 @@ props は JSON（HonoX が `JSON.stringify` して属性値に入れる）で受
 import hx4s.annotation.islands
 import hx4s.react.IslandExport
 
-@islands[example.shared.CounterProps]("counter.tsx")
+@islands[example.shared.CounterProps]("counter")
 @JSExportTopLevel("CounterJs", "client")
 val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps.fields)(props => Counter.Component(props))
 ```
@@ -71,7 +71,7 @@ val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps
 | --- | --- |
 | 対象 | 設定したソース（client プロジェクト）のトップレベル object の `def` / `val` |
 | 型引数 `P` | props の型の**完全修飾名**。import した短い名前は書けない（`must be a fully qualified class name`）。省くと `js.Object` |
-| `filePath` | `app/islands` からの相対パスで `.tsx` で終わる文字列リテラル |
+| `filePath` | `app/islands` からの相対パスを表す文字列リテラル。`.tsx` は省略できる |
 | `@JSExportTopLevel` | ちょうど 1 つ。moduleID は文字列リテラル。export 名は `IslandComponents` のメソッド名にもなるため、全 Island で一意な JS 識別子 |
 | 1 つのメンバの `@islands` | 1 つまで |
 
@@ -81,7 +81,7 @@ HonoX の `createClient` は basename が `[A-Za-z0-9-]+\.tsx` のファイル�
 
 | 例 | 結果 |
 | --- | --- |
-| `thread-view.tsx`、`Foo2.tsx`、`a/b-c.tsx` | 使える |
+| `thread-view`、`Foo2`、`a/b-c` | 使える |
 | `foo_bar.tsx`、`foo.bar.tsx`、`foo bar.tsx`、`foo.island.tsx`、`$foo.tsx` | 拒否: `island basename of bad_name.tsx must match [A-Za-z0-9-]+\.tsx for HonoX discovery` |
 
 `.` で始まるディレクトリと `node_modules` を含むパスも拒否される。大文字小文字だけ違うパスは重複として拒否される。
@@ -92,7 +92,7 @@ HonoX の `createClient` は basename が `[A-Za-z0-9-]+\.tsx` のファイル�
 
 ```scala
 object CounterEntry {
-  @islands[example.shared.CounterProps]("counter.tsx")
+  @islands[example.shared.CounterProps]("counter")
   @JSExportTopLevel("CounterJs", "island-counter")
   def counter(): IslandExport[CounterProps] =
     IslandExport("CounterJs", CounterProps.fields)(props => Counter.Component(props))

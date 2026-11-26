@@ -15,7 +15,7 @@ object Api {
 ## Returning JSON
 
 ```scala
-@route("api/items/[id].ts")
+@route("api/items/[id]")
 @JSExportTopLevel("itemGet", "server")
 def itemGet(c: ApiContext): Response = {
   val id = c.req.param("id").getOrElse("")
@@ -52,12 +52,12 @@ Convert a Promise to a Future with `toFuture`, and back with `toJSPromise`.
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js.JSConverters.*
 
-@route("api/echo.ts", "POST")
+@route("api/echo", "POST")
 @JSExportTopLevel("echoPost", "server")
 def echoPost(c: ApiContext): js.Promise[Response] =
   c.req.json().toFuture.map(body => c.json(body, 201)).toJSPromise     // returns the body as-is with 201
 
-@route("api/items/[id].ts", "PUT")
+@route("api/items/[id]", "PUT")
 @JSExportTopLevel("itemPut", "server")
 def itemPut(c: ApiContext): js.Promise[Response] =
   c.req.json().toFuture.map { body =>
@@ -84,7 +84,7 @@ Return responses without a body (`204`, `304`) with `c.body(null, status)`. `c.t
 and the Fetch API's `Response` doesn't allow a body for 204 / 304, so it throws and `500` is returned.
 
 ```scala
-@route("api/notes/[id].ts", "DELETE")
+@route("api/notes/[id]", "DELETE")
 @JSExportTopLevel("noteDelete", "server")
 def noteDelete(c: ApiContext): Response = {
   val id = c.req.param("id").getOrElse("")
@@ -98,7 +98,7 @@ No `content-type` is added, so set it in the headers when returning a body.
 `c.notFound()` returns the app's Not Found response (with Hono's default, `404` and the body `404 Not Found`). Its return type is `Response | js.Promise[Response]`, so match the handler's return type to it.
 
 ```scala
-@route("api/notes/[id].ts")
+@route("api/notes/[id]")
 @JSExportTopLevel("noteGet", "server")
 def noteGet(c: ApiContext): Response | js.Promise[Response] =
   Notes.find(c.req.param("id").getOrElse("")).fold(c.notFound())(note => c.json(toJs(note)))

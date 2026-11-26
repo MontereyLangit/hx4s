@@ -10,11 +10,11 @@ import hx4s.annotation.route
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 object Main {
-  @route("items/[id].ts")                      // GET
+  @route("items/[id]")                      // GET
   @JSExportTopLevel("itemPage", "server")
   def itemPage(c: AppContext): js.Promise[Response] = ...
 
-  @route("items/[id].ts", "POST")
+  @route("items/[id]", "POST")
   @JSExportTopLevel("itemUpdate", "server")
   def itemUpdate(c: AppContext): js.Promise[Response] = ...
 }
@@ -23,7 +23,7 @@ object Main {
 | 項目 | 規則 |
 | --- | --- |
 | 対象 | 設定したソースのトップレベル object（パッケージの中を含む。入れ子の object は対象外）の `def` / `val`。object の名前は問わない |
-| `filePath` | `app/routes` からの相対パス。`.ts` で終わる文字列リテラル |
+| `filePath` | `app/routes` からの相対パス。文字列リテラル。`.ts` は省略できる |
 | `method` | `GET`（既定）・`POST`・`PUT`・`DELETE`・`PATCH`・`OPTIONS`。文字列リテラル |
 | `@JSExportTopLevel` | ちょうど 1 つ。名前と moduleID はリテラルで、moduleID は `"server"` |
 | 複数の `@route` | 1 つのメンバに複数付けられる（同じ関数を複数のパス・メソッドに割り当てる） |
@@ -31,7 +31,7 @@ object Main {
 
 `@route` は型ではなく名前（`hx4s.annotation.route`）で見分けるので、import の別名は使えない。完全修飾名（`@hx4s.annotation.route(...)`）は書ける。
 
-同じ `filePath` の複数のメソッドは 1 つの TS ファイルにまとまる。GET は `export default`、それ以外は `export const POST = ...` になる（`examples/minimal/app/routes/items/[id].ts` を参照）。
+`items/[id]` と `items/[id].ts` のように生成先が同じ複数のメソッドは 1 つの TS ファイルにまとまる。GET は `export default`、それ以外は `export const POST = ...` になる（`examples/minimal/app/routes/items/[id].ts` を参照）。
 
 ## ファイルパスと URL
 
@@ -98,7 +98,7 @@ trait Bindings extends js.Object {
   val GREETING: js.UndefOr[String]
 }
 
-@route("hello.ts")
+@route("hello")
 @JSExportTopLevel("helloPage", "server")
 def helloPage(c: Context[Bindings, js.Object]): Response =
   c.html(s"<p>${c.env.GREETING.getOrElse("hello")}</p>")
@@ -155,7 +155,7 @@ export default createRoute(async (c, next) => {
 ```scala
 val RequestId: ContextVariable[String] = ContextVariable("requestId")
 
-@route("api/whoami.ts")
+@route("api/whoami")
 @JSExportTopLevel("whoami", "server")
 def whoami(c: ApiContext): Response =
   c.json(js.Dynamic.literal(requestId = c.getVariable(RequestId).orUndefined))
