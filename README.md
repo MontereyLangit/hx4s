@@ -15,8 +15,8 @@ Routing, middleware, renderers, and island discovery and hydration stay in HonoX
 
 ## Features
 
-- **Routes written in Scala**: a function annotated with `@route("items/[id].ts", "POST")` becomes a HonoX file route. URL mapping follows HonoX's conventions as-is
-- **Typed islands**: the `P` (props trait) of `@islands[P]("counter.tsx")` is checked at compile time against both the server call `IslandComponents.CounterJs(props)` and the client export
+- **Routes written in Scala**: a function annotated with `@route("items/[id]", "POST")` becomes a HonoX file route. URL mapping follows HonoX's conventions as-is
+- **Typed islands**: the `P` (props trait) of `@islands[P]("counter")` is checked at compile time against both the server call `IslandComponents.CounterJs(props)` and the client export
 - **Props validation before hydration**: when the HTML and the client are from different builds and the props don't match, the island is not hydrated and the SSR HTML stays
 - **Server/client separation**: the direction of dependencies is checked against the sbt dependency graph (`hx4sCheckDependencies`)
 - **Safe generation**: never overwrites hand-written files, writes only after all checks pass, does not follow links
@@ -42,7 +42,7 @@ The client exports the island as an `IslandExport[P]` and publishes it to `app/i
 
 ```scala
 // client
-@islands[app.shared.CounterProps]("counter.tsx")
+@islands[app.shared.CounterProps]("counter")
 @JSExportTopLevel("CounterJs", "client")
 val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps.fields)(props => Counter(props))
 ```
@@ -51,7 +51,7 @@ A server handler becomes a HonoX route with `@route` and places the island throu
 
 ```scala
 // server
-@route("index.ts")
+@route("index")
 @JSExportTopLevel("indexPage", "server")
 def indexPage(c: AppContext): js.Promise[Response] = {
   val page = <.main(

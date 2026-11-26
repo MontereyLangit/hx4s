@@ -28,12 +28,12 @@ object Main {
   private def error(c: ApiContext, message: String, status: Int): Response = c.json(js.Dynamic.literal(error = message), status)
 
   /** Returns the sample notes as a JSON array. */
-  @route("api/notes.ts")
+  @route("api/notes")
   @JSExportTopLevel("notesList", "server")
   def notesList(c: ApiContext): Response = c.json(Notes.all.map(toJs).toJSArray)
 
   /** Returns `201` with a sample note for valid input or `400` for invalid input. Leaves the sample collection unchanged. */
-  @route("api/notes.ts", "POST")
+  @route("api/notes", "POST")
   @JSExportTopLevel("notesCreate", "server")
   def notesCreate(c: ApiContext): js.Promise[Response] =
     c.req.json().toFuture.map { raw =>
@@ -44,13 +44,13 @@ object Main {
     }.recover { case _: js.JavaScriptException => error(c, "The body is not JSON", 400) }.toJSPromise
 
   /** Returns a note as JSON or invokes Hono's not-found handler. */
-  @route("api/notes/[id].ts")
+  @route("api/notes/[id]")
   @JSExportTopLevel("noteGet", "server")
   def noteGet(c: ApiContext): Response | js.Promise[Response] =
     Notes.find(c.req.param("id").getOrElse("")).fold(c.notFound())(note => c.json(toJs(note)))
 
   /** Returns an empty `204` if the note exists or a JSON `404` otherwise. Leaves the sample collection unchanged. */
-  @route("api/notes/[id].ts", "DELETE")
+  @route("api/notes/[id]", "DELETE")
   @JSExportTopLevel("noteDelete", "server")
   def noteDelete(c: ApiContext): Response = {
     val id = c.req.param("id").getOrElse("")

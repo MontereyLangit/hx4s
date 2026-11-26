@@ -63,8 +63,8 @@ flowchart LR
   VW --> D2["dist/index.js"]
 ```
 
-1. `bbs.Main` の宣言に `@route("auth/index.ts")` と `@JSExportTopLevel("authPageHandler", "server")` を並べて書く。
-   `bbsclient.Main` には `@islands("posting-form.tsx")` と `@JSExportTopLevel("PostingFormJs", "client")` を並べる。
+1. `bbs.Main` の宣言に `@route("auth/index")` と `@JSExportTopLevel("authPageHandler", "server")` を並べて書く。
+   `bbsclient.Main` には `@islands("posting-form")` と `@JSExportTopLevel("PostingFormJs", "client")` を並べる。
 2. `npm run v6:generate`（= `sbt codegen/run`）が `GenerateAppFiles.main` を実行し、`framework` の `Codegen.appFiles` を `CodegenConfig` つきで呼ぶ。
    入力パスは `bbs/src/main/scala/io/_3ch/bbs/Main.scala` と `bbs-client/src/main/scala/io/_3ch/bbsclient/Main.scala` で、`GenerateAppFiles.config` が持つ。
    同じ実行で DO の TS 型 `app/scalajs-durable-objects.generated.d.ts` も書く（3ch 固有）。

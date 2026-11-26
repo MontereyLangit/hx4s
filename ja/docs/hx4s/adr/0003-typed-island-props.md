@@ -13,7 +13,7 @@ props は HonoX が `JSON.stringify` して HTML 属性に入れるので、JSON
 
 - island の Props は、server / client の両方が参照する shared の Scala.js モジュールに **非ネイティブ JS trait**（`trait XxxProps extends js.Object`）として置く。
 - アノテーションを `final class islands[P](val filePath: String) extends StaticAnnotation` にする。`P` に境界は付けない（`hx4s-core` は JVM でもコンパイルされ、`js.Object` が無いため）。
-- codegen は `@islands[a.b.XxxProps]("x.tsx")` の型引数の **構文** を読み、`IslandComponents.XxxJs(props: a.b.XxxProps): VdomElement` を生成する。型引数を省いた場合は従来どおり `js.Object`。
+- codegen は `@islands[a.b.XxxProps]("x")` の型引数の **構文** を読み、`IslandComponents.XxxJs(props: a.b.XxxProps): VdomElement` を生成する。型引数を省いた場合は従来どおり `js.Object`。
 - `P` は P0 では完全修飾名に限る（U-11）。
 - クライアントは `raw.asInstanceOf[P]` で受け、必須キーの検証（`validate(raw): Either[String, P]`）を shared に手書きする。
 

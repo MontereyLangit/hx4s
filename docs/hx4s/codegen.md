@@ -18,9 +18,9 @@ Annotations are recognized by name (the configured package name + `route` / `isl
 
 - Reads annotations on `def` / `val` in top-level objects (including inside packages; nested objects are not targets) of the configured source files. The object's name doesn't matter.
 - A member with `@route` / `@islands` needs exactly one `@JSExportTopLevel` with a literal name and moduleID. `@route` must use the server moduleID and `@islands` the client moduleID.
-- `@route("x.ts")` is GET, and `@route("x.ts", "POST")` is a named export. A member can have several `@route`s, and methods for the same path are combined into one file.
+- `@route("x")` is GET, and `@route("x", "POST")` is a named export. A member can have several `@route`s, and methods for the same path are combined into one file.
   Methods are GET, POST, PUT, DELETE, PATCH and OPTIONS. HonoX's `createApp` registers only these six, so `HEAD` is an error (the GET handler also answers HEAD).
-- The P of `@islands[P]("x.tsx")` is the fully qualified name of the props type. If omitted, `js.Object`. A member can have at most one `@islands`.
+- The P of `@islands[P]("x")` is the fully qualified name of the props type. If omitted, `js.Object`. A member can have at most one `@islands`.
 - If the export's declared type is `IslandExport[T]` (setting `islandExportType`), `T` must have the same type name as `P` ([ADR 0007](adr/0007-props-validation-and-typed-export.md)).
 - All arguments are string literals. Named arguments must be in declaration order.
 

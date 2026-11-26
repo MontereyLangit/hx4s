@@ -10,8 +10,8 @@
 | URL | 内容 | 使っている機能 |
 | --- | --- | --- |
 | `/` | 静的な SSR のページに、カウンターの island 2 つ（別々の props）と、配列・入れ子・省略できるキーを持つ一覧の island 1 つ | `IslandComponents`、`IslandExport`、`JsShape` |
-| `/items/:id` | 動的ルート。無い ID は 404。名前を変更するフォームを持つ | `@route("items/[id].ts")`、`c.req.param`、`c.status` |
-| `POST /items/:id` | フォームの値を検証し、保存した名前またはエラーを描画する（保存はしない） | `@route("items/[id].ts", "POST")`、`c.req.formData()` |
+| `/items/:id` | 動的ルート。無い ID は 404。名前を変更するフォームを持つ | `@route("items/[id]")`、`c.req.param`、`c.status` |
+| `POST /items/:id` | フォームの値を検証し、保存した名前またはエラーを描画する（保存はしない） | `@route("items/[id]", "POST")`、`c.req.formData()` |
 | `/api/items` | 品目の JSON。`?tag=` を繰り返すと、そのタグをすべて持つ品目に絞る | `c.json`、`c.req.queries` |
 
 ### ファイルの役割

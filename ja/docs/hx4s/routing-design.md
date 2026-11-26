@@ -7,7 +7,7 @@
 final class route(val filePath: String, val method: String = "GET") extends StaticAnnotation
 
 // bbs/.../Main.scala
-@route("[bbs]/index.ts")
+@route("[bbs]/index")
 @JSExportTopLevel("boardIndexHandler", "server")
 def boardIndexHandler(c: js.Any): js.Promise[Response] = BoardHandler.index(c.asInstanceOf[HonoContextFacade])
 ```
@@ -40,7 +40,7 @@ export default createRoute((c) => boardIndexHandler(c));
 | export | アノテーション付きの宣言に `@JSExportTopLevel` がちょうど 1 つ。引数は文字列リテラル 2 つで、moduleID は `server`（`@route`）/ `client`（`@islands`） |
 | export 名 | JS の識別子として妥当（`[A-Za-z_$][A-Za-z0-9_$]*`） |
 | 引数 | 文字列リテラルのみ。名前付き引数は宣言順のときだけ可 |
-| パス | `.ts` で終わる。各セグメントが空・`.`・`..` でなく `[A-Za-z0-9_.$\[\]-]+` に一致 |
+| パス | `.ts` は省略できる。各セグメントが空・`.`・`..` でなく `[A-Za-z0-9_.$\[\]-]+` に一致 |
 | メソッド | `GET` / `POST` / `PUT` / `DELETE` / `PATCH` / `OPTIONS` / `HEAD` |
 | 衝突 | 大文字小文字だけが違うパス、同じパス・同じメソッドの重複 |
 | route のファイル名 | basename が `_` 始まりなら拒否（HonoX の `ROUTES` が除外するため）。`-` / `$` 始まり、`.test.ts` / `.spec.ts`、`-` 始まりのディレクトリは通る（1.2） |

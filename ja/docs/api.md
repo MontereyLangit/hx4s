@@ -15,7 +15,7 @@ object Api {
 ## JSON を返す
 
 ```scala
-@route("api/items/[id].ts")
+@route("api/items/[id]")
 @JSExportTopLevel("itemGet", "server")
 def itemGet(c: ApiContext): Response = {
   val id = c.req.param("id").getOrElse("")
@@ -52,12 +52,12 @@ Promise は `toFuture` で Future にして、`toJSPromise` で戻す。
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js.JSConverters.*
 
-@route("api/echo.ts", "POST")
+@route("api/echo", "POST")
 @JSExportTopLevel("echoPost", "server")
 def echoPost(c: ApiContext): js.Promise[Response] =
   c.req.json().toFuture.map(body => c.json(body, 201)).toJSPromise     // 本文をそのまま 201 で返す
 
-@route("api/items/[id].ts", "PUT")
+@route("api/items/[id]", "PUT")
 @JSExportTopLevel("itemPut", "server")
 def itemPut(c: ApiContext): js.Promise[Response] =
   c.req.json().toFuture.map { body =>
@@ -84,7 +84,7 @@ c.redirect("/", 302)
 `Response` を作り、Fetch API の `Response` は 204 / 304 に本文を許さないので、例外になって `500` が返る。
 
 ```scala
-@route("api/notes/[id].ts", "DELETE")
+@route("api/notes/[id]", "DELETE")
 @JSExportTopLevel("noteDelete", "server")
 def noteDelete(c: ApiContext): Response = {
   val id = c.req.param("id").getOrElse("")
@@ -98,7 +98,7 @@ def noteDelete(c: ApiContext): Response = {
 `c.notFound()` はアプリの Not Found の応答（Hono の既定では `404` と本文 `404 Not Found`）を返す。戻り値は `Response | js.Promise[Response]` なので、ハンドラの戻り値の型もそれに合わせる。
 
 ```scala
-@route("api/notes/[id].ts")
+@route("api/notes/[id]")
 @JSExportTopLevel("noteGet", "server")
 def noteGet(c: ApiContext): Response | js.Promise[Response] =
   Notes.find(c.req.param("id").getOrElse("")).fold(c.notFound())(note => c.json(toJs(note)))

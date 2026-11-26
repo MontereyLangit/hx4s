@@ -45,7 +45,7 @@ object App {
     )
 }
 
-@islands[example.shared.AppProps]("app.tsx")
+@islands[example.shared.AppProps]("app")
 @JSExportTopLevel("AppJs", "client")
 val app: IslandExport[AppProps] = IslandExport("AppJs", AppProps.fields)(props => App.Component(props))
 ```
@@ -55,7 +55,7 @@ val app: IslandExport[AppProps] = IslandExport("AppJs", AppProps.fields)(props =
 The server page:
 
 ```scala
-@route("spa.ts")
+@route("spa")
 @JSExportTopLevel("spaPage", "server")
 def spaPage(c: ApiContext): js.Promise[Response] =
   c.renderPromise(IslandComponents.AppJs(new AppProps { val title = "SPA" }).rawElement, new RenderProps { val title = "spa" })

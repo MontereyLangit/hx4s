@@ -63,8 +63,8 @@ flowchart LR
   VW --> D2["dist/index.js"]
 ```
 
-1. Declarations in `bbs.Main` carry `@route("auth/index.ts")` together with `@JSExportTopLevel("authPageHandler", "server")`.
-   `bbsclient.Main` carries `@islands("posting-form.tsx")` together with `@JSExportTopLevel("PostingFormJs", "client")`.
+1. Declarations in `bbs.Main` carry `@route("auth/index")` together with `@JSExportTopLevel("authPageHandler", "server")`.
+   `bbsclient.Main` carries `@islands("posting-form")` together with `@JSExportTopLevel("PostingFormJs", "client")`.
 2. `npm run v6:generate` (= `sbt codegen/run`) runs `GenerateAppFiles.main`, which calls `framework`'s `Codegen.appFiles` with a `CodegenConfig`.
    The input paths, `bbs/src/main/scala/io/_3ch/bbs/Main.scala` and `bbs-client/src/main/scala/io/_3ch/bbsclient/Main.scala`, are held by `GenerateAppFiles.config`.
    The same run also writes the DO TS types `app/scalajs-durable-objects.generated.d.ts` (3ch-specific).

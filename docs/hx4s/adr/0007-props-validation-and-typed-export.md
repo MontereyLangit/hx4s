@@ -42,7 +42,7 @@ object IslandExport {
 Client declarations take this form.
 
 ```scala
-@islands[example.shared.CounterProps]("counter.tsx")
+@islands[example.shared.CounterProps]("counter")
 @JSExportTopLevel("CounterJs", "client")
 val counter: IslandExport[CounterProps] = IslandExport("CounterJs", CounterProps.fields)(props => Counter.Component(props))
 ```

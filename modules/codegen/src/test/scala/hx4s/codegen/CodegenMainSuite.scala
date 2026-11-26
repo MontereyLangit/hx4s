@@ -114,7 +114,7 @@ class CodegenMainSuite extends FunSuite {
     }
   }
 
-  test("generates routes, islands and the SSR API with generic settings only, and does not rewrite on the second run") {
+  test("switching to extensionless annotations keeps routes, islands and the SSR API byte-for-byte identical") {
     withTempDir { root =>
       Files.createDirectories(root.resolve("server"))
       Files.createDirectories(root.resolve("client"))
@@ -124,10 +124,21 @@ class CodegenMainSuite extends FunSuite {
         """object Widgets { @islands[example.WidgetProps]("widget.tsx") @JSExportTopLevel("WidgetJs", "client") val widget = 1 }""")
       val config = CodegenMain.parse("app" :: args(root, "--scala-output", "out/Islands.scala")).toOption.get.config
       assertEquals(Codegen.appFiles(config).map(s => (s.written.size, s.unchanged.size)), Right((2, 0)))
+      assertEquals(Codegen.islandComponents(config).map(_.written.size), Right(1))
+      val outputs = List("app/routes/hello.ts", "app/islands/widget.tsx", "out/Islands.scala").map(root.resolve(_))
+      val original = outputs.map(file => Files.readAllBytes(file).toList)
+      val server = root.resolve("server/App.scala")
+      val client = root.resolve("client/App.scala")
+      Files.writeString(server, Files.readString(server).replace("@route(\"hello.ts\")", "@route(\"hello\")"))
+      Files.writeString(client, Files.readString(client).replace("widget.tsx", "widget"))
+
       assertEquals(Codegen.appFiles(config).map(s => (s.written.size, s.unchanged.size)), Right((0, 2)))
+      assertEquals(Codegen.islandComponents(config).map(_.unchanged.size), Right(1))
+      Files.writeString(server, Files.readString(server).replace("hello.ts", "hello"))
+      assertEquals(Codegen.appFiles(config).map(s => (s.written.size, s.unchanged.size)), Right((0, 2)))
+      assertEquals(outputs.map(file => Files.readAllBytes(file).toList), original)
       assert(Files.readString(root.resolve("app/routes/hello.ts")).contains("export const POST = __hx4s_createRoute((c) => __hx4s_handler_hello(c));"))
       assert(Files.readString(root.resolve("app/islands/widget.tsx")).contains("import { WidgetJs as __hx4s_island } from \"scalajs:client.js\";"))
-      assertEquals(Codegen.islandComponents(config).map(_.written.size), Right(1))
       assert(Files.readString(root.resolve("out/Islands.scala")).contains("def `WidgetJs`(props: _root_.example.WidgetProps)"))
     }
   }
