@@ -8,6 +8,7 @@ hx4s は、Scala.js から [HonoX](https://github.com/honojs/honox) と React �
 | --- | --- |
 | [はじめに](getting-started.md) | `examples/minimal` の動かし方。自分のプロジェクトの作り方（sbt・npm・Vite・Scala のコード） |
 | [インストール](installation.md) | 座標、ローカル公開、版と commit の固定 |
+| [Scala のソース構成](source-organization.md) | ハンドラ・ビュー・コンポーネント・island の任意の構成例 |
 | [ルーティング](routing.md) | `@route`、ファイルパスと URL、codegen が拒否するもの、`Context` |
 | [Islands](islands.md) | `@islands[P]`、props の trait と使える型、`IslandExport`、`IslandComponents` |
 | [SSR と hydration](ssr-hydration.md) | 描画の流れ、hydrate 前の検証、世代ずれ、server のコードを client に入れない仕組み、テスト |

@@ -1,5 +1,7 @@
 # examples
 
+minimal と api-only は小規模プロジェクトの構成例。規模を広げる場合の構成と、minimal のハンドラからビューと island につながる流れは [Scala のソース構成](source-organization.md) を参照。
+
 ## minimal
 
 `examples/minimal` は SSR + Islands の最小のアプリ。Cloudflare Workers（wrangler）で動かし、hx4s はローカル公開した成果物だけで解決する（ソースツリーを参照しない）。

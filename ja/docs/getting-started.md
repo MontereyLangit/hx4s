@@ -268,6 +268,8 @@ declare module "scalajs:server.js" {
 
 ### 5. Scala
 
+最初は `Main.scala` 一つか、少数のハンドラファイルから始められる。プロジェクトが大きくなったら [Scala のソース構成](source-organization.md) の構成例を参照。
+
 shared の props（`shared/src/main/scala/app/shared/CounterProps.scala`）。
 
 ```scala

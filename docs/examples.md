@@ -1,5 +1,7 @@
 # Examples
 
+The minimal and API-only examples show two small-project layouts. See [Scala source organization](source-organization.md) for larger projects and for the minimal example’s handler-to-view-to-island flow.
+
 ## minimal
 
 `examples/minimal` is a minimal SSR + Islands app. It runs on Cloudflare Workers (wrangler), and resolves hx4s only from locally published artifacts (it doesn't reference the source tree).

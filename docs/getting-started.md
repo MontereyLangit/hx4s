@@ -268,6 +268,8 @@ declare module "scalajs:server.js" {
 
 ### 5. Scala
 
+Start with `Main.scala` or a few handler files. See [Scala source organization](source-organization.md) for optional layouts as the project grows.
+
 Shared props (`shared/src/main/scala/app/shared/CounterProps.scala`).
 
 ```scala
