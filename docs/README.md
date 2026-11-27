@@ -10,6 +10,7 @@ hx4s is a meta-framework for using [HonoX](https://github.com/honojs/honox) and 
 | --- | --- |
 | [Getting started](getting-started.md) | Running `examples/minimal`. Setting up your own project (sbt, npm, Vite, Scala code) |
 | [Installation](installation.md) | Coordinates, local publishing, pinning the version and commit |
+| [Scala source organization](source-organization.md) | Optional layouts for handlers, views, components, and islands |
 | [Routing](routing.md) | `@route`, file paths and URLs, what codegen rejects, `Context` |
 | [Islands](islands.md) | `@islands[P]`, the props trait and supported types, `IslandExport`, `IslandComponents` |
 | [SSR and hydration](ssr-hydration.md) | Rendering flow, validation before hydration, version skew, keeping server code out of the client, testing |
